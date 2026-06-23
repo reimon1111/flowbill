@@ -1,0 +1,98 @@
+import type {
+  RecurringBillingItemRecord,
+  RecurringBillingRecord,
+} from "@/lib/types";
+import { computeInitialNextBillingDate } from "@/lib/recurring-utils";
+
+const now = new Date().toISOString();
+const nextMonth = computeInitialNextBillingDate(25);
+
+export const initialRecurringBillings: RecurringBillingRecord[] = [
+  {
+    id: "rb_1",
+    customerId: "c1",
+    title: "HP保守（月額）",
+    billingDay: 25,
+    nextBillingDate: nextMonth,
+    status: "active",
+    subtotal: 30000,
+    taxAmount: 3000,
+    totalAmount: 33000,
+    memo: "サーバー監視・軽微改修含む",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "rb_2",
+    customerId: "c2",
+    title: "サイト管理費",
+    billingDay: 1,
+    nextBillingDate: computeInitialNextBillingDate(1),
+    status: "active",
+    subtotal: 15000,
+    taxAmount: 1500,
+    totalAmount: 16500,
+    memo: "",
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "rb_3",
+    customerId: "c1",
+    title: "ドメイン・サーバー維持",
+    billingDay: 15,
+    nextBillingDate: computeInitialNextBillingDate(15),
+    status: "paused",
+    subtotal: 5000,
+    taxAmount: 500,
+    totalAmount: 5500,
+    memo: "一時停止中（顧客依頼）",
+    createdAt: now,
+    updatedAt: now,
+  },
+];
+
+export const initialRecurringBillingItems: RecurringBillingItemRecord[] = [
+  {
+    id: "rbi_1",
+    recurringBillingId: "rb_1",
+    itemTemplateId: null,
+    name: "HP保守（月額）",
+    description: "月次保守・監視",
+    quantity: 1,
+    unitPrice: 30000,
+    taxRate: 0.1,
+    amount: 30000,
+    sortOrder: 0,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "rbi_2",
+    recurringBillingId: "rb_2",
+    itemTemplateId: null,
+    name: "サイト管理費",
+    description: "更新・バックアップ",
+    quantity: 1,
+    unitPrice: 15000,
+    taxRate: 0.1,
+    amount: 15000,
+    sortOrder: 0,
+    createdAt: now,
+    updatedAt: now,
+  },
+  {
+    id: "rbi_3",
+    recurringBillingId: "rb_3",
+    itemTemplateId: null,
+    name: "ドメイン・サーバー維持",
+    description: "",
+    quantity: 1,
+    unitPrice: 5000,
+    taxRate: 0.1,
+    amount: 5000,
+    sortOrder: 0,
+    createdAt: now,
+    updatedAt: now,
+  },
+];

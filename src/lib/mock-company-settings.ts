@@ -1,0 +1,32 @@
+import type { CompanySettings } from "@/lib/types";
+
+export const initialCompanySettings: CompanySettings = {
+  id: "cs_001",
+  companyName: "株式会社クリエイトスタジオ",
+  postalCode: "150-0001",
+  address: "東京都渋谷区神宮前1-2-3 クリエイトビル4F",
+  phone: "03-1234-5678",
+  fax: "03-1234-5679",
+  contactName: "山田 太郎",
+  email: "info@createstudio.co.jp",
+  invoiceNumber: "T1234567890123",
+  bankName: "みずほ銀行",
+  bankBranch: "渋谷支店",
+  bankAccountType: "普通",
+  bankAccountNumber: "1234567",
+  bankAccountHolder: "カ）クリエイトスタジオ",
+  logoUrl: null,
+  stampUrl: null,
+  signatureUrl: null,
+  quoteValidityDays: 30,
+  quoteDefaultExpiryType: "1_month",
+  quoteMemoTemplate: "",
+  invoiceMemoTemplate: "お振込手数料はご負担願います。",
+  paymentTerms: "請求書発行後14日以内",
+  orderMemoTemplate: "",
+  deliveryNoteMemoTemplate: "",
+  receiptMemoTemplate: "",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+

@@ -1,0 +1,283 @@
+import {
+  itemsFromInvoiceItems,
+} from "@/lib/build-commercial-items";
+import { todayISO } from "@/lib/quote-dates";
+import { resolveCommercialItemsForProject } from "@/lib/services/project-items";
+import { useCompanySettingsStore } from "@/stores/company-settings-store";
+import { useProjectStore } from "@/stores/project-store";
+import { useQuoteStore } from "@/stores/quote-store";
+import { useInvoiceStore } from "@/stores/invoice-store";
+import { useOrderStore } from "@/stores/order-store";
+import { useDeliveryNoteStore } from "@/stores/delivery-note-store";
+import { useReceiptStore } from "@/stores/receipt-store";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  DOCUMENT_MANAGEMENT_MIGRATION_HINT,
+  isMissingDocumentManagementTables,
+  logSupabaseError,
+  toUserFacingDbError,
+} from "@/lib/db/errors";
+import {
+  dbInsertDeliveryNote,
+  dbInsertOrder,
+  dbInsertReceipt,
+  dbUpdateDeliveryNote,
+  dbUpdateOrder,
+  dbUpdateReceipt,
+} from "@/lib/db/write-commercial-documents";
+import type {
+  DeliveryNoteInput,
+  DeliveryNoteItemRecord,
+  DeliveryNoteRecord,
+  OrderInput,
+  OrderItemRecord,
+  OrderRecord,
+  ReceiptInput,
+  ReceiptItemRecord,
+  ReceiptRecord,
+} from "@/lib/commercial-document";
+import type { CommercialDocumentFormValues, OrderDocumentFormValues } from "@/lib/validations/commercial-document";
+import { normalizeUnit } from "@/lib/constants/units";
+import { defaultOrderRecipientName } from "@/lib/order-recipient";
+
+function defaultPaymentTerms(): string {
+  return (
+    useCompanySettingsStore.getState().settings.paymentTerms?.trim() ||
+    "請求書発行後14日以内"
+  );
+}
+
+export async function createOrderFromProject(projectId: string) {
+  const project = useProjectStore.getState().getProjectById(projectId);
+  if (!project) return null;
+
+  const quote = useQuoteStore
+    .getState()
+    .getQuotesByProjectId(projectId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+
+  const settings = useCompanySettingsStore.getState().settings;
+  const input: OrderInput = {
+    projectId: project.id,
+    customerId: project.customerId,
+    quoteId: quote?.id ?? "",
+    issueDate: todayISO(),
+    paymentTerms: defaultPaymentTerms(),
+    memo: settings.orderMemoTemplate ?? "",
+    recipientName: defaultOrderRecipientName(settings.companyName),
+    items: resolveCommercialItemsForProject(projectId, project.projectName),
+  };
+
+  const order = useOrderStore.getState().createOrder(input);
+  if (isSupabaseConfigured()) {
+    const items = useOrderStore.getState().getOrderItems(order.id);
+    try {
+      await dbInsertOrder(order, items);
+    } catch (error) {
+      useOrderStore.getState().removeOrder(order.id);
+      throw toUserFacingDbError(error);
+    }
+  }
+  return order;
+}
+
+export async function createDeliveryNoteFromProject(projectId: string) {
+  const project = useProjectStore.getState().getProjectById(projectId);
+  if (!project) return null;
+
+  const order = useOrderStore
+    .getState()
+    .getOrdersByProjectId(projectId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+
+  const settings = useCompanySettingsStore.getState().settings;
+  const input: DeliveryNoteInput = {
+    projectId: project.id,
+    customerId: project.customerId,
+    orderId: order?.id ?? "",
+    issueDate: todayISO(),
+    paymentTerms: defaultPaymentTerms(),
+    memo: settings.deliveryNoteMemoTemplate ?? "",
+    items: resolveCommercialItemsForProject(projectId, project.projectName),
+  };
+
+  const note = useDeliveryNoteStore.getState().createDeliveryNote(input);
+  if (isSupabaseConfigured()) {
+    const items = useDeliveryNoteStore.getState().getItems(note.id);
+    await dbInsertDeliveryNote(note, items);
+  }
+  return note;
+}
+
+export async function createReceiptFromInvoice(invoiceId: string) {
+  const invoice = useInvoiceStore.getState().getInvoiceById(invoiceId);
+  if (!invoice) return null;
+
+  const invoiceItems = useInvoiceStore.getState().getInvoiceItems(invoiceId);
+  const settings = useCompanySettingsStore.getState().settings;
+
+  const input: ReceiptInput = {
+    projectId: invoice.projectId,
+    customerId: invoice.customerId,
+    invoiceId: invoice.id,
+    issueDate: todayISO(),
+    paymentTerms: invoice.paymentTerms || defaultPaymentTerms(),
+    memo: settings.receiptMemoTemplate ?? "",
+    items: itemsFromInvoiceItems(invoiceItems),
+  };
+
+  const receipt = useReceiptStore.getState().createReceipt(input);
+  if (isSupabaseConfigured()) {
+    const items = useReceiptStore.getState().getItems(receipt.id);
+    await dbInsertReceipt(receipt, items);
+  }
+  return receipt;
+}
+
+export async function createReceiptFromProject(projectId: string) {
+  const invoice = useInvoiceStore
+    .getState()
+    .getInvoicesByProjectId(projectId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  if (!invoice) return null;
+  return createReceiptFromInvoice(invoice.id);
+}
+
+export function getOrderById(id: string): OrderRecord | null {
+  return useOrderStore.getState().getOrderById(id) ?? null;
+}
+
+export function getOrderItems(orderId: string): OrderItemRecord[] {
+  return useOrderStore.getState().getOrderItems(orderId);
+}
+
+export function getDeliveryNoteById(id: string): DeliveryNoteRecord | null {
+  return useDeliveryNoteStore.getState().getDeliveryNoteById(id) ?? null;
+}
+
+export function getDeliveryNoteItems(deliveryNoteId: string): DeliveryNoteItemRecord[] {
+  return useDeliveryNoteStore.getState().getItems(deliveryNoteId);
+}
+
+export function getReceiptById(id: string): ReceiptRecord | null {
+  return useReceiptStore.getState().getReceiptById(id) ?? null;
+}
+
+export function getReceiptItems(receiptId: string): ReceiptItemRecord[] {
+  return useReceiptStore.getState().getItems(receiptId);
+}
+
+export function commercialDocumentInputFromForm(
+  values: CommercialDocumentFormValues
+): OrderInput {
+  return {
+    projectId: values.projectId,
+    customerId: values.customerId,
+    issueDate: values.issueDate,
+    paymentTerms: values.paymentTerms.trim(),
+    memo: values.memo.trim(),
+    items: values.items.map((it, idx) => ({
+      itemTemplateId: it.itemTemplateId,
+      name: it.name.trim(),
+      description: it.description.trim(),
+      width: it.width?.trim() ?? "",
+      height: it.height?.trim() ?? "",
+      quantity: it.quantity,
+      unit: normalizeUnit(it.unit),
+      unitPrice: it.unitPrice,
+      taxRate: it.taxRate,
+      sortOrder: it.sortOrder ?? idx,
+    })),
+  };
+}
+
+export function orderInputFromForm(values: OrderDocumentFormValues): OrderInput {
+  return {
+    ...commercialDocumentInputFromForm(values),
+    recipientName: values.recipientName.trim(),
+  };
+}
+
+export async function updateOrder(
+  id: string,
+  input: OrderInput
+): Promise<OrderRecord | null> {
+  const updated = useOrderStore.getState().updateOrder(id, input);
+  if (!updated) return null;
+
+  if (isSupabaseConfigured()) {
+    try {
+      await dbUpdateOrder(updated, useOrderStore.getState().getOrderItems(id));
+    } catch (error) {
+      throw toUserFacingDbError(error);
+    }
+  }
+  return updated;
+}
+
+export async function updateDeliveryNote(
+  id: string,
+  input: DeliveryNoteInput
+): Promise<DeliveryNoteRecord | null> {
+  const updated = useDeliveryNoteStore.getState().updateDeliveryNote(id, input);
+  if (!updated) return null;
+
+  if (isSupabaseConfigured()) {
+    try {
+      await dbUpdateDeliveryNote(
+        updated,
+        useDeliveryNoteStore.getState().getItems(id)
+      );
+    } catch (error) {
+      throw toUserFacingDbError(error);
+    }
+  }
+  return updated;
+}
+
+export async function updateReceipt(
+  id: string,
+  input: ReceiptInput
+): Promise<ReceiptRecord | null> {
+  const updated = useReceiptStore.getState().updateReceipt(id, input);
+  if (!updated) return null;
+
+  if (isSupabaseConfigured()) {
+    try {
+      await dbUpdateReceipt(updated, useReceiptStore.getState().getItems(id));
+    } catch (error) {
+      throw toUserFacingDbError(error);
+    }
+  }
+  return updated;
+}
+
+/** 案件に注文書がなければ作成（受注確定時） */
+export async function ensureOrderForProject(projectId: string) {
+  const existing = useOrderStore
+    .getState()
+    .getOrdersByProjectId(projectId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  if (existing) return existing;
+  return createOrderFromProject(projectId);
+}
+
+/** 案件に納品書がなければ作成（作業完了時） */
+export async function ensureDeliveryNoteForProject(projectId: string) {
+  const existing = useDeliveryNoteStore
+    .getState()
+    .getByProjectId(projectId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  if (existing) return existing;
+  return createDeliveryNoteFromProject(projectId);
+}
+
+/** 請求書に紐づく領収書がなければ作成（請求書発行時） */
+export async function ensureReceiptForInvoice(invoiceId: string) {
+  const existing = useReceiptStore
+    .getState()
+    .receipts.filter((r) => r.invoiceId === invoiceId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  if (existing) return existing;
+  return createReceiptFromInvoice(invoiceId);
+}
