@@ -2,7 +2,7 @@ import type { CompanySettings } from "@/lib/types";
 
 export function DocumentCompanyInfo({ company }: { company: CompanySettings }) {
   return (
-    <div className="document-company-info ml-auto w-[46%] max-w-[400px] shrink-0 overflow-visible text-right text-[11px] leading-snug text-zinc-800">
+    <div className="document-company-info w-full text-left text-[11px] leading-snug text-zinc-800 sm:ml-auto sm:w-[46%] sm:max-w-[400px] sm:shrink-0 sm:text-right">
       {company.logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img

@@ -12,6 +12,7 @@ import type {
   ProjectStatus,
 } from "@/lib/types";
 import { getQuickActions } from "@/lib/project-utils";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 
 type ProjectNextStepsPanelProps = {
   projectId: string;
@@ -44,9 +45,13 @@ export function ProjectNextStepsPanel({
   className,
   variant = "panel",
 }: ProjectNextStepsPanelProps) {
-  const quickActions = getQuickActions({ status, invoiceStatus, paymentStatus });
+  const canWrite = useCanWriteBusinessData();
+  const quickActions = canWrite
+    ? getQuickActions({ status, invoiceStatus, paymentStatus })
+    : [];
   const showQuoteLink = status === "estimate";
-  const hasActions = showQuoteLink || quickActions.length > 0;
+  const hasActions =
+    (showQuoteLink && (latestQuoteId || canWrite)) || quickActions.length > 0;
 
   if (variant === "inline") {
     return (
@@ -66,6 +71,7 @@ export function ProjectNextStepsPanel({
             loadingAction={loadingAction}
             onCreateQuoteAndOpen={onCreateQuoteAndOpen}
             creatingQuote={creatingQuote}
+            canWrite={canWrite}
             compact
           />
         )}
@@ -104,6 +110,7 @@ export function ProjectNextStepsPanel({
             loadingAction={loadingAction}
             onCreateQuoteAndOpen={onCreateQuoteAndOpen}
             creatingQuote={creatingQuote}
+            canWrite={canWrite}
           />
         </div>
       )}
@@ -120,6 +127,7 @@ function ProjectNextStepsButtons({
   loadingAction,
   onCreateQuoteAndOpen,
   creatingQuote,
+  canWrite,
   compact,
 }: {
   projectId: string;
@@ -131,6 +139,7 @@ function ProjectNextStepsButtons({
   loadingAction: ProjectActionType | null;
   onCreateQuoteAndOpen?: () => Promise<void>;
   creatingQuote?: boolean;
+  canWrite: boolean;
   compact?: boolean;
 }) {
   return (
@@ -147,7 +156,7 @@ function ProjectNextStepsButtons({
             >
               見積書を表示
             </Link>
-          ) : onCreateQuoteAndOpen ? (
+          ) : onCreateQuoteAndOpen && canWrite ? (
             <button
               type="button"
               onClick={() => void onCreateQuoteAndOpen()}
@@ -159,7 +168,7 @@ function ProjectNextStepsButtons({
             >
               見積書を作成して表示
             </button>
-          ) : (
+          ) : canWrite ? (
             <Link
               href={`/quotes/new?projectId=${projectId}`}
               className={cn(
@@ -169,7 +178,7 @@ function ProjectNextStepsButtons({
             >
               見積書を作成
             </Link>
-          )}
+          ) : null}
         </>
       )}
       {quickActions.map((a) => (

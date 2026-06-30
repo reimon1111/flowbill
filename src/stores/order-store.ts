@@ -14,6 +14,14 @@ import {
 } from "@/lib/create-commercial-store";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
+import {
+  resolveProjectNameFromStore,
+  UNKNOWN_CUSTOMER_LABEL,
+} from "@/lib/project-display";
+
+function isActiveDocument<T extends { deletedAt: string | null }>(doc: T): boolean {
+  return !doc.deletedAt;
+}
 
 type OrderStore = {
   orders: OrderRecord[];
@@ -26,6 +34,7 @@ type OrderStore = {
   getListItems: () => OrderListItem[];
   createOrder: (input: OrderInput) => OrderRecord;
   updateOrder: (orderId: string, input: OrderInput) => OrderRecord | null;
+  softDeleteOrder: (orderId: string) => OrderRecord | null;
   removeOrder: (orderId: string) => void;
   upsertOrder: (order: OrderRecord, items: OrderItemRecord[]) => void;
 };
@@ -36,12 +45,12 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
 
   hydrate: ({ orders, orderItems }) => set({ orders, orderItems }),
 
-  getOrders: () => get().orders,
+  getOrders: () => get().orders.filter(isActiveDocument),
 
   getOrderById: (id) => get().orders.find((o) => o.id === id),
 
   getOrdersByProjectId: (projectId) =>
-    get().orders.filter((o) => o.projectId === projectId),
+    get().orders.filter((o) => o.projectId === projectId && isActiveDocument(o)),
 
   getOrderItems: (orderId) =>
     get()
@@ -51,15 +60,18 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
   getListItems: () => {
     const projects = useProjectStore.getState().projects;
     const customers = useCustomerStore.getState().customers;
-    return get().orders.map((o) => ({
-      ...o,
-      projectName:
-        projects.find((p) => p.id === o.projectId)?.projectName ??
-        "（不明な案件）",
-      customerName:
-        customers.find((c) => c.id === o.customerId)?.customerName ??
-        "（不明な顧客）",
-    }));
+    return get()
+      .orders.filter(isActiveDocument)
+      .map((o) => ({
+        ...o,
+        projectName: resolveProjectNameFromStore(o.projectId, projects, {
+          documentType: "order",
+          documentId: o.id,
+        }),
+        customerName:
+          customers.find((c) => c.id === o.customerId)?.customerName ??
+          UNKNOWN_CUSTOMER_LABEL,
+      }));
   },
 
   createOrder: (input) => {
@@ -82,6 +94,9 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       ),
       status: "issued",
       recipientName: input.recipientName ?? "",
+      deletedAt: null,
+      createdBy: null,
+      updatedBy: null,
       createdAt: now,
       updatedAt: now,
       ...header,
@@ -119,6 +134,23 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
         ...items,
         ...s.orderItems.filter((i) => i.orderId !== orderId),
       ],
+    }));
+    return updated;
+  },
+
+  softDeleteOrder: (orderId) => {
+    const existing = get().getOrderById(orderId);
+    if (!existing || existing.deletedAt) return null;
+
+    const now = new Date().toISOString();
+    const updated: OrderRecord = {
+      ...existing,
+      deletedAt: now,
+      updatedAt: now,
+    };
+
+    set((s) => ({
+      orders: s.orders.map((o) => (o.id === orderId ? updated : o)),
     }));
     return updated;
   },

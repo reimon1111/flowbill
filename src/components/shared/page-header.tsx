@@ -19,7 +19,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
+        "print-hidden flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between",
         className
       )}
     >
@@ -39,7 +39,11 @@ export function PageHeader({
             description
           ))}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {action ? (
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:max-w-full sm:justify-end">
+          {action}
+        </div>
+      ) : null}
     </div>
   );
 }

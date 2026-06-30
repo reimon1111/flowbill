@@ -18,9 +18,11 @@ import {
 } from "@/lib/services/item-templates";
 import type { ItemTemplate, ItemTemplateCategory } from "@/lib/types";
 import { useItemTemplateStore } from "@/stores/item-template-store";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { cn } from "@/lib/utils";
 
 export function ItemTemplateList() {
+  const canWrite = useCanWriteBusinessData();
   const itemTemplates = useItemTemplateStore((s) => s.itemTemplates);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<ItemTemplateCategory | "all">("all");
@@ -83,21 +85,23 @@ export function ItemTemplateList() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-8 py-10">
+    <div className="mx-auto min-w-0 max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <PageHeader
         title="請求項目テンプレ"
         description={`${itemTemplates.length}件 — 見積作成時にワンクリックで明細を追加`}
         action={
-          <Link
-            href="/item-templates/new"
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "h-10 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-            )}
-          >
-            <Plus className="size-4" strokeWidth={1.5} />
-            テンプレを追加
-          </Link>
+          canWrite ? (
+            <Link
+              href="/item-templates/new"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-10 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+              )}
+            >
+              <Plus className="size-4" strokeWidth={1.5} />
+              テンプレを追加
+            </Link>
+          ) : undefined
         }
       />
 
@@ -122,6 +126,7 @@ export function ItemTemplateList() {
           type="button"
           variant="outline"
           className="h-10 rounded-xl"
+          disabled={!canWrite}
           onClick={() => setCategoryOpen(true)}
         >
           カテゴリを編集
@@ -137,7 +142,10 @@ export function ItemTemplateList() {
           }
           description="よく使う項目を登録しておくと、見積作成が30秒で完了します"
           action={
-            !search && category === "all" && !favoritesOnly && (
+            canWrite &&
+            !search &&
+            category === "all" &&
+            !favoritesOnly && (
               <Link
                 href="/item-templates/new"
                 className={cn(
@@ -157,15 +165,17 @@ export function ItemTemplateList() {
             title="よく使う項目"
             icon={<Star className="size-4 fill-amber-400 text-amber-400" />}
             items={favorites}
-            onDelete={setDeleteTarget}
-            onToggleFavorite={handleToggleFavorite}
+            onDelete={canWrite ? setDeleteTarget : () => {}}
+            onToggleFavorite={canWrite ? handleToggleFavorite : () => {}}
+            canWrite={canWrite}
           />
           {others.length > 0 && (
             <TemplateSection
               title="その他のテンプレ"
               items={others}
-              onDelete={setDeleteTarget}
-              onToggleFavorite={handleToggleFavorite}
+              onDelete={canWrite ? setDeleteTarget : () => {}}
+              onToggleFavorite={canWrite ? handleToggleFavorite : () => {}}
+              canWrite={canWrite}
             />
           )}
         </div>
@@ -173,8 +183,9 @@ export function ItemTemplateList() {
         <TemplateSection
           title={favoritesOnly ? "お気に入り" : "すべて"}
           items={filtered}
-          onDelete={setDeleteTarget}
-          onToggleFavorite={handleToggleFavorite}
+          onDelete={canWrite ? setDeleteTarget : () => {}}
+          onToggleFavorite={canWrite ? handleToggleFavorite : () => {}}
+          canWrite={canWrite}
         />
       )}
 
@@ -201,12 +212,14 @@ function TemplateSection({
   items,
   onDelete,
   onToggleFavorite,
+  canWrite = true,
 }: {
   title: string;
   icon?: React.ReactNode;
   items: ItemTemplate[];
   onDelete: (t: ItemTemplate) => void;
   onToggleFavorite: (t: ItemTemplate) => void;
+  canWrite?: boolean;
 }) {
   return (
     <section className="space-y-4">
@@ -236,6 +249,7 @@ function TemplateSection({
               variant="row"
               onDelete={onDelete}
               onToggleFavorite={onToggleFavorite}
+              canWrite={canWrite}
             />
           ))}
         </div>

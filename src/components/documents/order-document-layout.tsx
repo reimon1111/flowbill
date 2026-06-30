@@ -44,14 +44,15 @@ export function OrderDocumentLayout({
     : "";
 
   return (
-    <div className="print-area document-preview document-page order-document-layout compact-print overflow-visible rounded-2xl border border-zinc-200/80 bg-white px-8 py-8 pr-10 font-sans shadow-sm shadow-zinc-900/[0.04]">
+    <div className="print-area overflow-x-auto print:overflow-visible">
+      <div className="document-preview document-page order-document-layout compact-print min-w-[640px] overflow-visible rounded-2xl border border-zinc-200/80 bg-white px-4 py-6 font-sans shadow-sm shadow-zinc-900/[0.04] sm:min-w-0 sm:px-8 sm:py-8 sm:pr-10">
       <div className="document-header">
         <h1 className="document-title text-center text-2xl font-bold tracking-[0.25em] text-zinc-900">
           {labels.title}
         </h1>
         <div className="document-title-rule mt-2 border-b border-zinc-900" />
 
-        <div className="document-header-body mt-4 flex items-start justify-between gap-6">
+        <div className="document-header-body mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div className="document-order-recipient min-w-0 flex-1">
             <div className="flex items-start gap-3">
               {company.logoUrl ? (
@@ -81,8 +82,8 @@ export function OrderDocumentLayout({
         </div>
       </div>
 
-      <div className="document-intro mt-3 flex items-start justify-between gap-6 overflow-visible">
-        <div className="document-intro-left min-w-0 max-w-[48%] flex-1">
+      <div className="document-intro mt-3 flex flex-col gap-4 overflow-visible sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="document-intro-left min-w-0 flex-1 sm:max-w-[48%]">
           {subjectText ? (
             <p className="document-subject text-[13px] text-zinc-900">{subjectText}</p>
           ) : null}
@@ -111,6 +112,7 @@ export function OrderDocumentLayout({
         memoTemplate={memoTemplate}
         company={company}
       />
+      </div>
     </div>
   );
 }

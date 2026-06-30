@@ -21,6 +21,7 @@ import {
 } from "@/components/projects/project-status-badge";
 import { ProjectNextStepsPanel } from "@/components/projects/project-next-steps-panel";
 import { getProjectTitleHeadline } from "@/lib/project-title";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { useQuoteStore } from "@/stores/quote-store";
 
 type ProjectCardProps = {
@@ -221,6 +222,12 @@ function ProjectMenu({
   onDelete: () => void;
   onArchiveToggle: () => void;
 }) {
+  const canWrite = useCanWriteBusinessData();
+
+  if (!canWrite) {
+    return null;
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

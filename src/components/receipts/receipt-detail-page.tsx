@@ -8,6 +8,7 @@ import { resolveRouteId } from "@/lib/route-params";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { toCommercialDocView } from "@/lib/commercial-document";
+import { deleteReceipt } from "@/lib/services/commercial-documents";
 import { useReceiptStore } from "@/stores/receipt-store";
 
 export function ReceiptDetailClient({ receiptId: idProp }: { receiptId?: string }) {
@@ -39,6 +40,8 @@ export function ReceiptDetailClient({ receiptId: idProp }: { receiptId?: string 
     return <PageContentLoader />;
   }
 
+  const isDeleted = Boolean(receipt.deletedAt);
+
   return (
     <CommercialDocumentDetail
       kind="receipt"
@@ -51,8 +54,26 @@ export function ReceiptDetailClient({ receiptId: idProp }: { receiptId?: string 
       customer={customer}
       items={items}
       document={toCommercialDocView(receipt.receiptNumber, receipt)}
+      audit={receipt}
+      activityTargetType="receipt"
+      activityTargetId={receipt.id}
       backHref="/receipts"
-      editHref={`/receipts/${receipt.id}/edit`}
+      projectId={project.id}
+      editHref={isDeleted ? undefined : `/receipts/${receipt.id}/edit`}
+      isDeleted={isDeleted}
+      deleteConfig={
+        isDeleted
+          ? undefined
+          : {
+              confirmDescription:
+                "この領収書を削除しますか？この操作は一覧から非表示になります。",
+              successToast: "領収書を削除しました",
+              onDelete: async () => {
+                const result = await deleteReceipt(receipt.id);
+                return result.ok ? { ok: true as const } : { ok: false as const };
+              },
+            }
+      }
     />
   );
 }

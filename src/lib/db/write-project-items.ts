@@ -15,13 +15,15 @@ export async function dbReplaceProjectItems(
 ): Promise<ProjectItemRecord[]> {
   const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
-  const now = new Date().toISOString();
 
   const { error: delError } = await supabase
     .from("project_items")
     .delete()
-    .eq("project_id", projectId);
+    .eq("project_id", projectId)
+    .eq("company_id", companyId);
   if (delError) throw delError;
+
+  const now = new Date().toISOString();
 
   if (input.items.length === 0) return [];
 
@@ -41,11 +43,13 @@ export async function dbReplaceProjectItems(
 export async function dbFetchProjectItems(
   projectId: string
 ): Promise<ProjectItemRecord[]> {
+  const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("project_items")
     .select("*")
     .eq("project_id", projectId)
+    .eq("company_id", companyId)
     .order("sort_order", { ascending: true });
   if (error) throw error;
   return (data as ProjectItemRow[]).map(projectItemFromRow);

@@ -9,11 +9,16 @@ import type {
   InvoiceRecord,
 } from "@/lib/types";
 import { initialInvoiceItems, initialInvoices } from "@/lib/mock-invoices";
+import { initialStoreData } from "@/lib/stores/store-initial";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { resolveProjectFieldsAfterInvoiceChange } from "@/lib/invoice-project-sync";
 import { useQuoteStore } from "@/stores/quote-store";
 import { normalizeUnit } from "@/lib/constants/units";
+import {
+  resolveProjectNameFromStore,
+  UNKNOWN_CUSTOMER_LABEL,
+} from "@/lib/project-display";
 
 function id(prefix: string) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -67,8 +72,8 @@ type InvoiceStore = {
 };
 
 export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
-  invoices: initialInvoices,
-  invoiceItems: initialInvoiceItems,
+  invoices: initialStoreData(initialInvoices, []),
+  invoiceItems: initialStoreData(initialInvoiceItems, []),
 
   hydrate: ({ invoices, invoiceItems }) => set({ invoices, invoiceItems }),
 
@@ -98,16 +103,18 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
 
   getListItems: () => {
     const customers = useCustomerStore.getState();
-    const projects = useProjectStore.getState();
+    const projects = useProjectStore.getState().projects;
     const quotes = useQuoteStore.getState();
     return get().invoices.map((inv) => {
-      const p = projects.getProjectById(inv.projectId);
       const c = customers.getCustomerById(inv.customerId);
       const q = quotes.getQuoteById(inv.quoteId);
       return {
         ...inv,
-        projectName: p?.projectName ?? "（不明な案件）",
-        customerName: c?.customerName ?? "（不明な顧客）",
+        projectName: resolveProjectNameFromStore(inv.projectId, projects, {
+          documentType: "invoice",
+          documentId: inv.id,
+        }),
+        customerName: c?.customerName ?? UNKNOWN_CUSTOMER_LABEL,
         quoteNumber: q?.quoteNumber ?? "（不明な見積）",
       };
     });
@@ -134,6 +141,8 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
         taxRate: it.taxRate,
         amount,
         sortOrder: it.sortOrder ?? idx,
+        createdBy: null,
+        updatedBy: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -156,6 +165,8 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       memo: input.memo,
       paymentTerms: input.paymentTerms,
       bankAccountId: input.bankAccountId ?? null,
+      createdBy: null,
+      updatedBy: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -204,6 +215,8 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
         taxRate: it.taxRate,
         amount,
         sortOrder: it.sortOrder ?? idx,
+        createdBy: null,
+        updatedBy: null,
         createdAt: now,
         updatedAt: now,
       };

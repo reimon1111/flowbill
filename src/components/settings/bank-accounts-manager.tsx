@@ -25,7 +25,7 @@ const emptyInput = (): BankAccountInput => ({
   sortOrder: 0,
 });
 
-export function BankAccountsManager() {
+export function BankAccountsManager({ readOnly }: { readOnly?: boolean }) {
   const bankAccounts = useBankAccountStore((s) => s.bankAccounts);
   const sorted = useMemo(
     () =>
@@ -41,6 +41,10 @@ export function BankAccountsManager() {
   const [saving, setSaving] = useState(false);
 
   const startAdd = () => {
+    if (readOnly) {
+      toast.error("会社情報を変更する権限がありません");
+      return;
+    }
     setEditingId("new");
     setDraft({
       ...emptyInput(),
@@ -49,6 +53,10 @@ export function BankAccountsManager() {
   };
 
   const startEdit = (id: string) => {
+    if (readOnly) {
+      toast.error("会社情報を変更する権限がありません");
+      return;
+    }
     const account = useBankAccountStore.getState().getById(id);
     if (!account) return;
     setEditingId(id);
@@ -69,6 +77,10 @@ export function BankAccountsManager() {
   };
 
   const save = async () => {
+    if (readOnly) {
+      toast.error("会社情報を変更する権限がありません");
+      return;
+    }
     if (!draft.bankName.trim()) {
       toast.error("銀行名を入力してください");
       return;
@@ -105,6 +117,10 @@ export function BankAccountsManager() {
   };
 
   const remove = async (id: string) => {
+    if (readOnly) {
+      toast.error("会社情報を変更する権限がありません");
+      return;
+    }
     setSaving(true);
     try {
       const ok = await deleteBankAccount(id);
@@ -142,7 +158,7 @@ export function BankAccountsManager() {
                   variant="ghost"
                   size="icon"
                   className="size-8 rounded-lg"
-                  disabled={saving}
+                  disabled={saving || readOnly}
                   onClick={() => startEdit(account.id)}
                 >
                   <Pencil className="size-4" />
@@ -152,7 +168,7 @@ export function BankAccountsManager() {
                   variant="ghost"
                   size="icon"
                   className="size-8 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700"
-                  disabled={saving}
+                  disabled={saving || readOnly}
                   onClick={() => remove(account.id)}
                 >
                   <Trash2 className="size-4" />
@@ -176,7 +192,7 @@ export function BankAccountsManager() {
             <Button
               type="button"
               className="h-9 rounded-xl bg-zinc-900 hover:bg-zinc-800"
-              disabled={saving}
+              disabled={saving || readOnly}
               onClick={() => void save()}
             >
               保存
@@ -197,7 +213,7 @@ export function BankAccountsManager() {
           type="button"
           variant="outline"
           className="h-9 gap-2 rounded-xl"
-          disabled={saving}
+          disabled={saving || readOnly}
           onClick={startAdd}
         >
           <Plus className="size-4" />

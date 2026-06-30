@@ -14,6 +14,14 @@ import {
 } from "@/lib/create-commercial-store";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
+import {
+  resolveProjectNameFromStore,
+  UNKNOWN_CUSTOMER_LABEL,
+} from "@/lib/project-display";
+
+function isActiveDocument<T extends { deletedAt: string | null }>(doc: T): boolean {
+  return !doc.deletedAt;
+}
 
 type DeliveryNoteStore = {
   deliveryNotes: DeliveryNoteRecord[];
@@ -31,6 +39,7 @@ type DeliveryNoteStore = {
     deliveryNoteId: string,
     input: DeliveryNoteInput
   ) => DeliveryNoteRecord | null;
+  softDeleteDeliveryNote: (deliveryNoteId: string) => DeliveryNoteRecord | null;
   upsertDeliveryNote: (
     note: DeliveryNoteRecord,
     items: DeliveryNoteItemRecord[]
@@ -47,7 +56,9 @@ export const useDeliveryNoteStore = create<DeliveryNoteStore>((set, get) => ({
   getDeliveryNoteById: (id) => get().deliveryNotes.find((d) => d.id === id),
 
   getByProjectId: (projectId) =>
-    get().deliveryNotes.filter((d) => d.projectId === projectId),
+    get().deliveryNotes.filter(
+      (d) => d.projectId === projectId && isActiveDocument(d)
+    ),
 
   getItems: (deliveryNoteId) =>
     get()
@@ -57,15 +68,18 @@ export const useDeliveryNoteStore = create<DeliveryNoteStore>((set, get) => ({
   getListItems: () => {
     const projects = useProjectStore.getState().projects;
     const customers = useCustomerStore.getState().customers;
-    return get().deliveryNotes.map((d) => ({
-      ...d,
-      projectName:
-        projects.find((p) => p.id === d.projectId)?.projectName ??
-        "（不明な案件）",
-      customerName:
-        customers.find((c) => c.id === d.customerId)?.customerName ??
-        "（不明な顧客）",
-    }));
+    return get()
+      .deliveryNotes.filter(isActiveDocument)
+      .map((d) => ({
+        ...d,
+        projectName: resolveProjectNameFromStore(d.projectId, projects, {
+          documentType: "delivery_note",
+          documentId: d.id,
+        }),
+        customerName:
+          customers.find((c) => c.id === d.customerId)?.customerName ??
+          UNKNOWN_CUSTOMER_LABEL,
+      }));
   },
 
   createDeliveryNote: (input) => {
@@ -87,6 +101,9 @@ export const useDeliveryNoteStore = create<DeliveryNoteStore>((set, get) => ({
         get().deliveryNotes.map((d) => d.deliveryNoteNumber)
       ),
       status: "issued",
+      deletedAt: null,
+      createdBy: null,
+      updatedBy: null,
       createdAt: now,
       updatedAt: now,
       ...header,
@@ -125,6 +142,25 @@ export const useDeliveryNoteStore = create<DeliveryNoteStore>((set, get) => ({
         ...items,
         ...s.deliveryNoteItems.filter((i) => i.deliveryNoteId !== deliveryNoteId),
       ],
+    }));
+    return updated;
+  },
+
+  softDeleteDeliveryNote: (deliveryNoteId) => {
+    const existing = get().getDeliveryNoteById(deliveryNoteId);
+    if (!existing || existing.deletedAt) return null;
+
+    const now = new Date().toISOString();
+    const updated: DeliveryNoteRecord = {
+      ...existing,
+      deletedAt: now,
+      updatedAt: now,
+    };
+
+    set((s) => ({
+      deliveryNotes: s.deliveryNotes.map((d) =>
+        d.id === deliveryNoteId ? updated : d
+      ),
     }));
     return updated;
   },

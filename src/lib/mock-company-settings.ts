@@ -26,7 +26,30 @@ export const initialCompanySettings: CompanySettings = {
   orderMemoTemplate: "",
   deliveryNoteMemoTemplate: "",
   receiptMemoTemplate: "",
+  contractStatus: "active",
+  contractStartedAt: null,
+  contractEndedAt: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+};
+
+/** Supabase ロード前のプレースホルダ（デモ会社名を表示しない） */
+export const emptyCompanySettings: CompanySettings = {
+  ...initialCompanySettings,
+  id: "",
+  companyName: "",
+  postalCode: "",
+  address: "",
+  phone: "",
+  fax: "",
+  contactName: "",
+  email: "",
+  invoiceNumber: "",
+  bankName: "",
+  bankBranch: "",
+  bankAccountType: "",
+  bankAccountNumber: "",
+  bankAccountHolder: "",
+  contractStatus: "active",
 };
 

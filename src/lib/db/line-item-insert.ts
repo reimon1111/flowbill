@@ -11,7 +11,9 @@ type RowWithDimensions = {
 export function stripConstructionDimensions<T extends RowWithDimensions>(
   row: T
 ): Omit<T, "width" | "height"> {
-  const { width: _w, height: _h, ...rest } = row;
+  const rest = { ...row };
+  delete rest.width;
+  delete rest.height;
   return rest;
 }
 

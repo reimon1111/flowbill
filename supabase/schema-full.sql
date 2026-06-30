@@ -583,11 +583,8 @@ create policy companies_select_own on public.companies
 create policy companies_update_own on public.companies
   for update using (id = public.current_company_id());
 
-create policy companies_insert_onboarding on public.companies
-  for insert to authenticated
-  with check (
-    not exists (select 1 from public.profiles p where p.user_id = auth.uid())
-  );
+-- 会社の INSERT は ensure_user_profile RPC（SECURITY DEFINER）のみ。
+-- クライアントからの直接 INSERT は許可しない（fix-security-high-risks.sql 参照）。
 
 -- テナントテーブル共通（company_id で分離）
 do $$

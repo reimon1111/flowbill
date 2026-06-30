@@ -15,6 +15,7 @@ import { PROJECT_STATUS_LABELS } from "@/lib/constants";
 import type { ProjectActionType } from "@/lib/types";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { resolveCompanyId } from "@/lib/db/company-context";
+import { getAuthUserId, withCreateAudit, withUpdateAudit } from "@/lib/db/auth-user";
 import { generateId } from "@/lib/db/ids";
 import {
   projectFromRow,
@@ -24,6 +25,12 @@ import {
   type ProjectHistoryRow,
   type ProjectRow,
 } from "@/lib/db/mappers";
+import { recordActivityLog } from "@/lib/db/write-activity-log";
+import {
+  activityDescriptionCreated,
+  activityDescriptionDeleted,
+  activityDescriptionUpdated,
+} from "@/lib/activity-log-messages";
 
 function syncDerived(project: ProjectRecord, status: ProjectStatus): ProjectRecord {
   return applyProjectMilestoneDates(
@@ -45,14 +52,23 @@ async function writeProjectRow(
   id?: string
 ): Promise<void> {
   const supabase = getSupabaseClient();
-  const row = projectToRow(companyId, project);
+  const userId = await getAuthUserId();
+  const baseRow = projectToRow(companyId, project);
+  const row =
+    mode === "insert"
+      ? withCreateAudit(baseRow, userId)
+      : withUpdateAudit(baseRow, userId);
 
-  const run = async (payload: ProjectRow) => {
+  const run = async (payload: ProjectRow & Record<string, unknown>) => {
     if (mode === "insert") {
       return supabase.from("projects").insert(payload);
     }
     if (mode === "update" && id) {
-      return supabase.from("projects").update(payload).eq("id", id);
+      return supabase
+        .from("projects")
+        .update(payload)
+        .eq("id", id)
+        .eq("company_id", companyId);
     }
     return supabase.from("projects").upsert(payload);
   };
@@ -77,6 +93,7 @@ async function writeProjectRow(
 
 export async function dbInsertProject(input: ProjectInput): Promise<ProjectRecord> {
   const companyId = await resolveCompanyId();
+  const userId = await getAuthUserId();
   const now = new Date().toISOString();
   const project: ProjectRecord = {
     id: generateId("p"),
@@ -95,6 +112,8 @@ export async function dbInsertProject(input: ProjectInput): Promise<ProjectRecor
     archived: false,
     confirmedDate: "",
     completedDate: "",
+    createdBy: userId,
+    updatedBy: userId,
     createdAt: now,
     updatedAt: now,
   };
@@ -105,6 +124,14 @@ export async function dbInsertProject(input: ProjectInput): Promise<ProjectRecor
     projectId: project.id,
     type: "created",
     title: "案件作成",
+  });
+
+  recordActivityLog({
+    action: "created",
+    targetType: "project",
+    targetId: project.id,
+    targetLabel: project.projectName,
+    description: activityDescriptionCreated("project", project.projectName),
   });
 
   return project;
@@ -120,6 +147,7 @@ export async function dbUpdateProject(
     .from("projects")
     .select("*")
     .eq("id", id)
+    .eq("company_id", companyId)
     .single();
   if (fetchError || !data) return null;
 
@@ -149,13 +177,45 @@ export async function dbUpdateProject(
     title: "案件情報を更新",
   });
 
+  recordActivityLog({
+    action: "updated",
+    targetType: "project",
+    targetId: updated.id,
+    targetLabel: updated.projectName,
+    description: activityDescriptionUpdated("project", updated.projectName),
+  });
+
   return updated;
 }
 
 export async function dbDeleteProject(id: string): Promise<boolean> {
+  const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from("projects").delete().eq("id", id);
+  const { data, error: fetchError } = await supabase
+    .from("projects")
+    .select("project_name")
+    .eq("id", id)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+
+  const projectName = String(data?.project_name ?? "");
+
+  const { error } = await supabase
+    .from("projects")
+    .delete()
+    .eq("id", id)
+    .eq("company_id", companyId);
   if (error) throw error;
+
+  recordActivityLog({
+    action: "deleted",
+    targetType: "project",
+    targetId: id,
+    targetLabel: projectName,
+    description: activityDescriptionDeleted("project", projectName),
+  });
+
   return true;
 }
 
@@ -163,11 +223,14 @@ export async function dbSetProjectArchived(
   id: string,
   archived: boolean
 ): Promise<ProjectRecord | null> {
+  const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
+  const userId = await getAuthUserId();
   const { data, error: fetchError } = await supabase
     .from("projects")
     .select("*")
     .eq("id", id)
+    .eq("company_id", companyId)
     .single();
   if (fetchError || !data) return null;
 
@@ -179,11 +242,17 @@ export async function dbSetProjectArchived(
 
   const { error } = await supabase
     .from("projects")
-    .update({
-      archived,
-      updated_at: updated.updatedAt,
-    })
-    .eq("id", id);
+    .update(
+      withUpdateAudit(
+        {
+          archived,
+          updated_at: updated.updatedAt,
+        },
+        userId
+      )
+    )
+    .eq("id", id)
+    .eq("company_id", companyId);
   if (error) throw error;
 
   await dbInsertHistory({
@@ -205,6 +274,7 @@ export async function dbChangeProjectStatus(
     .from("projects")
     .select("*")
     .eq("id", id)
+    .eq("company_id", companyId)
     .single();
   if (fetchError || !data) return null;
 
@@ -278,9 +348,10 @@ export async function dbInsertHistory(
     ...event,
   };
   const supabase = getSupabaseClient();
+  const userId = await getAuthUserId();
   const { error } = await supabase
     .from("project_histories")
-    .insert(projectHistoryToRow(companyId, history));
+    .insert(withCreateAudit(projectHistoryToRow(companyId, history), userId));
   if (error) throw error;
   return history;
 }
@@ -288,11 +359,13 @@ export async function dbInsertHistory(
 export async function dbFetchProjectHistories(
   projectId: string
 ): Promise<ProjectHistoryEvent[]> {
+  const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("project_histories")
     .select("*")
     .eq("project_id", projectId)
+    .eq("company_id", companyId)
     .order("created_at", { ascending: false });
   if (error) throw error;
   return (data as ProjectHistoryRow[]).map(projectHistoryFromRow);

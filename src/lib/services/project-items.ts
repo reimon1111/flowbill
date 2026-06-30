@@ -115,38 +115,124 @@ export function buildInvoiceInputItemsForProject(
   );
 }
 
+/** 注文書・納品書など：見積明細 → 案件明細の優先順で明細を解決 */
+export type CommercialItemsResolveMeta = {
+  items: CommercialDocumentItemInput[];
+  source: "accepted_quote" | "sent_quote" | "project_items" | "fallback" | "empty";
+  acceptedEstimate: { id: string; quoteNumber: string; itemCount: number } | null;
+  sentEstimate: { id: string; quoteNumber: string; itemCount: number } | null;
+  projectItems: Array<{ id: string; name: string }>;
+};
+
+export function resolveCommercialItemsForProjectWithMeta(
+  projectId: string,
+  projectName: string,
+  options?: { allowTitleFallback?: boolean }
+): CommercialItemsResolveMeta {
+  const quotes = useQuoteStore
+    .getState()
+    .getQuotesByProjectId(projectId)
+    .slice()
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  const accepted = quotes.find((q) => q.status === "accepted") ?? null;
+  const sent = quotes.find((q) => q.status === "sent") ?? null;
+  const projectItems = useProjectItemStore.getState().getByProjectId(projectId);
+
+  const acceptedEstimate = accepted
+    ? {
+        id: accepted.id,
+        quoteNumber: accepted.quoteNumber,
+        itemCount: useQuoteStore.getState().getQuoteItems(accepted.id).length,
+      }
+    : null;
+  const sentEstimate = sent
+    ? {
+        id: sent.id,
+        quoteNumber: sent.quoteNumber,
+        itemCount: useQuoteStore.getState().getQuoteItems(sent.id).length,
+      }
+    : null;
+  const projectItemSummaries = projectItems.map((it) => ({
+    id: it.id,
+    name: it.name,
+  }));
+
+  if (accepted) {
+    const quoteItems = useQuoteStore.getState().getQuoteItems(accepted.id);
+    if (quoteItems.length > 0) {
+      return {
+        items: itemsFromQuoteItems(quoteItems),
+        source: "accepted_quote",
+        acceptedEstimate,
+        sentEstimate,
+        projectItems: projectItemSummaries,
+      };
+    }
+  }
+
+  if (sent) {
+    const quoteItems = useQuoteStore.getState().getQuoteItems(sent.id);
+    if (quoteItems.length > 0) {
+      return {
+        items: itemsFromQuoteItems(quoteItems),
+        source: "sent_quote",
+        acceptedEstimate,
+        sentEstimate,
+        projectItems: projectItemSummaries,
+      };
+    }
+  }
+
+  if (projectItems.length > 0) {
+    return {
+      items: itemsFromProjectItems(projectItems),
+      source: "project_items",
+      acceptedEstimate,
+      sentEstimate,
+      projectItems: projectItemSummaries,
+    };
+  }
+
+  if (options?.allowTitleFallback !== false) {
+    return {
+      items: [
+        {
+          itemTemplateId: null,
+          name: projectName,
+          description: "",
+          width: "",
+          height: "",
+          quantity: 1,
+          unit: "式",
+          unitPrice:
+            useProjectStore.getState().getProjectById(projectId)?.amount ?? 0,
+          taxRate: 0.1 as const,
+          sortOrder: 0,
+        },
+      ],
+      source: "fallback",
+      acceptedEstimate,
+      sentEstimate,
+      projectItems: projectItemSummaries,
+    };
+  }
+
+  return {
+    items: [],
+    source: "empty",
+    acceptedEstimate,
+    sentEstimate,
+    projectItems: projectItemSummaries,
+  };
+}
+
 /** 注文書・納品書など：見積明細 → 案件明細 → 案件名1行の優先順で明細を解決 */
 export function resolveCommercialItemsForProject(
   projectId: string,
   projectName: string
 ): CommercialDocumentItemInput[] {
-  const quote = useQuoteStore
-    .getState()
-    .getQuotesByProjectId(projectId)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-
-  if (quote) {
-    const quoteItems = useQuoteStore.getState().getQuoteItems(quote.id);
-    if (quoteItems.length > 0) return itemsFromQuoteItems(quoteItems);
-  }
-
-  const projectItems = useProjectItemStore.getState().getByProjectId(projectId);
-  if (projectItems.length > 0) return itemsFromProjectItems(projectItems);
-
-  return [
-    {
-      itemTemplateId: null,
-      name: projectName,
-      description: "",
-      width: "",
-      height: "",
-      quantity: 1,
-      unit: "式",
-      unitPrice: useProjectStore.getState().getProjectById(projectId)?.amount ?? 0,
-      taxRate: 0.1 as const,
-      sortOrder: 0,
-    },
-  ];
+  return resolveCommercialItemsForProjectWithMeta(projectId, projectName).items;
 }
 
 export function quoteNeedsItemSync(quote: {

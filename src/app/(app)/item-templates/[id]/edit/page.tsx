@@ -7,12 +7,15 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { ItemTemplateForm } from "@/components/item-templates/item-template-form";
 import { PageHeader } from "@/components/shared/page-header";
+import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
+import { WriteAccessGate } from "@/components/auth/write-access-gate";
 import {
   getItemTemplateById,
   itemTemplateInputFromForm,
   updateItemTemplate,
 } from "@/lib/services/item-templates";
 import type { ItemTemplateFormValues } from "@/lib/validations/item-template";
+import type { ItemTemplate } from "@/lib/types";
 import { useItemTemplateStore } from "@/stores/item-template-store";
 
 export default function EditItemTemplatePage() {
@@ -24,22 +27,24 @@ export default function EditItemTemplatePage() {
   const [defaultValues, setDefaultValues] = useState<
     ItemTemplateFormValues | undefined
   >();
+  const [template, setTemplate] = useState<ItemTemplate | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const template = await getItemTemplateById(id);
-      if (!template) {
+      const loaded = await getItemTemplateById(id);
+      if (!loaded) {
         router.replace("/item-templates");
         return;
       }
+      setTemplate(loaded);
       setDefaultValues({
-        name: template.name,
-        category: template.category,
-        description: template.description,
-        unitPrice: template.unitPrice,
-        taxRate: template.taxRate,
-        isFavorite: template.isFavorite,
+        name: loaded.name,
+        category: loaded.category,
+        description: loaded.description,
+        unitPrice: loaded.unitPrice,
+        taxRate: loaded.taxRate,
+        isFavorite: loaded.isFavorite,
       });
       setLoading(false);
     }
@@ -60,14 +65,17 @@ export default function EditItemTemplatePage() {
 
   if (loading || !defaultValues) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-zinc-500">読み込み中...</p>
-      </div>
+      <WriteAccessGate>
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <p className="text-zinc-500">読み込み中...</p>
+        </div>
+      </WriteAccessGate>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-8 py-10 pb-24">
+    <WriteAccessGate>
+      <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:py-10">
       <Link
         href="/item-templates"
         className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"
@@ -78,12 +86,15 @@ export default function EditItemTemplatePage() {
 
       <PageHeader title="テンプレを編集" description={defaultValues.name} />
 
+      {template ? <AuditTrailPanel audit={template} className="mb-2" /> : null}
+
       <ItemTemplateForm
         key={id}
         defaultValues={defaultValues}
         onSubmit={handleSubmit}
         submitLabel="変更を保存"
       />
-    </div>
+      </div>
+    </WriteAccessGate>
   );
 }

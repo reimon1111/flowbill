@@ -23,6 +23,9 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { getCustomerListMeta } from "@/stores/customer-store";
+import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
+import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 
 type CustomerDetailProps = {
   customer: Customer;
@@ -36,10 +39,11 @@ export function CustomerDetail({
   invoices,
 }: CustomerDetailProps) {
   const router = useRouter();
+  const canWrite = useCanWriteBusinessData();
   const meta = getCustomerListMeta(customer.id);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8 px-8 py-10">
+    <div className="mx-auto min-w-0 max-w-4xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <div className="flex items-center gap-3">
         <Button
           type="button"
@@ -61,28 +65,30 @@ export function CustomerDetail({
             : undefined
         }
         action={
-          <div className="flex gap-2">
-            <Link
-              href={`/projects/new?customerId=${customer.id}`}
-              className={cn(
-                buttonVariants({ variant: "outline" }),
-                "h-9 gap-2 rounded-xl"
-              )}
-            >
-              <FolderPlus className="size-4" />
-              案件を作成
-            </Link>
-            <Link
-              href={`/customers/${customer.id}/edit`}
-              className={cn(
-                buttonVariants(),
-                "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-              )}
-            >
-              <Pencil className="size-4" />
-              編集
-            </Link>
-          </div>
+          canWrite ? (
+            <div className="flex gap-2">
+              <Link
+                href={`/projects/new?customerId=${customer.id}`}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-9 gap-2 rounded-xl"
+                )}
+              >
+                <FolderPlus className="size-4" />
+                案件を作成
+              </Link>
+              <Link
+                href={`/customers/${customer.id}/edit`}
+                className={cn(
+                  buttonVariants(),
+                  "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+                )}
+              >
+                <Pencil className="size-4" />
+                編集
+              </Link>
+            </div>
+          ) : undefined
         }
       />
 
@@ -129,6 +135,13 @@ export function CustomerDetail({
             />
           )}
         </dl>
+
+        <AuditTrailPanel audit={customer} className="mt-6" />
+        <ActivityLogPanel
+          targetType="customer"
+          targetId={customer.id}
+          className="mt-4"
+        />
       </section>
 
       <section className="rounded-xl border border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.02]">

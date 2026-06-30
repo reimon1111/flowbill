@@ -6,6 +6,7 @@ import { syncCustomerProjectCounts } from "@/lib/services/projects";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { dbRefreshOverdueInvoices } from "@/lib/db/write-invoices";
 import { reloadInvoicesToStore, reloadProjectsToStore } from "@/lib/db/load-all";
+import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 
 async function refreshOverdue() {
   if (isSupabaseConfigured()) {
@@ -32,6 +33,7 @@ export async function getPaymentListItems(): Promise<PaymentListItem[]> {
 }
 
 export async function markInvoicePaid(invoiceId: string) {
+  assertCanWriteBusinessData();
   const updated = await updateInvoiceStatus(invoiceId, "paid");
   syncCustomerProjectCounts();
   return updated;

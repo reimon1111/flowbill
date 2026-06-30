@@ -158,3 +158,33 @@ export async function dbUpdateReceipt(
     receiptItemToRow
   );
 }
+
+export async function dbSoftDeleteOrder(orderId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("orders")
+    .update({ deleted_at: now, updated_at: now })
+    .eq("id", orderId);
+  if (error) throw error;
+}
+
+export async function dbSoftDeleteDeliveryNote(deliveryNoteId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("delivery_notes")
+    .update({ deleted_at: now, updated_at: now })
+    .eq("id", deliveryNoteId);
+  if (error) throw error;
+}
+
+export async function dbSoftDeleteReceipt(receiptId: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("receipts")
+    .update({ deleted_at: now, updated_at: now })
+    .eq("id", receiptId);
+  if (error) throw error;
+}

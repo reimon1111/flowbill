@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Pencil, Printer } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Pencil, Printer, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,6 +14,19 @@ import type { DocumentKind } from "@/components/documents/document-labels";
 import { getDocumentLabels } from "@/components/documents/document-labels";
 import type { CommercialDocumentItemRecord } from "@/lib/commercial-document";
 import { CommercialDocumentPreview } from "@/components/documents/commercial-document-preview";
+import { DeleteConfirmDialog } from "@/components/shared/delete-confirm-dialog";
+import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
+import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
+import { DocumentBackLinks } from "@/components/shared/document-back-links";
+import type { AuditMetadata } from "@/lib/types/audit";
+import type { ActivityLogTargetType } from "@/lib/types/activity-log";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+
+type DeleteConfig = {
+  confirmDescription: string;
+  successToast: string;
+  onDelete: () => Promise<{ ok: true } | { ok: false }>;
+};
 
 export function CommercialDocumentDetail({
   kind,
@@ -24,10 +40,16 @@ export function CommercialDocumentDetail({
   items,
   document,
   backHref,
+  projectId,
   editHref,
   secondDate,
   bankAccountId,
   recipientName,
+  isDeleted = false,
+  deleteConfig,
+  audit,
+  activityTargetType,
+  activityTargetId,
 }: {
   kind: DocumentKind;
   documentNumber: string;
@@ -48,25 +70,49 @@ export function CommercialDocumentDetail({
     memo: string;
   };
   backHref: string;
+  projectId: string;
   editHref?: string;
   secondDate?: string;
   bankAccountId?: string | null;
   recipientName?: string;
+  isDeleted?: boolean;
+  deleteConfig?: DeleteConfig;
+  audit?: AuditMetadata;
+  activityTargetType?: ActivityLogTargetType;
+  activityTargetId?: string;
 }) {
+  const router = useRouter();
+  const canWrite = useCanWriteBusinessData();
   const labels = getDocumentLabels(kind);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleteConfig) return;
+    setDeleting(true);
+    try {
+      const result = await deleteConfig.onDelete();
+      if (!result.ok) {
+        toast.error("削除に失敗しました");
+        return;
+      }
+      toast.success(deleteConfig.successToast);
+      router.push(backHref);
+    } catch (error) {
+      console.error("commercial document delete", error);
+      toast.error("削除に失敗しました");
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
+  };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-8 py-10">
-      <div className="print-hidden flex flex-wrap items-center justify-between gap-4">
-        <Link
-          href={backHref}
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"
-        >
-          <ArrowLeft className="size-4" />
-          一覧に戻る
-        </Link>
+    <div className="mx-auto min-w-0 max-w-5xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="print-hidden flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <DocumentBackLinks listHref={backHref} projectId={projectId} />
         <div className="flex flex-wrap gap-2">
-          {editHref ? (
+          {!isDeleted && editHref && canWrite ? (
             <Link
               href={editHref}
               className={cn(
@@ -77,6 +123,19 @@ export function CommercialDocumentDetail({
               <Pencil className="size-4" />
               編集
             </Link>
+          ) : null}
+          {!isDeleted && deleteConfig && canWrite ? (
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(true)}
+              className={cn(
+                buttonVariants({ variant: "outline" }),
+                "h-9 gap-2 rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+              )}
+            >
+              <Trash2 className="size-4" />
+              削除
+            </button>
           ) : null}
           <button
             type="button"
@@ -97,6 +156,11 @@ export function CommercialDocumentDetail({
           title={labels.title}
           description={`${documentNumber} / ${projectName}`}
         />
+        {isDeleted ? (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900">
+            この{labels.title}は削除済みです。一覧には表示されません。
+          </div>
+        ) : null}
         <div className="mt-4 flex flex-wrap gap-4 rounded-xl border border-zinc-200/80 bg-white px-5 py-4 text-sm">
           <div>
             <p className="text-xs text-zinc-400">発行日</p>
@@ -117,6 +181,16 @@ export function CommercialDocumentDetail({
         </div>
       </div>
 
+      {audit ? <AuditTrailPanel audit={audit} /> : null}
+
+      {activityTargetType && activityTargetId ? (
+        <ActivityLogPanel
+          targetType={activityTargetType}
+          targetId={activityTargetId}
+          className="mt-4"
+        />
+      ) : null}
+
       <CommercialDocumentPreview
         kind={kind}
         document={document}
@@ -128,6 +202,17 @@ export function CommercialDocumentDetail({
         bankAccountId={bankAccountId}
         recipientName={recipientName}
       />
+
+      {deleteConfig ? (
+        <DeleteConfirmDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          title={`${labels.title}を削除`}
+          description={deleteConfig.confirmDescription}
+          onConfirm={handleDelete}
+          loading={deleting}
+        />
+      ) : null}
     </div>
   );
 }

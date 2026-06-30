@@ -27,6 +27,8 @@ export type ProjectRecord = {
   archived: boolean;
   confirmedDate: string;
   completedDate: string;
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -125,6 +127,8 @@ export type QuoteRecord = {
   totalAmount: number;
   memo: string;
   paymentTerms: string;
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -200,6 +204,8 @@ export type InvoiceRecord = {
   memo: string;
   paymentTerms: string;
   bankAccountId: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -263,6 +269,8 @@ export type Customer = {
   address: string;
   invoiceDestination: string;
   memo: string;
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -274,7 +282,7 @@ export type CustomerListItem = Customer & {
 
 export type CustomerInput = Omit<
   Customer,
-  "id" | "createdAt" | "updatedAt"
+  "id" | "createdBy" | "updatedBy" | "createdAt" | "updatedAt"
 >;
 
 export const ITEM_TEMPLATE_CATEGORIES = [
@@ -300,13 +308,15 @@ export type ItemTemplate = {
   unitPrice: number;
   taxRate: TaxRate;
   isFavorite: boolean;
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type ItemTemplateInput = Omit<
   ItemTemplate,
-  "id" | "createdAt" | "updatedAt"
+  "id" | "createdBy" | "updatedBy" | "createdAt" | "updatedAt"
 >;
 
 /** 請求項目テンプレのカテゴリマスタ（DB保存用） */
@@ -358,6 +368,9 @@ export type CompanySettings = {
   deliveryNoteMemoTemplate: string;
   /** 領収書備考テンプレ */
   receiptMemoTemplate: string;
+  contractStatus: import("@/lib/types/signup-access").ContractStatus;
+  contractStartedAt: string | null;
+  contractEndedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

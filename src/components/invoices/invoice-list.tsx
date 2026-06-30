@@ -33,6 +33,13 @@ import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useQuoteStore } from "@/stores/quote-store";
 import { useInvoiceStore } from "@/stores/invoice-store";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { useAppDataStore } from "@/stores/app-data-store";
+import {
+  findProjectById,
+  resolveProjectNameFromStore,
+  UNKNOWN_CUSTOMER_LABEL,
+} from "@/lib/project-display";
 import {
   DocumentListActions,
   ListPageContainer,
@@ -53,6 +60,7 @@ const STATUS_FILTERS: Array<{ value: InvoiceDocumentStatus | "all"; label: strin
 ];
 
 export function InvoiceList() {
+  const hasInitialized = useAppDataStore((s) => s.hasInitialized);
   const invoices = useInvoiceStore((s) => s.invoices);
   const projects = useProjectStore((s) => s.projects);
   const customers = useCustomerStore((s) => s.customers);
@@ -80,22 +88,25 @@ export function InvoiceList() {
   );
 
   const listItems = useMemo(() => {
-    const projectById = new Map(projects.map((p) => [p.id, p]));
+    if (!hasInitialized) return [];
     const customerById = new Map(customers.map((c) => [c.id, c]));
     const quoteById = new Map(quotes.map((q) => [q.id, q]));
     return invoices.map((inv) => {
-      const p = projectById.get(inv.projectId);
+      const p = findProjectById(projects, inv.projectId);
       const c = customerById.get(inv.customerId);
       const q = quoteById.get(inv.quoteId);
       return {
         ...inv,
-        projectName: p?.projectName ?? "（不明な案件）",
-        customerName: c?.customerName ?? "（不明な顧客）",
+        projectName: resolveProjectNameFromStore(inv.projectId, projects, {
+          documentType: "invoice",
+          documentId: inv.id,
+        }),
+        customerName: c?.customerName ?? UNKNOWN_CUSTOMER_LABEL,
         quoteNumber: q?.quoteNumber ?? "（不明な見積）",
         projectArchived: p?.archived ?? false,
       };
     });
-  }, [invoices, projects, customers, quotes]);
+  }, [hasInitialized, invoices, projects, customers, quotes]);
 
   const yearOptions = useMemo(
     () =>
@@ -314,6 +325,7 @@ function InvoiceRow({ invoice }: { invoice: InvoiceListItem & { projectArchived:
 }
 
 function InvoiceCard({ invoice }: { invoice: InvoiceListItem & { projectArchived: boolean } }) {
+  const canWrite = useCanWriteBusinessData();
   const status = getInvoiceListDisplayStatus(invoice);
   return (
     <article
@@ -357,12 +369,14 @@ function InvoiceCard({ invoice }: { invoice: InvoiceListItem & { projectArchived
         >
           詳細
         </Link>
-        <Link
-          href={`/invoices/${invoice.id}/edit`}
-          className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-        >
-          編集
-        </Link>
+        {canWrite ? (
+          <Link
+            href={`/invoices/${invoice.id}/edit`}
+            className="flex-1 rounded-lg border border-zinc-200 px-3 py-2 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            編集
+          </Link>
+        ) : null}
       </div>
     </article>
   );

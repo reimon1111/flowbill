@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Archive,
@@ -20,6 +20,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { DeleteConfirmDialog } from "@/components/shared/delete-confirm-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { VIEWER_WRITE_DENIED_MESSAGE } from "@/lib/guards/write-access";
 import { cn } from "@/lib/utils";
 import type {
   ProjectActionType,
@@ -47,6 +49,7 @@ import {
   syncCustomerProjectCounts,
 } from "@/lib/services/projects";
 import { formatSupabaseError } from "@/lib/db/errors";
+import { getOrderCreationToastMessage } from "@/lib/order-creation-error";
 import { useProjectStore } from "@/stores/project-store";
 import { useProjectItemStore } from "@/stores/project-item-store";
 import { useQuoteStore } from "@/stores/quote-store";
@@ -63,14 +66,37 @@ import {
   createOrderFromProject,
   createReceiptFromProject,
 } from "@/lib/services/commercial-documents";
+import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
+import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
 
 type ProjectDetailProps = {
   project: ProjectListItem;
   history: ProjectHistoryEvent[];
 };
 
+const PROJECT_DETAIL_TABS = [
+  "overview",
+  "quote",
+  "order",
+  "delivery",
+  "invoice",
+  "receipt",
+  "history",
+] as const;
+
+type ProjectDetailTab = (typeof PROJECT_DETAIL_TABS)[number];
+
+function isProjectDetailTab(value: string | null): value is ProjectDetailTab {
+  return PROJECT_DETAIL_TABS.includes(value as ProjectDetailTab);
+}
+
 export function ProjectDetail({ project, history }: ProjectDetailProps) {
+  const canWrite = useCanWriteBusinessData();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const urlTab = isProjectDetailTab(tabParam) ? tabParam : "overview";
+
   const liveProject =
     useProjectStore((s) => s.projects.find((p) => p.id === project.id)) ?? project;
   const nextAction = useMemo(
@@ -120,7 +146,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
   const latestOrder = useMemo(
     () =>
       ordersList
-        .filter((o) => o.projectId === liveProject.id)
+        .filter((o) => o.projectId === liveProject.id && !o.deletedAt)
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -130,7 +156,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
   const latestDeliveryNote = useMemo(
     () =>
       deliveryNotesList
-        .filter((d) => d.projectId === liveProject.id)
+        .filter((d) => d.projectId === liveProject.id && !d.deletedAt)
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -140,7 +166,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
   const latestReceipt = useMemo(
     () =>
       receiptsList
-        .filter((r) => r.projectId === liveProject.id)
+        .filter((r) => r.projectId === liveProject.id && !r.deletedAt)
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -149,9 +175,11 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
   );
 
   const canCreateOrder =
-    liveProject.status !== "estimate" && liveProject.status !== "lost";
-  const canCreateDelivery = liveProject.status === "completed";
-  const canCreateReceipt = Boolean(latestInvoice);
+    canWrite &&
+    liveProject.status !== "estimate" &&
+    liveProject.status !== "lost";
+  const canCreateDelivery = canWrite && liveProject.status === "completed";
+  const canCreateReceipt = canWrite && Boolean(latestInvoice);
 
   const [loadingAction, setLoadingAction] = useState<ProjectActionType | null>(
     null
@@ -165,11 +193,22 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
   const [archiving, setArchiving] = useState(false);
 
   const handleAction = async (action: ProjectActionType) => {
+    if (!canWrite) {
+      toast.error(VIEWER_WRITE_DENIED_MESSAGE);
+      return;
+    }
     try {
       setLoadingAction(action);
       if (action === "mark_ordered") {
-        await confirmOrderForProject(project.id);
-        toast.success("受注を確定しました");
+        const result = await confirmOrderForProject(project.id);
+        if (result?.orderAlreadyExisted) {
+          toast.message("注文書はすでに作成済みです");
+          toast.success("受注を確定しました");
+          return;
+        }
+        toast.success("受注確定し、注文書を作成しました", {
+          description: result?.order?.orderNumber,
+        });
         return;
       }
       if (action === "mark_completed") {
@@ -190,9 +229,17 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
       }
       toast.success(getStatusChangeMessage(liveProject.status, action));
     } catch (error) {
-      toast.error("操作に失敗しました", {
-        description: formatSupabaseError(error),
-      });
+      console.error("project action error", { action, projectId: project.id, error });
+      if (action === "mark_ordered") {
+        const message = getOrderCreationToastMessage(error);
+        toast.error(message ?? "注文書の作成に失敗しました", {
+          description: message ? undefined : formatSupabaseError(error),
+        });
+      } else {
+        toast.error("操作に失敗しました", {
+          description: formatSupabaseError(error),
+        });
+      }
     } finally {
       syncCustomerProjectCounts();
       setLoadingAction(null);
@@ -210,8 +257,13 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
       toast.success("注文書を作成しました", { description: order.orderNumber });
       router.push(`/orders/${order.id}`);
     } catch (error) {
-      toast.error("注文書の作成に失敗しました", {
-        description: formatSupabaseError(error),
+      console.error("handleCreateOrder failed", {
+        projectId: liveProject.id,
+        error,
+      });
+      const message = getOrderCreationToastMessage(error);
+      toast.error(message ?? "注文書の作成に失敗しました", {
+        description: message ? undefined : formatSupabaseError(error),
       });
     } finally {
       setCreatingOrder(false);
@@ -318,8 +370,8 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-8 py-10">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto min-w-0 max-w-5xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <button
           type="button"
           onClick={() => router.push("/projects")}
@@ -329,48 +381,52 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
           案件一覧に戻る
         </button>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/projects/${project.id}/edit`}
-            className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "rounded-xl"
-            )}
-          >
-            <Pencil className="size-4" />
-            編集
-          </Link>
-        <button
-          type="button"
-          disabled={archiving}
-          onClick={() => void handleArchiveToggle()}
-          className={cn(
-            buttonVariants({ variant: "outline", size: "sm" }),
-            "rounded-xl"
-          )}
-        >
-          {liveProject.archived ? (
+          {canWrite ? (
             <>
-              <ArchiveRestore className="size-4" />
-              アーカイブ解除
+              <Link
+                href={`/projects/${project.id}/edit`}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "rounded-xl"
+                )}
+              >
+                <Pencil className="size-4" />
+                編集
+              </Link>
+              <button
+                type="button"
+                disabled={archiving}
+                onClick={() => void handleArchiveToggle()}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "rounded-xl"
+                )}
+              >
+                {liveProject.archived ? (
+                  <>
+                    <ArchiveRestore className="size-4" />
+                    アーカイブ解除
+                  </>
+                ) : (
+                  <>
+                    <Archive className="size-4" />
+                    アーカイブ
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteRequest}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+                )}
+              >
+                <Trash2 className="size-4" />
+                削除
+              </button>
             </>
-          ) : (
-            <>
-              <Archive className="size-4" />
-              アーカイブ
-            </>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={handleDeleteRequest}
-          className={cn(
-            buttonVariants({ variant: "outline", size: "sm" }),
-            "rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
-          )}
-        >
-          <Trash2 className="size-4" />
-          削除
-        </button>
+          ) : null}
         </div>
       </div>
 
@@ -406,18 +462,22 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         </span>
       </div>
 
-      <Tabs defaultValue="overview" className="gap-6">
+      <Tabs
+        key={`${liveProject.id}-${urlTab}`}
+        defaultValue={urlTab}
+        className="gap-6"
+      >
         <TabsList
           variant="line"
-          className="w-full justify-start gap-2 border-b border-zinc-200/80 pb-2"
+          className="w-full justify-start gap-2 overflow-x-auto border-b border-zinc-200/80 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <TabsTrigger value="overview">概要</TabsTrigger>
-          <TabsTrigger value="quote">見積</TabsTrigger>
-          <TabsTrigger value="order">注文書</TabsTrigger>
-          <TabsTrigger value="delivery">納品書</TabsTrigger>
-          <TabsTrigger value="invoice">請求</TabsTrigger>
-          <TabsTrigger value="receipt">領収書</TabsTrigger>
-          <TabsTrigger value="history">履歴</TabsTrigger>
+          <TabsTrigger value="overview" className="shrink-0">概要</TabsTrigger>
+          <TabsTrigger value="quote" className="shrink-0">見積</TabsTrigger>
+          <TabsTrigger value="order" className="shrink-0">注文書</TabsTrigger>
+          <TabsTrigger value="delivery" className="shrink-0">納品書</TabsTrigger>
+          <TabsTrigger value="invoice" className="shrink-0">請求</TabsTrigger>
+          <TabsTrigger value="receipt" className="shrink-0">領収書</TabsTrigger>
+          <TabsTrigger value="history" className="shrink-0">履歴</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -477,6 +537,13 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                 />
               )}
             </dl>
+
+            <AuditTrailPanel audit={liveProject} className="mt-6" />
+            <ActivityLogPanel
+              targetType="project"
+              targetId={liveProject.id}
+              className="mt-4"
+            />
           </section>
         </TabsContent>
 
@@ -492,15 +559,17 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                     顧客・案件情報は自動反映されます。テンプレを選ぶだけで30秒で作成できます。
                   </p>
                 </div>
-                <Link
-                  href={`/quotes/new?projectId=${project.id}`}
-                  className={cn(
-                    buttonVariants(),
-                    "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-                  )}
-                >
-                  見積を作成
-                </Link>
+                {canWrite ? (
+                  <Link
+                    href={`/quotes/new?projectId=${project.id}`}
+                    className={cn(
+                      buttonVariants(),
+                      "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+                    )}
+                  >
+                    見積を作成
+                  </Link>
+                ) : null}
               </div>
             </div>
           ) : (
@@ -539,24 +608,28 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                 >
                   詳細を見る
                 </Link>
-                <Link
-                  href={`/quotes/${latestQuote.id}/edit`}
-                  className={cn(
-                    buttonVariants({ variant: "outline" }),
-                    "h-9 rounded-xl"
-                  )}
-                >
-                  編集
-                </Link>
-                <Link
-                  href={`/quotes/new?projectId=${project.id}`}
-                  className={cn(
-                    buttonVariants(),
-                    "h-9 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-                  )}
-                >
-                  追加で作成
-                </Link>
+                {canWrite ? (
+                  <Link
+                    href={`/quotes/${latestQuote.id}/edit`}
+                    className={cn(
+                      buttonVariants({ variant: "outline" }),
+                      "h-9 rounded-xl"
+                    )}
+                  >
+                    編集
+                  </Link>
+                ) : null}
+                {canWrite ? (
+                  <Link
+                    href={`/quotes/new?projectId=${project.id}`}
+                    className={cn(
+                      buttonVariants(),
+                      "h-9 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+                    )}
+                  >
+                    追加で作成
+                  </Link>
+                ) : null}
               </div>
             </div>
           )}
@@ -566,7 +639,11 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
           <ProjectDocumentTab
             label="注文書"
             emptyTitle="まだ注文書がありません"
-            emptyDescription="受注確定後、「注文書を作成」で作成できます。"
+            emptyDescription={
+              liveProject.status === "ordered"
+                ? "注文書の作成に失敗しました。再作成してください。"
+                : "受注確定後、「注文書を作成」で作成できます。"
+            }
             canCreate={canCreateOrder}
             blockedHint="受注確定後に作成できます"
             createLabel="注文書を作成"
@@ -771,7 +848,7 @@ function ProjectDocumentTab({
     issueDate: string;
     totalAmount: number;
     updatedAt: string;
-  } & Record<string, string | number>;
+  } & Record<string, string | number | null>;
   numberField: string;
   detailBasePath: string;
 }) {

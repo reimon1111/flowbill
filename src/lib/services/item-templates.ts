@@ -8,6 +8,7 @@ import {
   dbToggleItemTemplateFavorite,
   dbUpdateItemTemplate,
 } from "@/lib/db/write-item-templates";
+import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 
 export async function getItemTemplates(): Promise<ItemTemplate[]> {
   return useItemTemplateStore.getState().itemTemplates;
@@ -23,6 +24,7 @@ export async function getItemTemplateById(
 export async function createItemTemplate(
   input: ItemTemplateInput
 ): Promise<ItemTemplate> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const template = await dbInsertItemTemplate(input);
     useItemTemplateStore.getState().upsertItemTemplate(template);
@@ -35,6 +37,7 @@ export async function updateItemTemplate(
   id: string,
   input: ItemTemplateInput
 ): Promise<ItemTemplate | null> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const template = await dbUpdateItemTemplate(id, input);
     if (template) useItemTemplateStore.getState().upsertItemTemplate(template);
@@ -44,6 +47,7 @@ export async function updateItemTemplate(
 }
 
 export async function deleteItemTemplate(id: string): Promise<boolean> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const ok = await dbDeleteItemTemplate(id);
     if (ok) useItemTemplateStore.getState().removeItemTemplate(id);
@@ -55,6 +59,7 @@ export async function deleteItemTemplate(id: string): Promise<boolean> {
 export async function toggleItemTemplateFavorite(
   id: string
 ): Promise<ItemTemplate | null> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const template = await dbToggleItemTemplateFavorite(id);
     if (template) useItemTemplateStore.getState().upsertItemTemplate(template);

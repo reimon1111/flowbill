@@ -8,6 +8,7 @@ import { resolveRouteId } from "@/lib/route-params";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { toCommercialDocView } from "@/lib/commercial-document";
+import { deleteDeliveryNote } from "@/lib/services/commercial-documents";
 import { useDeliveryNoteStore } from "@/stores/delivery-note-store";
 
 export function DeliveryNoteDetailClient({
@@ -43,6 +44,8 @@ export function DeliveryNoteDetailClient({
     return <PageContentLoader />;
   }
 
+  const isDeleted = Boolean(note.deletedAt);
+
   return (
     <CommercialDocumentDetail
       kind="delivery_note"
@@ -55,8 +58,26 @@ export function DeliveryNoteDetailClient({
       customer={customer}
       items={items}
       document={toCommercialDocView(note.deliveryNoteNumber, note)}
+      audit={note}
+      activityTargetType="delivery_note"
+      activityTargetId={note.id}
       backHref="/delivery-notes"
-      editHref={`/delivery-notes/${note.id}/edit`}
+      projectId={project.id}
+      editHref={isDeleted ? undefined : `/delivery-notes/${note.id}/edit`}
+      isDeleted={isDeleted}
+      deleteConfig={
+        isDeleted
+          ? undefined
+          : {
+              confirmDescription:
+                "この納品書を削除しますか？この操作は一覧から非表示になります。",
+              successToast: "納品書を削除しました",
+              onDelete: async () => {
+                const result = await deleteDeliveryNote(note.id);
+                return result.ok ? { ok: true as const } : { ok: false as const };
+              },
+            }
+      }
     />
   );
 }

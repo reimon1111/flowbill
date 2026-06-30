@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatSupabaseError } from "@/lib/db/errors";
+import { getOrderCreationToastMessage } from "@/lib/order-creation-error";
 import { TodayDescription } from "@/components/shared/today-description";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -14,10 +15,8 @@ import { PROJECT_STATUS_LABELS } from "@/lib/constants";
 import { getDashboardStats } from "@/lib/services/projects";
 import {
   getPaymentDashboardStats,
-  getPaymentDashboardStatsAsync,
 } from "@/lib/services/payments";
 import { enrichPaymentListItem } from "@/lib/payment-utils";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useProjectStore } from "@/stores/project-store";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useInvoiceStore } from "@/stores/invoice-store";
@@ -27,6 +26,9 @@ import {
   issueInvoiceForProject,
   markProjectPaid,
 } from "@/lib/services/projects";
+import { ActivityLogFeed } from "@/components/shared/activity-log-panel";
+import { useActivityLogStore } from "@/stores/activity-log-store";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 
 type TaskTone = "overdue" | "unpaid" | "unissued" | "work" | "order";
 
@@ -89,15 +91,11 @@ const TONE_STYLES: Record<
 
 export function DashboardPage() {
   const router = useRouter();
+  const canWrite = useCanWriteBusinessData();
   useProjectStore((s) => s.projects);
   useCustomerStore((s) => s.customers);
   useInvoiceStore((s) => s.invoices);
-
-  useEffect(() => {
-    if (isSupabaseConfigured()) {
-      void getPaymentDashboardStatsAsync();
-    }
-  }, []);
+  const recentActivityLogs = useActivityLogStore((s) => s.recentLogs);
 
   const stats = getDashboardStats();
   const paymentStats = getPaymentDashboardStats();
@@ -300,11 +298,20 @@ export function DashboardPage() {
   const handleConfirmOrder = async (projectId: string) => {
     try {
       setBusyKey(`order:${projectId}`);
-      await confirmOrderForProject(projectId);
-      toast.success("受注を確定しました");
+      const result = await confirmOrderForProject(projectId);
+      if (result?.orderAlreadyExisted) {
+        toast.message("注文書はすでに作成済みです");
+        toast.success("受注を確定しました");
+        return;
+      }
+      toast.success("受注確定し、注文書を作成しました", {
+        description: result?.order?.orderNumber,
+      });
     } catch (error) {
-      toast.error("受注確定に失敗しました", {
-        description: formatSupabaseError(error),
+      console.error("confirm order error", { projectId, error });
+      const message = getOrderCreationToastMessage(error);
+      toast.error(message ?? "注文書の作成に失敗しました", {
+        description: message ? undefined : formatSupabaseError(error),
       });
     } finally {
       setBusyKey(null);
@@ -421,7 +428,7 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 px-5 py-6 lg:px-8 lg:py-8">
+    <div className="mx-auto min-w-0 max-w-[1400px] space-y-6 px-5 py-6 lg:px-8 lg:py-8">
       {/* ① ヘッダー */}
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 lg:text-3xl">
@@ -458,15 +465,17 @@ export function DashboardPage() {
           <div className="rounded-xl border border-dashed border-zinc-200 bg-white px-6 py-10 text-center">
             <p className="font-medium text-zinc-900">今日の要対応はありません</p>
             <p className="mt-1 text-sm text-zinc-500">新しい案件や見積から始められます</p>
-            <Link
-              href="/projects/new"
-              className={cn(
-                buttonVariants(),
-                "mt-4 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-              )}
-            >
-              案件を作成
-            </Link>
+            {canWrite ? (
+              <Link
+                href="/projects/new"
+                className={cn(
+                  buttonVariants(),
+                  "mt-4 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+                )}
+              >
+                案件を作成
+              </Link>
+            ) : null}
           </div>
         ) : (
           <div className="-mx-5 flex gap-3 overflow-x-auto px-5 pb-2 lg:mx-0 lg:px-0">
@@ -475,11 +484,21 @@ export function DashboardPage() {
                 key={task.key}
                 task={task}
                 busy={busyKey === task.busyKey}
+                canWrite={canWrite}
                 onAction={() => runTaskAction(task)}
               />
             ))}
           </div>
         )}
+      </section>
+
+      {/* 操作履歴 */}
+      <section className="rounded-xl border border-zinc-200/80 bg-white p-5 shadow-sm shadow-zinc-900/[0.02] lg:p-6">
+        <h2 className="text-lg font-semibold text-zinc-900">最近の操作</h2>
+        <p className="mt-1 text-sm text-zinc-500">会社内の最新10件</p>
+        <div className="mt-4">
+          <ActivityLogFeed logs={recentActivityLogs} />
+        </div>
       </section>
 
       {/* ④ 今週の予定 */}
@@ -545,10 +564,12 @@ function KpiCard({
 function TaskCard({
   task,
   busy,
+  canWrite,
   onAction,
 }: {
   task: DashboardTask;
   busy: boolean;
+  canWrite: boolean;
   onAction: () => void | Promise<void>;
 }) {
   const styles = TONE_STYLES[task.tone];
@@ -576,18 +597,20 @@ function TaskCard({
         <p className="text-xs font-medium text-zinc-500">{task.dateLabel}</p>
       </div>
 
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => void onAction()}
-        className={cn(
-          "mt-4 w-full rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
-          styles.button,
-          busy && "opacity-70"
-        )}
-      >
-        {busy ? "処理中..." : task.buttonLabel}
-      </button>
+      {canWrite ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void onAction()}
+          className={cn(
+            "mt-4 w-full rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
+            styles.button,
+            busy && "opacity-70"
+          )}
+        >
+          {busy ? "処理中..." : task.buttonLabel}
+        </button>
+      ) : null}
     </article>
   );
 }

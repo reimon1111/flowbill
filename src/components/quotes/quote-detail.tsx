@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Pencil, Printer, Send, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
+import { Pencil, Printer, Send, ThumbsDown, ThumbsUp, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
+import { DocumentBackLinks } from "@/components/shared/document-back-links";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Customer, QuoteItemRecord, QuoteRecord, QuoteStatus } from "@/lib/types";
@@ -21,6 +22,10 @@ import { formatSupabaseError } from "@/lib/db/errors";
 import { useState } from "react";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { QUOTE_EXPIRY_TYPE_LABELS } from "@/lib/quote-expiry";
+import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
+import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { useOrderStore } from "@/stores/order-store";
 
 export function QuoteDetail({
   quote,
@@ -36,11 +41,17 @@ export function QuoteDetail({
   items: QuoteItemRecord[];
 }) {
   const router = useRouter();
+  const canWrite = useCanWriteBusinessData();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const deleteBlockReason = getQuoteDeletionBlockReason(quote.id);
   const deletable = canDeleteQuote(quote.id);
+  const projectOrders = useOrderStore((s) =>
+    s.orders.filter((o) => o.projectId === quote.projectId && !o.deletedAt)
+  );
+  const showOrderGuidance =
+    canWrite && quote.status === "accepted" && projectOrders.length === 0;
   const handlePrint = () => {
     toast.message("印刷画面を開きます。保存先でPDFを選択できます。");
     window.print();
@@ -56,7 +67,7 @@ export function QuoteDetail({
       });
     } else if (status === "accepted") {
       toast.success("見積を承認しました", {
-        description: "案件ステータスを「受注」に更新しました",
+        description: "次は注文書を作成してください。",
       });
     } else if (status === "rejected") {
       toast.success("見積を否認しました", {
@@ -95,16 +106,12 @@ export function QuoteDetail({
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-8 py-10">
-      <div className="print-hidden flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => router.push("/quotes")}
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"
-        >
-          <ArrowLeft className="size-4" />
-          見積一覧に戻る
-        </button>
+    <div className="mx-auto min-w-0 max-w-6xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="print-hidden flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <DocumentBackLinks listHref="/quotes" projectId={quote.projectId} />
+        <div className="flex flex-wrap items-center gap-2">
+        {canWrite ? (
+          <>
         <Link
           href={`/quotes/${quote.id}/edit`}
           className={cn(
@@ -128,6 +135,9 @@ export function QuoteDetail({
           <Trash2 className="size-4" />
           削除
         </button>
+          </>
+        ) : null}
+        </div>
       </div>
 
       <PageHeader
@@ -147,7 +157,7 @@ export function QuoteDetail({
               <Printer className="size-4" />
               印刷/PDF保存
             </button>
-            {quote.status === "draft" && (
+            {canWrite && quote.status === "draft" && (
               <button
                 type="button"
                 onClick={() => changeStatus("sent")}
@@ -160,7 +170,7 @@ export function QuoteDetail({
                 提出済みにする
               </button>
             )}
-            {quote.status === "sent" && (
+            {canWrite && quote.status === "sent" && (
               <>
                 <button
                   type="button"
@@ -194,6 +204,24 @@ export function QuoteDetail({
           </div>
         }
       />
+
+      {showOrderGuidance ? (
+        <div className="print-hidden rounded-xl border border-blue-200/80 bg-blue-50 px-5 py-4 text-sm text-blue-950">
+          <p className="font-medium">見積を承認しました。次は注文書を作成してください。</p>
+          <p className="mt-1 text-blue-800/90">
+            案件詳細の注文書タブから作成できます。
+          </p>
+          <Link
+            href={`/projects/${quote.projectId}?tab=order`}
+            className={cn(
+              buttonVariants(),
+              "mt-4 h-9 rounded-xl bg-blue-700 text-white hover:bg-blue-600"
+            )}
+          >
+            注文書を作成
+          </Link>
+        </div>
+      ) : null}
 
       {!deletable && deleteBlockReason && quote.status !== "accepted" && (
         <div className="print-hidden rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -241,6 +269,10 @@ export function QuoteDetail({
           </p>
         </div>
       </div>
+
+      <AuditTrailPanel audit={quote} />
+
+      <ActivityLogPanel targetType="quote" targetId={quote.id} className="mt-4" />
 
       <QuotePreview
         quote={quote}

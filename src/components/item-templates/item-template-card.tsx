@@ -12,12 +12,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 
 type ItemTemplateCardProps = {
   template: ItemTemplate;
   onDelete: (template: ItemTemplate) => void;
   onToggleFavorite: (template: ItemTemplate) => void;
   variant?: "card" | "row";
+  canWrite?: boolean;
 };
 
 export function ItemTemplateCard({
@@ -25,13 +27,18 @@ export function ItemTemplateCard({
   onDelete,
   onToggleFavorite,
   variant = "card",
+  canWrite: canWriteProp,
 }: ItemTemplateCardProps) {
+  const canWriteHook = useCanWriteBusinessData();
+  const canWrite = canWriteProp ?? canWriteHook;
+
   if (variant === "row") {
     return (
       <TemplateRow
         template={template}
         onDelete={onDelete}
         onToggleFavorite={onToggleFavorite}
+        canWrite={canWrite}
       />
     );
   }
@@ -44,6 +51,7 @@ export function ItemTemplateCard({
             <h3 className="font-semibold text-zinc-900">{template.name}</h3>
             <FavoriteButton
               isFavorite={template.isFavorite}
+              disabled={!canWrite}
               onClick={() => onToggleFavorite(template)}
             />
           </div>
@@ -67,20 +75,22 @@ export function ItemTemplateCard({
         <span className="whitespace-nowrap">更新 {formatDate(template.updatedAt)}</span>
       </div>
 
-      <div className="mt-4 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-        <Link
-          href={`/item-templates/${template.id}/edit`}
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-        >
-          <Pencil className="size-3.5" />
-          編集
-        </Link>
-        <TemplateMenu
-          template={template}
-          onDelete={onDelete}
-          onToggleFavorite={onToggleFavorite}
-        />
-      </div>
+      {canWrite ? (
+        <div className="mt-4 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+          <Link
+            href={`/item-templates/${template.id}/edit`}
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            <Pencil className="size-3.5" />
+            編集
+          </Link>
+          <TemplateMenu
+            template={template}
+            onDelete={onDelete}
+            onToggleFavorite={onToggleFavorite}
+          />
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -89,6 +99,7 @@ function TemplateRow({
   template,
   onDelete,
   onToggleFavorite,
+  canWrite = true,
 }: ItemTemplateCardProps) {
   return (
     <article className="group grid grid-cols-1 gap-3 rounded-xl border border-zinc-200/80 bg-white px-5 py-4 shadow-sm shadow-zinc-900/[0.02] transition-shadow hover:shadow-md hover:shadow-zinc-900/[0.04] lg:grid-cols-[minmax(140px,1fr)_80px_minmax(160px,1.2fr)_100px_80px_120px_auto] lg:items-center lg:gap-4">
@@ -98,6 +109,7 @@ function TemplateRow({
         </span>
         <FavoriteButton
           isFavorite={template.isFavorite}
+          disabled={!canWrite}
           onClick={() => onToggleFavorite(template)}
         />
       </div>
@@ -115,17 +127,21 @@ function TemplateRow({
         <span className="whitespace-nowrap">{formatDate(template.updatedAt)}</span>
       </p>
       <div className="flex justify-end gap-2">
-        <Link
-          href={`/item-templates/${template.id}/edit`}
-          className="hidden rounded-lg border border-zinc-200 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 lg:inline-flex"
-        >
-          編集
-        </Link>
-        <TemplateMenu
-          template={template}
-          onDelete={onDelete}
-          onToggleFavorite={onToggleFavorite}
-        />
+        {canWrite ? (
+          <>
+            <Link
+              href={`/item-templates/${template.id}/edit`}
+              className="hidden rounded-lg border border-zinc-200 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 lg:inline-flex"
+            >
+              編集
+            </Link>
+            <TemplateMenu
+              template={template}
+              onDelete={onDelete}
+              onToggleFavorite={onToggleFavorite}
+            />
+          </>
+        ) : null}
       </div>
     </article>
   );
@@ -133,14 +149,17 @@ function TemplateRow({
 
 function FavoriteButton({
   isFavorite,
+  disabled = false,
   onClick,
 }: {
   isFavorite: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();

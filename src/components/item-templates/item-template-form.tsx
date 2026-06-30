@@ -156,7 +156,7 @@ export function ItemTemplateForm({
         </p>
       </FormSection>
 
-      <div className="sticky bottom-0 -mx-8 border-t border-zinc-200/80 bg-zinc-50/80 px-8 py-4 backdrop-blur-sm">
+      <div className="sticky bottom-0 -mx-4 border-t border-zinc-200/80 bg-zinc-50/80 px-4 py-4 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="mx-auto flex max-w-3xl justify-end">
           <Button
             type="submit"

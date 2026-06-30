@@ -219,6 +219,17 @@ export function isMissingProjectArchivedColumn(error: unknown): boolean {
   );
 }
 
+/** 注文書の任意列（recipient_name / deleted_at）未作成か */
+export function isMissingOrderOptionalColumns(error: unknown): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (!text.includes("orders")) return false;
+  return text.includes("recipient_name") || text.includes("deleted_at");
+}
+
 /** STEP14 書類管理テーブル未作成か */
 export function isMissingDocumentManagementTables(error: unknown): boolean {
   const shape = readSupabaseErrorShape(error);

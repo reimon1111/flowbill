@@ -8,6 +8,7 @@ import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format";
 import { PROJECT_STATUS_OPTIONS } from "@/lib/project-utils";
 import {
   SCHEDULE_DAY_WIDTH,
@@ -55,7 +56,46 @@ function FilterChip({
   );
 }
 
-const LEFT_COL_WIDTH = 280;
+const LEFT_COL_CLASS = "w-[13.75rem] shrink-0 sm:w-[16.25rem] lg:w-[17.5rem]";
+
+function ScheduleProjectListItem({ project }: { project: ProjectListItem }) {
+  const assignee = project.assigneeName.trim();
+
+  return (
+    <Link
+      href={`/projects/${project.id}`}
+      className="flex min-w-0 flex-col justify-center gap-1 border-b border-zinc-100 px-4 py-3 transition-colors hover:bg-muted/40"
+      style={{ minHeight: SCHEDULE_ROW_HEIGHT }}
+    >
+      <div className="flex min-w-0 items-center gap-2">
+        <span
+          className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-900 sm:text-[15px]"
+          title={project.projectName}
+        >
+          {project.projectName}
+        </span>
+        <ProjectStatusBadge
+          status={project.status}
+          className="shrink-0 gap-1 rounded-md px-1.5 py-0.5 text-xs leading-4 whitespace-nowrap [&>span:first-child]:size-1"
+        />
+      </div>
+      <p
+        className="min-w-0 truncate text-xs text-muted-foreground sm:text-sm"
+        title={project.customerName}
+      >
+        {project.customerName}
+      </p>
+      {assignee ? (
+        <p className="min-w-0 truncate text-xs text-muted-foreground" title={assignee}>
+          担当：{assignee}
+        </p>
+      ) : null}
+      <p className="truncate text-xs tabular-nums text-muted-foreground">
+        更新：{formatDateTime(project.updatedAt)}
+      </p>
+    </Link>
+  );
+}
 
 function ScheduleToolbar({
   viewStart,
@@ -231,7 +271,7 @@ function ScheduleTimelineRow({
   return (
     <div
       className="relative border-b border-zinc-100"
-      style={{ height: SCHEDULE_ROW_HEIGHT, width: dates.length * SCHEDULE_DAY_WIDTH }}
+      style={{ minHeight: SCHEDULE_ROW_HEIGHT, width: dates.length * SCHEDULE_DAY_WIDTH }}
     >
       {dates.map((date, index) => {
         const todayMark = isSameDay(date, today);
@@ -318,10 +358,10 @@ export function ProjectSchedulePage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-[1600px] space-y-6 px-8 py-10">
+    <div className="mx-auto min-w-0 max-w-[1600px] space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <PageHeader
         title="案件予定"
-        description="開始日〜完了予定日で案件の期間を一覧表示します"
+        description="開始日〜完了予定日で案件の期間を一覧表示します（スマホでは横スクロールで期間を確認できます）"
       />
 
       <ScheduleToolbar
@@ -356,10 +396,7 @@ export function ProjectSchedulePage() {
       ) : (
         <div className="overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.03]">
           <div className="flex">
-            <div
-              className="shrink-0 border-r border-zinc-200 bg-white"
-              style={{ width: LEFT_COL_WIDTH }}
-            >
+            <div className={cn("border-r border-zinc-200 bg-white", LEFT_COL_CLASS)}>
               <div
                 className="flex items-end border-b border-zinc-200 bg-zinc-50/80 px-4 pb-2 text-xs font-medium text-zinc-500"
                 style={{ height: SCHEDULE_HEADER_HEIGHT }}
@@ -367,30 +404,7 @@ export function ProjectSchedulePage() {
                 案件
               </div>
               {projects.map((project) => (
-                <div
-                  key={project.id}
-                  className="flex flex-col justify-center gap-0.5 overflow-hidden border-b border-zinc-100 px-3"
-                  style={{ height: SCHEDULE_ROW_HEIGHT }}
-                >
-                  <Link
-                    href={`/projects/${project.id}`}
-                    className="block truncate text-sm leading-none font-medium text-zinc-900 hover:underline"
-                  >
-                    {project.projectName}
-                  </Link>
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="min-w-0 truncate text-xs leading-none text-zinc-500">
-                      {project.customerName}
-                    </span>
-                    <ProjectStatusBadge
-                      status={project.status}
-                      className="schedule-status-badge shrink-0 gap-1 rounded px-1.5 py-0 text-[10px] leading-5 whitespace-nowrap [&>span:first-child]:size-1"
-                    />
-                  </div>
-                  <p className="truncate text-[11px] leading-none text-zinc-400">
-                    {project.assigneeName ? `担当 ${project.assigneeName}` : "担当 —"}
-                  </p>
-                </div>
+                <ScheduleProjectListItem key={project.id} project={project} />
               ))}
             </div>
 

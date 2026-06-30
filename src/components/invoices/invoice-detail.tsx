@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Printer, Trash2 } from "lucide-react";
+import { Pencil, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
+import { DocumentBackLinks } from "@/components/shared/document-back-links";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
@@ -31,6 +32,9 @@ import {
   InvoiceActionButton,
   type InvoiceActionType,
 } from "@/components/invoices/invoice-action-button";
+import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
+import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 
 function isOverdue(dueDate: string) {
   if (!dueDate) return false;
@@ -61,6 +65,7 @@ export function InvoiceDetail({
   items: InvoiceItemRecord[];
 }) {
   const router = useRouter();
+  const canWrite = useCanWriteBusinessData();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -134,39 +139,37 @@ export function InvoiceDetail({
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-8 py-10">
-      <div className="print-hidden flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => router.push("/invoices")}
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"
-        >
-          <ArrowLeft className="size-4" />
-          請求書一覧に戻る
-        </button>
+    <div className="mx-auto min-w-0 max-w-6xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <div className="print-hidden flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <DocumentBackLinks listHref="/invoices" projectId={invoice.projectId} />
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/invoices/${invoice.id}/edit`}
-            className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "rounded-xl"
-            )}
-          >
-            編集
-          </Link>
-          {deletable && (
-            <button
-              type="button"
-              onClick={handleDeleteRequest}
-              className={cn(
-                buttonVariants({ variant: "outline", size: "sm" }),
-                "rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+          {canWrite ? (
+            <>
+              <Link
+                href={`/invoices/${invoice.id}/edit`}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "rounded-xl"
+                )}
+              >
+                <Pencil className="size-4" />
+                編集
+              </Link>
+              {deletable && (
+                <button
+                  type="button"
+                  onClick={handleDeleteRequest}
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "rounded-xl text-red-600 hover:bg-red-50 hover:text-red-700"
+                  )}
+                >
+                  <Trash2 className="size-4" />
+                  削除
+                </button>
               )}
-            >
-              <Trash2 className="size-4" />
-              削除
-            </button>
-          )}
+            </>
+          ) : null}
         </div>
       </div>
 
@@ -187,23 +190,25 @@ export function InvoiceDetail({
               <Printer className="size-4" />
               印刷/PDF保存
             </button>
-            {actions.map((a) => (
-              <InvoiceActionButton
-                key={a}
-                action={a}
-                onAction={(act) => {
-                  if (act === "cancel") {
-                    if (cancelBlockReason) {
-                      toast.error(cancelBlockReason);
-                      return;
-                    }
-                    setCancelOpen(true);
-                    return;
-                  }
-                  void change(act);
-                }}
-              />
-            ))}
+            {canWrite
+              ? actions.map((a) => (
+                  <InvoiceActionButton
+                    key={a}
+                    action={a}
+                    onAction={(act) => {
+                      if (act === "cancel") {
+                        if (cancelBlockReason) {
+                          toast.error(cancelBlockReason);
+                          return;
+                        }
+                        setCancelOpen(true);
+                        return;
+                      }
+                      void change(act);
+                    }}
+                  />
+                ))
+              : null}
           </div>
         }
       />
@@ -241,6 +246,10 @@ export function InvoiceDetail({
           </p>
         </div>
       </div>
+
+      <AuditTrailPanel audit={invoice} />
+
+      <ActivityLogPanel targetType="invoice" targetId={invoice.id} className="mt-4" />
 
       <InvoicePreview
         invoice={invoice}

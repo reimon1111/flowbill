@@ -11,6 +11,7 @@ export function ImageUploadField({
   onChange,
   recommended,
   highlight,
+  disabled,
 }: {
   label: string;
   description: string;
@@ -18,6 +19,7 @@ export function ImageUploadField({
   onChange: (next: string | null) => void;
   recommended?: string;
   highlight?: boolean;
+  disabled?: boolean;
 }) {
   const inputId = useId();
   const has = !!value;
@@ -42,9 +44,13 @@ export function ImageUploadField({
         {has && (
           <button
             type="button"
-            onClick={() => onChange(null)}
+            onClick={() => {
+              if (disabled) return;
+              onChange(null);
+            }}
             className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-50 hover:text-zinc-700"
             aria-label={`${label}を削除`}
+            disabled={disabled}
           >
             <X className="size-4" />
           </button>
@@ -55,7 +61,8 @@ export function ImageUploadField({
         <label
           htmlFor={inputId}
           className={cn(
-            "group flex cursor-pointer items-center justify-center rounded-xl border border-dashed bg-zinc-50/30 px-4 py-6 transition-colors hover:bg-zinc-50",
+            "group flex items-center justify-center rounded-xl border border-dashed bg-zinc-50/30 px-4 py-6 transition-colors",
+            disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-zinc-50",
             highlight ? "border-amber-200" : "border-zinc-200"
           )}
         >
@@ -89,7 +96,9 @@ export function ImageUploadField({
           type="file"
           accept="image/*"
           className="hidden"
+          disabled={disabled}
           onChange={(e) => {
+            if (disabled) return;
             const file = e.target.files?.[0];
             if (!file) return;
             const reader = new FileReader();

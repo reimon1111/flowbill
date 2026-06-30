@@ -13,7 +13,9 @@ import {
   logSessionCheck,
 } from "@/lib/auth/bootstrap-session";
 import { clearCompanyContext } from "@/lib/db/company-context";
+import { clearAllBusinessStores } from "@/lib/stores/clear-business-stores";
 import { toDbErrorMessage } from "@/lib/db/errors";
+import { useAppDataStore } from "@/stores/app-data-store";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -111,6 +113,8 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
       if (event === "SIGNED_OUT") {
         clearCompanyContext();
+        clearAllBusinessStores();
+        useAppDataStore.getState().resetForInit();
         useAuthStore.getState().reset();
         router.replace("/login");
         return;
@@ -126,6 +130,12 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       }
 
       if (session?.user && event === "SIGNED_IN") {
+        const prevUserId = useAuthStore.getState().user?.id;
+        if (prevUserId && prevUserId !== session.user.id) {
+          clearAllBusinessStores();
+          useAppDataStore.getState().resetForInit();
+          useAuthStore.getState().setBootstrappedUserId(null);
+        }
         void handleSession(session);
       }
     });

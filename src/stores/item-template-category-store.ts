@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import type { ItemTemplateCategoryRecord } from "@/lib/types";
 import { ITEM_TEMPLATE_CATEGORIES } from "@/lib/types";
+import { initialStoreData } from "@/lib/stores/store-initial";
 
 function id() {
   return `itc_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -31,7 +32,7 @@ type ItemTemplateCategoryStore = {
 
 export const useItemTemplateCategoryStore = create<ItemTemplateCategoryStore>(
   (set, get) => ({
-    categories: initialCategories(),
+    categories: initialStoreData(initialCategories(), []),
     hydrate: (categories) => set({ categories }),
     upsert: (cat) =>
       set((s) => ({

@@ -26,6 +26,9 @@ export const companySettings: CompanySettings = {
   orderMemoTemplate: "",
   deliveryNoteMemoTemplate: "",
   receiptMemoTemplate: "",
+  contractStatus: "active",
+  contractStartedAt: null,
+  contractEndedAt: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };

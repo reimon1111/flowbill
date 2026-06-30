@@ -14,6 +14,14 @@ import {
 } from "@/lib/create-commercial-store";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
+import {
+  resolveProjectNameFromStore,
+  UNKNOWN_CUSTOMER_LABEL,
+} from "@/lib/project-display";
+
+function isActiveDocument<T extends { deletedAt: string | null }>(doc: T): boolean {
+  return !doc.deletedAt;
+}
 
 type ReceiptStore = {
   receipts: ReceiptRecord[];
@@ -28,6 +36,7 @@ type ReceiptStore = {
   getListItems: () => ReceiptListItem[];
   createReceipt: (input: ReceiptInput) => ReceiptRecord;
   updateReceipt: (receiptId: string, input: ReceiptInput) => ReceiptRecord | null;
+  softDeleteReceipt: (receiptId: string) => ReceiptRecord | null;
   upsertReceipt: (receipt: ReceiptRecord, items: ReceiptItemRecord[]) => void;
 };
 
@@ -40,7 +49,9 @@ export const useReceiptStore = create<ReceiptStore>((set, get) => ({
   getReceiptById: (id) => get().receipts.find((r) => r.id === id),
 
   getByProjectId: (projectId) =>
-    get().receipts.filter((r) => r.projectId === projectId),
+    get().receipts.filter(
+      (r) => r.projectId === projectId && isActiveDocument(r)
+    ),
 
   getItems: (receiptId) =>
     get()
@@ -50,15 +61,18 @@ export const useReceiptStore = create<ReceiptStore>((set, get) => ({
   getListItems: () => {
     const projects = useProjectStore.getState().projects;
     const customers = useCustomerStore.getState().customers;
-    return get().receipts.map((r) => ({
-      ...r,
-      projectName:
-        projects.find((p) => p.id === r.projectId)?.projectName ??
-        "（不明な案件）",
-      customerName:
-        customers.find((c) => c.id === r.customerId)?.customerName ??
-        "（不明な顧客）",
-    }));
+    return get()
+      .receipts.filter(isActiveDocument)
+      .map((r) => ({
+        ...r,
+        projectName: resolveProjectNameFromStore(r.projectId, projects, {
+          documentType: "receipt",
+          documentId: r.id,
+        }),
+        customerName:
+          customers.find((c) => c.id === r.customerId)?.customerName ??
+          UNKNOWN_CUSTOMER_LABEL,
+      }));
   },
 
   createReceipt: (input) => {
@@ -80,6 +94,9 @@ export const useReceiptStore = create<ReceiptStore>((set, get) => ({
         get().receipts.map((r) => r.receiptNumber)
       ),
       status: "issued",
+      deletedAt: null,
+      createdBy: null,
+      updatedBy: null,
       createdAt: now,
       updatedAt: now,
       ...header,
@@ -116,6 +133,23 @@ export const useReceiptStore = create<ReceiptStore>((set, get) => ({
         ...items,
         ...s.receiptItems.filter((i) => i.receiptId !== receiptId),
       ],
+    }));
+    return updated;
+  },
+
+  softDeleteReceipt: (receiptId) => {
+    const existing = get().getReceiptById(receiptId);
+    if (!existing || existing.deletedAt) return null;
+
+    const now = new Date().toISOString();
+    const updated: ReceiptRecord = {
+      ...existing,
+      deletedAt: now,
+      updatedAt: now,
+    };
+
+    set((s) => ({
+      receipts: s.receipts.map((r) => (r.id === receiptId ? updated : r)),
     }));
     return updated;
   },

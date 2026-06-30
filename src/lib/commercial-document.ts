@@ -56,6 +56,9 @@ export type OrderRecord = {
   memo: string;
   /** 注文書の宛名（空欄可・帳票では手書き用スペースを表示） */
   recipientName: string;
+  deletedAt: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -86,6 +89,9 @@ export type DeliveryNoteRecord = {
   taxAmount: number;
   totalAmount: number;
   memo: string;
+  deletedAt: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -116,6 +122,9 @@ export type ReceiptRecord = {
   taxAmount: number;
   totalAmount: number;
   memo: string;
+  deletedAt: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 };

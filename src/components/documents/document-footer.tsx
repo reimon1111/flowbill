@@ -30,20 +30,28 @@ export function DocumentFooter({
 
   return (
     <footer className="document-footer mt-4 space-y-3 text-[10px] leading-snug text-zinc-700">
-      <div className="document-footer-totals ml-auto w-full max-w-[220px] border border-zinc-300">
-        <div className="flex justify-between px-2 py-1">
-          <span>小計</span>
-          <span className="tabular-nums">{formatCurrency(subtotal)}</span>
-        </div>
-        <div className="flex justify-between border-t border-zinc-200 px-2 py-1">
-          <span>消費税</span>
-          <span className="tabular-nums">{formatCurrency(Math.round(taxAmount))}</span>
-        </div>
-        <div className="flex justify-between border-t border-zinc-300 bg-zinc-50 px-2 py-1 font-medium text-zinc-900">
-          <span>合計</span>
-          <span className="tabular-nums">{formatCurrency(Math.round(totalAmount))}</span>
-        </div>
-      </div>
+      <table className="document-footer-totals ml-auto w-full max-w-[220px] border-collapse border border-zinc-300">
+        <tbody>
+          <tr className="document-footer-totals-row">
+            <td className="px-2 py-1">小計</td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {formatCurrency(subtotal)}
+            </td>
+          </tr>
+          <tr className="document-footer-totals-row border-t border-zinc-200">
+            <td className="px-2 py-1">消費税</td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {formatCurrency(Math.round(taxAmount))}
+            </td>
+          </tr>
+          <tr className="document-footer-totals-row border-t border-zinc-300 bg-zinc-50 font-medium text-zinc-900">
+            <td className="px-2 py-1">合計</td>
+            <td className="px-2 py-1 text-right tabular-nums">
+              {formatCurrency(Math.round(totalAmount))}
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
       {labels.showBankInfo ? (
         <DocumentBankInfo bankAccounts={bankAccounts} />

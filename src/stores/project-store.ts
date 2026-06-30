@@ -9,6 +9,7 @@ import {
   initialProjectHistories,
   initialProjects,
 } from "@/lib/mock-projects";
+import { initialStoreData } from "@/lib/stores/store-initial";
 import type {
   ProjectActionType,
   ProjectHistoryEvent,
@@ -18,6 +19,7 @@ import type {
   ProjectStatus,
 } from "@/lib/types";
 import { useCustomerStore } from "@/stores/customer-store";
+import { findProjectById } from "@/lib/project-display";
 import { PROJECT_STATUS_LABELS } from "@/lib/constants";
 import { applyProjectMilestoneDates } from "@/lib/project-milestone-dates";
 
@@ -84,8 +86,8 @@ type ProjectStore = {
 };
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
-  projects: initialProjects,
-  histories: initialProjectHistories,
+  projects: initialStoreData(initialProjects, []),
+  histories: initialStoreData(initialProjectHistories, []),
 
   hydrate: ({ projects, histories }) => set({ projects, histories }),
 
@@ -111,7 +113,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       histories: [history, ...state.histories],
     })),
 
-  getProjectById: (id) => get().projects.find((p) => p.id === id),
+  getProjectById: (id) => findProjectById(get().projects, id),
 
   getListItems: () => get().projects.map(enrichProject),
 
@@ -134,6 +136,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       archived: false,
       confirmedDate: "",
       completedDate: "",
+      createdBy: null,
+      updatedBy: null,
       createdAt: now,
       updatedAt: now,
     };

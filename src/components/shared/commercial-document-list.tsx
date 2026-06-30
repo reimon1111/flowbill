@@ -5,7 +5,14 @@ import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
 import { ListToolbar } from "@/components/common/list-toolbar";
 import { EmptyState } from "@/components/shared/empty-state";
-import { ListPageContainer } from "@/components/shared/document-list-row";
+import {
+  commercialListGridClass,
+  DocumentListActions,
+  ListPageContainer,
+  listCardsClass,
+  listTableBodyClass,
+  listTableHeaderClass,
+} from "@/components/shared/document-list-row";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { formatContactWithSama } from "@/lib/format-contact";
 import type { DocumentKind } from "@/components/documents/document-labels";
@@ -27,6 +34,7 @@ import {
   type ReceiptSortKey,
 } from "@/lib/list-sorts";
 import { useListSort } from "@/hooks/use-list-sort";
+import { cn } from "@/lib/utils";
 
 export type CommercialListRow = CommercialListSortItem & {
   id: string;
@@ -68,6 +76,99 @@ function sortConfigForKind(kind: DocumentKind) {
   }
 }
 
+function basePathForKind(kind: "order" | "delivery_note" | "receipt"): string {
+  switch (kind) {
+    case "order":
+      return "/orders";
+    case "delivery_note":
+      return "/delivery-notes";
+    case "receipt":
+      return "/receipts";
+  }
+}
+
+function CommercialDocumentRow({
+  row,
+  basePath,
+}: {
+  row: CommercialListRow;
+  basePath: string;
+}) {
+  return (
+    <article
+      className={cn(
+        commercialListGridClass,
+        "rounded-xl border border-zinc-200/80 bg-white px-4 py-3.5 shadow-sm shadow-zinc-900/[0.02] transition-shadow hover:shadow-md hover:shadow-zinc-900/[0.04]"
+      )}
+    >
+      <div className="min-w-0">
+        <Link
+          href={`${basePath}/${row.id}`}
+          className="block truncate font-medium text-zinc-900 hover:underline"
+        >
+          {row.documentNumber}
+        </Link>
+        <p className="truncate text-sm text-zinc-500">{row.projectName}</p>
+        <p className="mt-0.5 truncate text-sm text-zinc-600">
+          {formatContactWithSama(row.customerName)}
+        </p>
+      </div>
+      <div className="min-w-0 text-right">
+        <p className="font-semibold tabular-nums text-zinc-900">
+          {formatCurrency(Math.round(row.totalAmount))}
+        </p>
+        <p className="mt-0.5 text-xs text-zinc-400">
+          発行 {formatDate(row.issueDate)}
+        </p>
+      </div>
+      <DocumentListActions
+        detailHref={`${basePath}/${row.id}`}
+        editHref={`${basePath}/${row.id}/edit`}
+        className="justify-self-end"
+      />
+    </article>
+  );
+}
+
+function CommercialDocumentCard({
+  row,
+  basePath,
+}: {
+  row: CommercialListRow;
+  basePath: string;
+}) {
+  return (
+    <article className="rounded-xl border border-zinc-200/80 bg-white p-5 shadow-sm shadow-zinc-900/[0.02]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <Link
+            href={`${basePath}/${row.id}`}
+            className="text-lg font-semibold text-zinc-900 hover:underline"
+          >
+            {row.documentNumber}
+          </Link>
+          <p className="mt-1 truncate text-sm text-zinc-600">{row.projectName}</p>
+          <p className="mt-0.5 truncate text-sm text-zinc-500">
+            {formatContactWithSama(row.customerName)}
+          </p>
+          <p className="mt-2 text-xs text-zinc-400">
+            発行 {formatDate(row.issueDate)}
+          </p>
+        </div>
+        <p className="shrink-0 font-semibold tabular-nums text-zinc-900">
+          {formatCurrency(Math.round(row.totalAmount))}
+        </p>
+      </div>
+      <div className="mt-4 flex justify-end">
+        <DocumentListActions
+          detailHref={`${basePath}/${row.id}`}
+          editHref={`${basePath}/${row.id}/edit`}
+        />
+      </div>
+    </article>
+  );
+}
+
 export function CommercialDocumentList({
   kind,
   items,
@@ -80,12 +181,7 @@ export function CommercialDocumentList({
   emptyDescription: string;
 }) {
   const labels = getDocumentLabels(kind);
-  const basePath =
-    kind === "order"
-      ? "/orders"
-      : kind === "delivery_note"
-        ? "/delivery-notes"
-        : "/receipts";
+  const basePath = basePathForKind(kind);
 
   const config = sortConfigForKind(kind);
   const [search, setSearch] = useState("");
@@ -131,33 +227,23 @@ export function CommercialDocumentList({
           }
         />
       ) : (
-        <div className="space-y-2">
-          {filtered.map((row) => (
-            <Link
-              key={row.id}
-              href={`${basePath}/${row.id}`}
-              className="block rounded-xl border border-zinc-200/80 bg-white px-5 py-4 shadow-sm transition-shadow hover:shadow-md"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="font-medium text-zinc-900">{row.documentNumber}</p>
-                  <p className="mt-1 truncate text-sm text-zinc-600">
-                    {row.projectName}
-                  </p>
-                  <p className="mt-0.5 truncate text-sm text-zinc-500">
-                    {formatContactWithSama(row.customerName)}
-                  </p>
-                  <p className="mt-2 text-xs text-zinc-400">
-                    発行 {formatDate(row.issueDate)}
-                  </p>
-                </div>
-                <p className="shrink-0 font-semibold tabular-nums text-zinc-900">
-                  {formatCurrency(Math.round(row.totalAmount))}
-                </p>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <>
+          <div className={cn(listTableHeaderClass, commercialListGridClass, "px-4")}>
+            <span>{labels.numberLabel} / 案件</span>
+            <span className="text-right">合計</span>
+            <span className="text-right">操作</span>
+          </div>
+          <div className={listTableBodyClass}>
+            {filtered.map((row) => (
+              <CommercialDocumentRow key={row.id} row={row} basePath={basePath} />
+            ))}
+          </div>
+          <div className={listCardsClass}>
+            {filtered.map((row) => (
+              <CommercialDocumentCard key={row.id} row={row} basePath={basePath} />
+            ))}
+          </div>
+        </>
       )}
     </ListPageContainer>
   );

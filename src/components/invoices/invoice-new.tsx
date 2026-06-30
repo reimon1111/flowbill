@@ -74,7 +74,7 @@ export function NewInvoiceClient() {
 
   if (!projectId || !project || !customer) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <PageHeader
           title="請求書を生成"
           description="案件完了 → 見積から請求書が自然に生まれます"
@@ -99,7 +99,7 @@ export function NewInvoiceClient() {
 
   if (!canCreateFromProject) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <Link
           href={`/projects/${projectId}`}
           className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"
@@ -122,7 +122,7 @@ export function NewInvoiceClient() {
 
   if (!sourceQuote) {
     return (
-      <div className="mx-auto max-w-3xl space-y-6 px-8 py-10">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <Link
           href={`/projects/${projectId}`}
           className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"
@@ -181,7 +181,7 @@ export function NewInvoiceClient() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-8 py-10 pb-24">
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:py-10">
       <Link
         href={`/projects/${projectId}`}
         className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"

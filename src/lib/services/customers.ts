@@ -18,6 +18,7 @@ import {
   dbUpdateCustomer,
 } from "@/lib/db/write-customers";
 import { useInvoiceStore } from "@/stores/invoice-store";
+import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 
 function toListItem(customer: Customer): CustomerListItem {
   const meta = getCustomerListMeta(customer.id);
@@ -43,6 +44,7 @@ export async function getCustomerById(
 export async function createCustomer(
   input: CustomerInput
 ): Promise<Customer> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const customer = await dbInsertCustomer(input);
     useCustomerStore.getState().upsertCustomer(customer);
@@ -55,6 +57,7 @@ export async function updateCustomer(
   id: string,
   input: CustomerInput
 ): Promise<Customer | null> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const customer = await dbUpdateCustomer(id, input);
     if (customer) useCustomerStore.getState().upsertCustomer(customer);
@@ -64,6 +67,7 @@ export async function updateCustomer(
 }
 
 export async function deleteCustomer(id: string): Promise<boolean> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const ok = await dbDeleteCustomer(id);
     if (ok) useCustomerStore.getState().removeCustomer(id);

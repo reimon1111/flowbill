@@ -5,6 +5,11 @@ import {
   fetchProfileForUser,
 } from "@/lib/auth/ensure-profile";
 import { companyFromRow, type CompanyRow } from "@/lib/db/mappers";
+import {
+  fetchUserCompanyMemberships,
+  pickPrimaryCompanyId,
+  syncProfileCompanyId,
+} from "@/lib/db/company-membership-resolve";
 
 let cachedCompanyId: string | null = null;
 
@@ -22,11 +27,11 @@ export function clearCompanyContext() {
 
 /**
  * ログイン中ユーザーの company_id を解決する。
- * Supabase 未設定時は環境変数フォールバック（モック用）。
+ * チーム所属（member/admin/viewer）を個人用会社（owner）より優先する。
+ *
+ * bootstrap で古い company_id がキャッシュされていても、毎回メンバーシップを再評価する。
  */
 export async function resolveCompanyId(): Promise<string> {
-  if (cachedCompanyId) return cachedCompanyId;
-
   if (!isSupabaseConfigured()) {
     const envId = process.env.NEXT_PUBLIC_DEFAULT_COMPANY_ID;
     if (envId) {
@@ -46,7 +51,25 @@ export async function resolveCompanyId(): Promise<string> {
   if (!user) throw new Error("ログインが必要です");
 
   const profile = await fetchProfileForUser(user.id);
-  if (profile) {
+  const memberships = await fetchUserCompanyMemberships(user.id);
+  const resolved = pickPrimaryCompanyId(
+    memberships,
+    profile?.companyId ?? null
+  );
+
+  if (resolved) {
+    if (profile && profile.companyId !== resolved) {
+      try {
+        await syncProfileCompanyId(user.id, resolved);
+      } catch (syncError) {
+        console.warn("syncProfileCompanyId", syncError);
+      }
+    }
+    cachedCompanyId = resolved;
+    return resolved;
+  }
+
+  if (profile?.companyId) {
     cachedCompanyId = profile.companyId;
     return profile.companyId;
   }

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { ItemTemplate, ItemTemplateInput } from "@/lib/types";
 import { initialItemTemplates } from "@/lib/mock-item-templates";
+import { initialStoreData } from "@/lib/stores/store-initial";
 
 function generateId(): string {
   return `t${Date.now().toString(36)}`;
@@ -22,7 +23,7 @@ type ItemTemplateStore = {
 };
 
 export const useItemTemplateStore = create<ItemTemplateStore>((set, get) => ({
-  itemTemplates: initialItemTemplates,
+  itemTemplates: initialStoreData(initialItemTemplates, []),
 
   hydrate: (itemTemplates) => set({ itemTemplates }),
 
@@ -49,6 +50,8 @@ export const useItemTemplateStore = create<ItemTemplateStore>((set, get) => ({
     const template: ItemTemplate = {
       id: generateId(),
       ...input,
+      createdBy: null,
+      updatedBy: null,
       createdAt: now,
       updatedAt: now,
     };

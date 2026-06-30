@@ -94,7 +94,7 @@ export function RecurringList() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-8 py-10">
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <PageHeader
         title="定期請求"
         description={`${activeCount}件が有効 — 毎月の請求漏れを防ぎます`}

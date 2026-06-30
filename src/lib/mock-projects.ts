@@ -20,7 +20,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "2026-04-05",
     completedDate: "2026-05-20",
-    createdAt: "2026-04-01T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-04-01T09:00:00.000Z",
     updatedAt: "2026-05-20T10:00:00.000Z",
   },
   {
@@ -38,7 +42,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "",
     completedDate: "",
-    createdAt: "2026-04-10T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-04-10T09:00:00.000Z",
     updatedAt: "2026-05-18T10:00:00.000Z",
   },
   {
@@ -58,7 +66,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "",
     completedDate: "",
-    createdAt: "2026-05-01T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-05-01T09:00:00.000Z",
     updatedAt: "2026-05-22T11:00:00.000Z",
   },
   {
@@ -78,7 +90,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "",
     completedDate: "",
-    createdAt: "2026-05-05T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-05-05T09:00:00.000Z",
     updatedAt: "2026-05-19T10:00:00.000Z",
   },
   {
@@ -98,7 +114,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "2026-05-21",
     completedDate: "",
-    createdAt: "2026-05-08T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-05-08T09:00:00.000Z",
     updatedAt: "2026-05-21T10:00:00.000Z",
   },
   {
@@ -118,7 +138,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "2026-05-12",
     completedDate: "",
-    createdAt: "2026-05-10T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-05-10T09:00:00.000Z",
     updatedAt: "2026-05-23T10:00:00.000Z",
   },
   {
@@ -136,7 +160,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "",
     completedDate: "",
-    createdAt: "2026-05-20T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-05-20T09:00:00.000Z",
     updatedAt: "2026-05-20T09:00:00.000Z",
   },
   {
@@ -154,7 +182,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "",
     completedDate: "",
-    createdAt: "2026-05-01T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-05-01T09:00:00.000Z",
     updatedAt: "2026-05-15T10:00:00.000Z",
   },
   {
@@ -172,7 +204,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "",
     completedDate: "",
-    createdAt: "2026-04-15T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-04-15T09:00:00.000Z",
     updatedAt: "2026-05-10T10:00:00.000Z",
   },
   {
@@ -190,7 +226,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "",
     completedDate: "",
-    createdAt: "2026-04-01T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-04-01T09:00:00.000Z",
     updatedAt: "2026-05-01T10:00:00.000Z",
   },
   {
@@ -208,7 +248,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "",
     completedDate: "",
-    createdAt: "2026-03-01T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-03-01T09:00:00.000Z",
     updatedAt: "2026-04-30T10:00:00.000Z",
   },
   {
@@ -228,7 +272,11 @@ export const initialProjects: ProjectRecord[] = [
     archived: false,
     confirmedDate: "",
     completedDate: "",
-    createdAt: "2026-03-15T09:00:00.000Z",
+        createdBy: null,
+
+        updatedBy: null,
+
+        createdAt: "2026-03-15T09:00:00.000Z",
     updatedAt: "2026-04-15T10:00:00.000Z",
   },
 ];
@@ -239,7 +287,7 @@ export const initialProjectHistories: ProjectHistoryEvent[] = [
     projectId: "p1",
     type: "created",
     title: "案件作成",
-    createdAt: "2026-04-01T09:00:00.000Z",
+        createdAt: "2026-04-01T09:00:00.000Z",
   },
   {
     id: "h-p1-2",
@@ -247,7 +295,7 @@ export const initialProjectHistories: ProjectHistoryEvent[] = [
     type: "status_changed",
     title: "受注化",
     description: "受注",
-    createdAt: "2026-04-05T10:00:00.000Z",
+        createdAt: "2026-04-05T10:00:00.000Z",
   },
   {
     id: "h-p1-3",
@@ -255,7 +303,7 @@ export const initialProjectHistories: ProjectHistoryEvent[] = [
     type: "status_changed",
     title: "作業開始",
     description: "作業中",
-    createdAt: "2026-04-06T10:00:00.000Z",
+        createdAt: "2026-04-06T10:00:00.000Z",
   },
   {
     id: "h-p1-4",
@@ -263,14 +311,14 @@ export const initialProjectHistories: ProjectHistoryEvent[] = [
     type: "status_changed",
     title: "完了",
     description: "完了",
-    createdAt: "2026-05-20T10:00:00.000Z",
+        createdAt: "2026-05-20T10:00:00.000Z",
   },
   {
     id: "h-p4-1",
     projectId: "p4",
     type: "created",
     title: "案件作成",
-    createdAt: "2026-05-01T09:00:00.000Z",
+        createdAt: "2026-05-01T09:00:00.000Z",
   },
   {
     id: "h-p4-2",
@@ -278,6 +326,6 @@ export const initialProjectHistories: ProjectHistoryEvent[] = [
     type: "invoice_generated",
     title: "請求書生成",
     description: "STEP4で本実装",
-    createdAt: "2026-05-15T10:00:00.000Z",
+        createdAt: "2026-05-15T10:00:00.000Z",
   },
 ];

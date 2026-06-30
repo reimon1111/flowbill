@@ -44,13 +44,17 @@ import {
   syncCustomerProjectCounts,
 } from "@/lib/services/projects";
 import { formatSupabaseError } from "@/lib/db/errors";
+import { getOrderCreationToastMessage } from "@/lib/order-creation-error";
 import { useProjectStore } from "@/stores/project-store";
 import { useCustomerStore } from "@/stores/customer-store";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { VIEWER_WRITE_DENIED_MESSAGE } from "@/lib/guards/write-access";
 
 type StatusFilter = ProjectStatus | "all";
 
 export function ProjectList() {
   const router = useRouter();
+  const canWrite = useCanWriteBusinessData();
   useProjectStore((s) => s.projects);
   useCustomerStore((s) => s.customers);
 
@@ -152,10 +156,21 @@ export function ProjectList() {
   );
 
   const handleAction = async (projectId: string, action: ProjectActionType) => {
+    if (!canWrite) {
+      toast.error(VIEWER_WRITE_DENIED_MESSAGE);
+      return;
+    }
     try {
       if (action === "mark_ordered") {
-        await confirmOrderForProject(projectId);
-        toast.success("受注を確定しました");
+        const result = await confirmOrderForProject(projectId);
+        if (result?.orderAlreadyExisted) {
+          toast.message("注文書はすでに作成済みです");
+          toast.success("受注を確定しました");
+          return;
+        }
+        toast.success("受注確定し、注文書を作成しました", {
+          description: result?.order?.orderNumber,
+        });
         return;
       }
       if (action === "mark_completed") {
@@ -176,14 +191,26 @@ export function ProjectList() {
       }
       syncCustomerProjectCounts();
     } catch (error) {
-      toast.error("操作に失敗しました", {
-        description: formatSupabaseError(error),
-      });
+      console.error("project action error", { action, projectId, error });
+      if (action === "mark_ordered") {
+        const message = getOrderCreationToastMessage(error);
+        toast.error(message ?? "注文書の作成に失敗しました", {
+          description: message ? undefined : formatSupabaseError(error),
+        });
+      } else {
+        toast.error("操作に失敗しました", {
+          description: formatSupabaseError(error),
+        });
+      }
     } finally {
     }
   };
 
   const handleDeleteRequest = (project: ProjectListItem) => {
+    if (!canWrite) {
+      toast.error(VIEWER_WRITE_DENIED_MESSAGE);
+      return;
+    }
     const reason = getProjectDeletionBlockReason(project.id);
     if (reason) {
       toast.error(reason);
@@ -193,6 +220,10 @@ export function ProjectList() {
   };
 
   const handleArchiveToggle = async (project: ProjectListItem) => {
+    if (!canWrite) {
+      toast.error(VIEWER_WRITE_DENIED_MESSAGE);
+      return;
+    }
     try {
       const result = project.archived
         ? await unarchiveProject(project.id)
@@ -228,21 +259,23 @@ export function ProjectList() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-8 py-10">
+    <div className="mx-auto min-w-0 max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <PageHeader
         title="案件"
         description={`進行中 ${activeCount}件 — 次にやることが一目でわかります`}
         action={
-          <Link
-            href="/projects/new"
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "h-10 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-            )}
-          >
-            <Plus className="size-4" strokeWidth={1.5} />
-            新規案件
-          </Link>
+          canWrite ? (
+            <Link
+              href="/projects/new"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-10 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+              )}
+            >
+              <Plus className="size-4" strokeWidth={1.5} />
+              新規案件
+            </Link>
+          ) : undefined
         }
       />
 

@@ -92,6 +92,7 @@ function resolveEditPayload(
         : getReceiptById(documentId);
 
   if (!doc) return null;
+  if (doc.deletedAt) return null;
 
   const docItems =
     kind === "order"
@@ -208,7 +209,7 @@ export function CommercialDocumentEditClient({
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-8 py-10 pb-24">
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:py-10">
       <Link
         href={`${basePathForKind(kind)}/${documentId}`}
         className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"

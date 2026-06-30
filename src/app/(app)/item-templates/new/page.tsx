@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { ItemTemplateForm } from "@/components/item-templates/item-template-form";
+import { WriteAccessGate } from "@/components/auth/write-access-gate";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   createItemTemplate,
@@ -24,7 +25,8 @@ export default function NewItemTemplatePage() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-8 py-10 pb-24">
+    <WriteAccessGate>
+      <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:py-10">
       <Link
         href="/item-templates"
         className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"
@@ -39,6 +41,7 @@ export default function NewItemTemplatePage() {
       />
 
       <ItemTemplateForm onSubmit={handleSubmit} submitLabel="登録する" />
-    </div>
+      </div>
+    </WriteAccessGate>
   );
 }

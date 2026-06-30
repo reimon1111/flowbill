@@ -53,6 +53,16 @@ function num(v: number | string | null | undefined): number {
   return typeof v === "number" ? v : Number(v);
 }
 
+function auditUserFields(row: {
+  created_by?: string | null;
+  updated_by?: string | null;
+}) {
+  return {
+    createdBy: row.created_by ?? null,
+    updatedBy: row.updated_by ?? null,
+  };
+}
+
 // --- Company ---
 
 export type CompanyRow = {
@@ -81,6 +91,9 @@ export type CompanyRow = {
   order_memo_template?: string | null;
   delivery_note_memo_template?: string | null;
   receipt_memo_template?: string | null;
+  contract_status?: string | null;
+  contract_started_at?: string | null;
+  contract_ended_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -140,6 +153,9 @@ export function companyFromRow(row: CompanyRow): CompanySettings {
         : "",
     receiptMemoTemplate:
       row.receipt_memo_template != null ? String(row.receipt_memo_template) : "",
+    contractStatus: (row.contract_status as import("@/lib/types/signup-access").ContractStatus) ?? "active",
+    contractStartedAt: row.contract_started_at ? toIso(row.contract_started_at) : null,
+    contractEndedAt: row.contract_ended_at ? toIso(row.contract_ended_at) : null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -172,6 +188,9 @@ export function companyToRow(s: CompanySettings): CompanyRow {
     order_memo_template: s.orderMemoTemplate,
     delivery_note_memo_template: s.deliveryNoteMemoTemplate,
     receipt_memo_template: s.receiptMemoTemplate,
+    contract_status: s.contractStatus,
+    contract_started_at: s.contractStartedAt,
+    contract_ended_at: s.contractEndedAt,
     created_at: s.createdAt,
     updated_at: s.updatedAt,
   };
@@ -224,6 +243,8 @@ export type CustomerRow = {
   address: string;
   invoice_destination: string;
   memo: string;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -240,6 +261,7 @@ export function customerFromRow(row: CustomerRow): Customer {
     address: row.address,
     invoiceDestination: row.invoice_destination,
     memo: row.memo,
+    ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -277,6 +299,8 @@ export type ItemTemplateRow = {
   unit_price: number;
   tax_rate: number;
   is_favorite: boolean;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -290,6 +314,7 @@ export function itemTemplateFromRow(row: ItemTemplateRow): ItemTemplate {
     unitPrice: num(row.unit_price),
     taxRate: row.tax_rate as TaxRate,
     isFavorite: row.is_favorite,
+    ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -371,6 +396,8 @@ export type ProjectRow = {
   archived?: boolean | null;
   confirmed_date?: string | null;
   completed_date?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -403,6 +430,7 @@ export function projectFromRow(row: ProjectRow): ProjectRecord {
     archived: row.archived ?? false,
     confirmedDate: toDateStr(row.confirmed_date),
     completedDate: toDateStr(row.completed_date),
+    ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -583,14 +611,20 @@ export type QuoteRow = {
   total_amount: number;
   memo: string;
   payment_terms?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 };
 
 export function quoteFromRow(row: QuoteRow): QuoteRecord {
+  const projectId = String(row.project_id ?? "").trim();
+  if (!projectId && process.env.NODE_ENV !== "production") {
+    console.warn("[quoteFromRow] missing project_id", { quoteId: row.id });
+  }
   return {
     id: row.id,
-    projectId: row.project_id,
+    projectId,
     customerId: row.customer_id,
     quoteNumber: row.quote_number,
     issueDate: toDateStr(row.issue_date),
@@ -602,6 +636,7 @@ export function quoteFromRow(row: QuoteRow): QuoteRecord {
     totalAmount: num(row.total_amount),
     memo: row.memo,
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
+    ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -738,6 +773,8 @@ export type InvoiceRow = {
   memo: string;
   payment_terms?: string | null;
   bank_account_id?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -759,6 +796,7 @@ export function invoiceFromRow(row: InvoiceRow): InvoiceRecord {
     memo: row.memo,
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
     bankAccountId: row.bank_account_id ?? null,
+    ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };

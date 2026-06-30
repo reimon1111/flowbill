@@ -12,6 +12,7 @@ import {
   initialRecurringBillingItems,
   initialRecurringBillings,
 } from "@/lib/mock-recurring";
+import { initialStoreData } from "@/lib/stores/store-initial";
 import { advanceNextBillingDate } from "@/lib/recurring-utils";
 import { useCustomerStore } from "@/stores/customer-store";
 
@@ -54,8 +55,8 @@ type RecurringStore = {
 };
 
 export const useRecurringStore = create<RecurringStore>((set, get) => ({
-  recurringBillings: initialRecurringBillings,
-  recurringBillingItems: initialRecurringBillingItems,
+  recurringBillings: initialStoreData(initialRecurringBillings, []),
+  recurringBillingItems: initialStoreData(initialRecurringBillingItems, []),
 
   hydrate: ({ recurringBillings, recurringBillingItems }) =>
     set({ recurringBillings, recurringBillingItems }),

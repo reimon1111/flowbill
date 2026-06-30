@@ -14,8 +14,9 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { deleteCustomer } from "@/lib/services/customers";
 import type { CustomerListItem } from "@/lib/types";
-import { useCustomerStore } from "@/stores/customer-store";
-import { getCustomerListMeta } from "@/stores/customer-store";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { VIEWER_WRITE_DENIED_MESSAGE } from "@/lib/guards/write-access";
+import { getCustomerListMeta, useCustomerStore } from "@/stores/customer-store";
 
 function toListItems(customers: ReturnType<typeof useCustomerStore.getState>["customers"]): CustomerListItem[] {
   return customers.map((c) => {
@@ -26,6 +27,7 @@ function toListItems(customers: ReturnType<typeof useCustomerStore.getState>["cu
 
 export function CustomerList() {
   const router = useRouter();
+  const canWrite = useCanWriteBusinessData();
   const searchParams = useSearchParams();
   const customers = useCustomerStore((s) => s.customers);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
@@ -53,6 +55,10 @@ export function CustomerList() {
   };
 
   const handleDelete = async () => {
+    if (!canWrite) {
+      toast.error(VIEWER_WRITE_DENIED_MESSAGE);
+      return;
+    }
     if (!deleteTarget) return;
     setDeleting(true);
     try {
@@ -65,21 +71,23 @@ export function CustomerList() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-8 py-10">
+    <div className="mx-auto min-w-0 max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <PageHeader
         title="顧客"
         description={`${listItems.length}社 — 案件・見積作成時に情報が自動入力されます`}
         action={
-          <Link
-            href="/customers/new"
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "h-10 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-            )}
-          >
-            <Plus className="size-4" strokeWidth={1.5} />
-            新規顧客
-          </Link>
+          canWrite ? (
+            <Link
+              href="/customers/new"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-10 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+              )}
+            >
+              <Plus className="size-4" strokeWidth={1.5} />
+              新規顧客
+            </Link>
+          ) : undefined
         }
       />
 

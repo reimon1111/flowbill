@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { loadAllDataFromSupabase } from "@/lib/db/load-all";
 import { toDbErrorMessage } from "@/lib/db/errors";
@@ -9,14 +8,14 @@ import { syncCustomerProjectCounts } from "@/lib/services/projects";
 import { useAppDataStore } from "@/stores/app-data-store";
 import { dbRefreshOverdueInvoices } from "@/lib/db/write-invoices";
 import { reloadInvoicesToStore, reloadProjectsToStore } from "@/lib/db/load-all";
+import { clearAllBusinessStores } from "@/lib/stores/clear-business-stores";
+import { hydrateCompanyMembership } from "@/lib/services/company-switch";
+import { loadRecentActivityLogsToStore } from "@/lib/services/activity-log";
 
 export function AppInit() {
-  const isLoading = useAppDataStore((s) => s.isLoading);
-  const isReady = useAppDataStore((s) => s.isReady);
   const hasInitialized = useAppDataStore((s) => s.hasInitialized);
   const error = useAppDataStore((s) => s.error);
   const migrationWarning = useAppDataStore((s) => s.migrationWarning);
-  const supabaseEnabled = useAppDataStore((s) => s.supabaseEnabled);
 
   useEffect(() => {
     if (hasInitialized) return;
@@ -24,6 +23,7 @@ export function AppInit() {
     let cancelled = false;
 
     async function init() {
+      clearAllBusinessStores();
       useAppDataStore.getState().setLoading(true);
       useAppDataStore.getState().setError(null);
 
@@ -43,6 +43,12 @@ export function AppInit() {
         await reloadInvoicesToStore();
         await reloadProjectsToStore();
         syncCustomerProjectCounts();
+        try {
+          await hydrateCompanyMembership();
+          await loadRecentActivityLogsToStore(10);
+        } catch (membershipError) {
+          console.error("hydrateCompanyMembership", membershipError);
+        }
         if (!cancelled) useAppDataStore.getState().setReady(true);
       } catch (e) {
         if (!cancelled) {
@@ -73,18 +79,8 @@ export function AppInit() {
     );
   }
 
-  const showInitialOverlay = !hasInitialized && (isLoading || !isReady);
-
   return (
     <>
-      {showInitialOverlay && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-zinc-50/90">
-          <Loader2 className="size-8 animate-spin text-zinc-400" strokeWidth={1.5} />
-          <p className="text-sm text-zinc-500">
-            {supabaseEnabled ? "データを読み込んでいます..." : "準備しています..."}
-          </p>
-        </div>
-      )}
       {migrationWarning && hasInitialized && (
         <div className="fixed inset-x-0 top-0 z-40 border-b border-amber-200 bg-amber-50 px-6 py-3 text-center text-sm text-amber-950">
           {migrationWarning}

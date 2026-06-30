@@ -1,7 +1,7 @@
 import type { ProjectStatus } from "@/lib/types";
 
 export const SCHEDULE_DAY_WIDTH = 32;
-export const SCHEDULE_ROW_HEIGHT = 60;
+export const SCHEDULE_ROW_HEIGHT = 104;
 export const SCHEDULE_HEADER_HEIGHT = 56;
 
 export type ScheduleRangeMonths = 1 | 2 | 3;

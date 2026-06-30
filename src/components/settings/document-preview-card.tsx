@@ -22,6 +22,8 @@ const sampleCustomer: Customer = {
   address: "東京都千代田区1-2-3",
   invoiceDestination: "",
   memo: "",
+  createdBy: null,
+  updatedBy: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
@@ -40,6 +42,8 @@ const sampleQuote: QuoteRecord = {
   totalAmount: 203500,
   memo: "",
   paymentTerms: "納品後お支払い",
+  createdBy: null,
+  updatedBy: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
@@ -97,6 +101,8 @@ const sampleInvoice: InvoiceRecord = {
   memo: "",
   paymentTerms: "請求書発行後14日以内",
   bankAccountId: null,
+  createdBy: null,
+  updatedBy: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };

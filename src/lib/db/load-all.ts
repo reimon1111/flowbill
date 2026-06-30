@@ -62,6 +62,11 @@ import {
   type ReceiptItemRow,
   type ReceiptRow,
 } from "@/lib/db/commercial-mappers";
+import {
+  collectProjectIdsFromDocuments,
+  fetchSupplementalProjects,
+} from "@/lib/db/load-project-supplement";
+import type { ProjectRecord } from "@/lib/types";
 
 export async function loadAllDataFromSupabase(): Promise<void> {
   const companyId = await resolveCompanyId();
@@ -83,18 +88,57 @@ export async function loadAllDataFromSupabase(): Promise<void> {
     recurringItemsRes,
   ] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
-    supabase.from("customers").select("*").order("created_at", { ascending: false }),
-    supabase.from("item_templates").select("*").order("created_at", { ascending: false }),
-    supabase.from("item_template_categories").select("*").order("sort_order", { ascending: true }),
-    supabase.from("projects").select("*").order("created_at", { ascending: false }),
-    supabase.from("project_histories").select("*").order("created_at", { ascending: false }),
-    supabase.from("project_items").select("*").order("sort_order", { ascending: true }),
-    supabase.from("quotes").select("*").order("created_at", { ascending: false }),
-    supabase.from("quote_items").select("*"),
-    supabase.from("invoices").select("*").order("created_at", { ascending: false }),
-    supabase.from("invoice_items").select("*"),
-    supabase.from("recurring_billings").select("*").order("created_at", { ascending: false }),
-    supabase.from("recurring_billing_items").select("*"),
+    supabase
+      .from("customers")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("item_templates")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("item_template_categories")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("projects")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("project_histories")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("project_items")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("quotes")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase.from("quote_items").select("*").eq("company_id", companyId),
+    supabase
+      .from("invoices")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase.from("invoice_items").select("*").eq("company_id", companyId),
+    supabase
+      .from("recurring_billings")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("recurring_billing_items")
+      .select("*")
+      .eq("company_id", companyId),
   ]);
 
   const projectItemsMissing =
@@ -129,6 +173,19 @@ export async function loadAllDataFromSupabase(): Promise<void> {
     recurringItemsRes.error;
 
   if (firstError) throw firstError;
+
+  const quotes = (quotesRes.data as QuoteRow[]).map(quoteFromRow);
+  const invoices = (invoicesRes.data as InvoiceRow[]).map(invoiceFromRow);
+  let projects: ProjectRecord[] = (projectsRes.data as ProjectRow[]).map(
+    projectFromRow
+  );
+
+  projects = await fetchSupplementalProjects(
+    companyId,
+    projects,
+    collectProjectIdsFromDocuments(quotes, invoices)
+  );
+
   if (companyRes.data) {
     useCompanySettingsStore
       .getState()
@@ -154,7 +211,7 @@ export async function loadAllDataFromSupabase(): Promise<void> {
   }
 
   useProjectStore.getState().hydrate({
-    projects: (projectsRes.data as ProjectRow[]).map(projectFromRow),
+    projects,
     histories: (historiesRes.data as ProjectHistoryRow[]).map(projectHistoryFromRow),
   });
 
@@ -165,12 +222,12 @@ export async function loadAllDataFromSupabase(): Promise<void> {
   );
 
   useQuoteStore.getState().hydrate({
-    quotes: (quotesRes.data as QuoteRow[]).map(quoteFromRow),
+    quotes,
     quoteItems: (quoteItemsRes.data as QuoteItemRow[]).map(quoteItemFromRow),
   });
 
   useInvoiceStore.getState().hydrate({
-    invoices: (invoicesRes.data as InvoiceRow[]).map(invoiceFromRow),
+    invoices,
     invoiceItems: (invoiceItemsRes.data as InvoiceItemRow[]).map(invoiceItemFromRow),
   });
 
@@ -190,13 +247,32 @@ export async function loadAllDataFromSupabase(): Promise<void> {
     receiptsRes,
     receiptItemsRes,
   ] = await Promise.all([
-    supabase.from("bank_accounts").select("*").order("created_at", { ascending: true }),
-    supabase.from("orders").select("*").order("created_at", { ascending: false }),
-    supabase.from("order_items").select("*"),
-    supabase.from("delivery_notes").select("*").order("created_at", { ascending: false }),
-    supabase.from("delivery_note_items").select("*"),
-    supabase.from("receipts").select("*").order("created_at", { ascending: false }),
-    supabase.from("receipt_items").select("*"),
+    supabase
+      .from("bank_accounts")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("orders")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase.from("order_items").select("*").eq("company_id", companyId),
+    supabase
+      .from("delivery_notes")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("delivery_note_items")
+      .select("*")
+      .eq("company_id", companyId),
+    supabase
+      .from("receipts")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase.from("receipt_items").select("*").eq("company_id", companyId),
   ]);
 
   const documentManagementMissing =
@@ -248,13 +324,40 @@ export async function loadAllDataFromSupabase(): Promise<void> {
       });
     }
   }
+
+  const projectStore = useProjectStore.getState();
+  const supplementalIds = collectProjectIdsFromDocuments(
+    useQuoteStore.getState().quotes,
+    useInvoiceStore.getState().invoices,
+    useOrderStore.getState().orders,
+    useDeliveryNoteStore.getState().deliveryNotes,
+    useReceiptStore.getState().receipts
+  );
+  const mergedProjects = await fetchSupplementalProjects(
+    companyId,
+    projectStore.projects,
+    supplementalIds
+  );
+  if (mergedProjects.length !== projectStore.projects.length) {
+    useProjectStore.getState().hydrate({
+      projects: mergedProjects,
+      histories: projectStore.histories,
+    });
+  }
+
+  useAppDataStore.getState().setLoadedCompanyId(companyId);
 }
 
 export async function reloadInvoicesToStore(): Promise<void> {
+  const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
   const [invoicesRes, invoiceItemsRes] = await Promise.all([
-    supabase.from("invoices").select("*").order("created_at", { ascending: false }),
-    supabase.from("invoice_items").select("*"),
+    supabase
+      .from("invoices")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase.from("invoice_items").select("*").eq("company_id", companyId),
   ]);
   if (invoicesRes.error) throw invoicesRes.error;
   if (invoiceItemsRes.error) throw invoiceItemsRes.error;
@@ -266,11 +369,24 @@ export async function reloadInvoicesToStore(): Promise<void> {
 }
 
 export async function reloadProjectsToStore(): Promise<void> {
+  const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
   const [projectsRes, historiesRes, projectItemsRes] = await Promise.all([
-    supabase.from("projects").select("*").order("created_at", { ascending: false }),
-    supabase.from("project_histories").select("*").order("created_at", { ascending: false }),
-    supabase.from("project_items").select("*").order("sort_order", { ascending: true }),
+    supabase
+      .from("projects")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("project_histories")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("project_items")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("sort_order", { ascending: true }),
   ]);
   if (projectsRes.error) throw projectsRes.error;
   if (historiesRes.error) throw historiesRes.error;
@@ -280,8 +396,23 @@ export async function reloadProjectsToStore(): Promise<void> {
     isMissingProjectItemsTable(projectItemsRes.error);
   if (projectItemsRes.error && !projectItemsMissing) throw projectItemsRes.error;
 
+  let projects: ProjectRecord[] = (projectsRes.data as ProjectRow[]).map(
+    projectFromRow
+  );
+  projects = await fetchSupplementalProjects(
+    companyId,
+    projects,
+    collectProjectIdsFromDocuments(
+      useQuoteStore.getState().quotes,
+      useInvoiceStore.getState().invoices,
+      useOrderStore.getState().orders,
+      useDeliveryNoteStore.getState().deliveryNotes,
+      useReceiptStore.getState().receipts
+    )
+  );
+
   useProjectStore.getState().hydrate({
-    projects: (projectsRes.data as ProjectRow[]).map(projectFromRow),
+    projects,
     histories: (historiesRes.data as ProjectHistoryRow[]).map(projectHistoryFromRow),
   });
 

@@ -9,10 +9,15 @@ import type {
   QuoteStatus,
 } from "@/lib/types";
 import { initialQuoteItems, initialQuotes } from "@/lib/mock-quotes";
+import { initialStoreData } from "@/lib/stores/store-initial";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useItemTemplateStore } from "@/stores/item-template-store";
 import { normalizeUnit } from "@/lib/constants/units";
+import {
+  resolveProjectNameFromStore,
+  UNKNOWN_CUSTOMER_LABEL,
+} from "@/lib/project-display";
 
 function id(prefix: string) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -57,8 +62,8 @@ type QuoteStore = {
 };
 
 export const useQuoteStore = create<QuoteStore>((set, get) => ({
-  quotes: initialQuotes,
-  quoteItems: initialQuoteItems,
+  quotes: initialStoreData(initialQuotes, []),
+  quoteItems: initialStoreData(initialQuoteItems, []),
 
   hydrate: ({ quotes, quoteItems }) => set({ quotes, quoteItems }),
 
@@ -88,14 +93,16 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
 
   getListItems: () => {
     const customers = useCustomerStore.getState();
-    const projects = useProjectStore.getState();
+    const projects = useProjectStore.getState().projects;
     return get().quotes.map((q) => {
-      const p = projects.getProjectById(q.projectId);
       const c = customers.getCustomerById(q.customerId);
       return {
         ...q,
-        projectName: p?.projectName ?? "（不明な案件）",
-        customerName: c?.customerName ?? "（不明な顧客）",
+        projectName: resolveProjectNameFromStore(q.projectId, projects, {
+          documentType: "quote",
+          documentId: q.id,
+        }),
+        customerName: c?.customerName ?? UNKNOWN_CUSTOMER_LABEL,
       };
     });
   },
@@ -121,6 +128,8 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
         taxRate: it.taxRate,
         amount,
         sortOrder: it.sortOrder ?? idx,
+        createdBy: null,
+        updatedBy: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -142,6 +151,8 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       totalAmount: totals.totalAmount,
       memo: input.memo,
       paymentTerms: input.paymentTerms,
+      createdBy: null,
+      updatedBy: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -176,6 +187,8 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
         taxRate: it.taxRate,
         amount,
         sortOrder: it.sortOrder ?? idx,
+        createdBy: null,
+        updatedBy: null,
         createdAt: now,
         updatedAt: now,
       };

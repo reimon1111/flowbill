@@ -23,6 +23,16 @@ function num(v: number | string | null | undefined): number {
   return typeof v === "number" ? v : Number(v);
 }
 
+function auditUserFields(row: {
+  created_by?: string | null;
+  updated_by?: string | null;
+}) {
+  return {
+    createdBy: row.created_by ?? null,
+    updatedBy: row.updated_by ?? null,
+  };
+}
+
 export type BankAccountRow = {
   id: string;
   company_id: string;
@@ -83,6 +93,9 @@ type CommercialHeaderRow = {
   tax_amount: number;
   total_amount: number;
   memo: string;
+  deleted_at?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -159,6 +172,8 @@ export function orderFromRow(row: OrderRow): OrderRecord {
     totalAmount: num(row.total_amount),
     memo: row.memo,
     recipientName: row.recipient_name ?? "",
+    deletedAt: row.deleted_at ?? null,
+    ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -182,6 +197,8 @@ export function deliveryNoteFromRow(row: DeliveryNoteRow): DeliveryNoteRecord {
     taxAmount: num(row.tax_amount),
     totalAmount: num(row.total_amount),
     memo: row.memo,
+    deletedAt: row.deleted_at ?? null,
+    ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -207,6 +224,8 @@ export function receiptFromRow(row: ReceiptRow): ReceiptRecord {
     taxAmount: num(row.tax_amount),
     totalAmount: num(row.total_amount),
     memo: row.memo,
+    deletedAt: row.deleted_at ?? null,
+    ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };

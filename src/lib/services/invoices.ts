@@ -27,6 +27,7 @@ import { resolveProjectFieldsAfterInvoiceChange } from "@/lib/invoice-project-sy
 import { normalizeUnit } from "@/lib/constants/units";
 import { buildInvoiceInputItemsForProject } from "@/lib/services/project-items";
 import { syncQuoteItemsFromProject } from "@/lib/services/quotes";
+import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 
 export const INVOICE_DELETE_BLOCKED_MESSAGE =
   "この請求書は発行済み、または入金管理に関わるため削除できません。必要な場合はキャンセルしてください。";
@@ -147,6 +148,7 @@ export async function getInvoicesByProjectId(projectId: string): Promise<Invoice
 }
 
 export async function createInvoice(input: InvoiceInput): Promise<InvoiceRecord> {
+  assertCanWriteBusinessData();
   const bankAccountId = await resolveBankAccountIdForInvoice(input.bankAccountId);
   const payload = { ...input, bankAccountId };
 
@@ -159,6 +161,7 @@ export async function createInvoice(input: InvoiceInput): Promise<InvoiceRecord>
 }
 
 export async function updateInvoice(id: string, input: InvoiceInput): Promise<InvoiceRecord | null> {
+  assertCanWriteBusinessData();
   const bankAccountId = await resolveBankAccountIdForInvoice(input.bankAccountId);
   const payload = { ...input, bankAccountId };
 
@@ -173,6 +176,7 @@ export async function updateInvoice(id: string, input: InvoiceInput): Promise<In
 export async function deleteInvoice(
   id: string
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
+  assertCanWriteBusinessData();
   const blockReason = getInvoiceDeletionBlockReason(id);
   if (blockReason) {
     return { ok: false, reason: blockReason };
@@ -205,6 +209,7 @@ export async function deleteInvoice(
 export async function cancelInvoice(
   id: string
 ): Promise<{ ok: true; invoice: InvoiceRecord } | { ok: false; reason: string }> {
+  assertCanWriteBusinessData();
   const blockReason = getInvoiceCancelBlockReason(id);
   if (blockReason) {
     return { ok: false, reason: blockReason };
@@ -221,6 +226,7 @@ export async function updateInvoiceStatus(
   id: string,
   status: InvoiceDocumentStatus
 ): Promise<InvoiceRecord | null> {
+  assertCanWriteBusinessData();
   if (status === "cancelled") {
     const blockReason = getInvoiceCancelBlockReason(id);
     if (blockReason) {
@@ -285,6 +291,7 @@ export async function createInvoiceFromQuote(
   issueDate: string,
   dueDate: string
 ) {
+  assertCanWriteBusinessData();
   const quoteStore = useQuoteStore.getState();
   const candidates = quoteStore
     .getQuotesByProjectId(projectId)

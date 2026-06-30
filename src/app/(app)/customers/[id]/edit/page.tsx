@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { CustomerForm } from "@/components/customers/customer-form";
+import { WriteAccessGate } from "@/components/auth/write-access-gate";
 import { PageHeader } from "@/components/shared/page-header";
 import {
   customerInputFromForm,
@@ -58,14 +59,17 @@ export default function EditCustomerPage() {
 
   if (loading || !defaultValues) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <p className="text-zinc-500">読み込み中...</p>
-      </div>
+      <WriteAccessGate>
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <p className="text-zinc-500">読み込み中...</p>
+        </div>
+      </WriteAccessGate>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-8 py-10 pb-24">
+    <WriteAccessGate>
+      <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:py-10">
       <Link
         href={`/customers/${id}`}
         className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"
@@ -82,6 +86,7 @@ export default function EditCustomerPage() {
         onSubmit={handleSubmit}
         submitLabel="変更を保存"
       />
-    </div>
+      </div>
+    </WriteAccessGate>
   );
 }

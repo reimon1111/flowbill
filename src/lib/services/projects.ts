@@ -20,6 +20,7 @@ import {
 import { sumLineItemAmounts } from "@/lib/line-item-utils";
 import { useProjectItemStore } from "@/stores/project-item-store";
 import { useQuoteStore } from "@/stores/quote-store";
+import { useOrderStore } from "@/stores/order-store";
 import { dbReplaceProjectItems } from "@/lib/db/write-project-items";
 import { todayISO, addDaysToDate } from "@/lib/quote-dates";
 import { createInvoice, createInvoiceFromQuote, updateInvoiceStatus } from "@/lib/services/invoices";
@@ -29,8 +30,9 @@ import {
   ensureReceiptForInvoice,
 } from "@/lib/services/commercial-documents";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
-import { DEFAULT_UNIT } from "@/lib/constants/units";
 import { useAppDataStore } from "@/stores/app-data-store";
+import { DEFAULT_UNIT } from "@/lib/constants/units";
+import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 import {
   isMissingProjectArchivedColumn,
   DOCUMENT_MANAGEMENT_MIGRATION_HINT,
@@ -98,6 +100,7 @@ export async function getProjectListItem(
 export async function createProject(
   input: ProjectInput
 ): Promise<{ project: ProjectRecord; quoteDraftFailed: boolean }> {
+  assertCanWriteBusinessData();
   let project: ProjectRecord;
   let quoteDraftFailed = false;
 
@@ -155,6 +158,7 @@ export async function updateProject(
   id: string,
   input: ProjectInput
 ): Promise<ProjectRecord | null> {
+  assertCanWriteBusinessData();
   let project: ProjectRecord | null;
 
   if (isSupabaseConfigured()) {
@@ -190,6 +194,7 @@ export async function updateProject(
 export async function deleteProject(
   id: string
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
+  assertCanWriteBusinessData();
   const blockReason = getProjectDeletionBlockReason(id);
   if (blockReason) {
     return { ok: false, reason: blockReason };
@@ -215,6 +220,7 @@ export async function setProjectArchived(
   id: string,
   archived: boolean
 ): Promise<ProjectRecord | null> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     try {
       const project = await dbSetProjectArchived(id, archived);
@@ -275,6 +281,7 @@ export async function executeProjectAction(
   id: string,
   action: ProjectActionType
 ): Promise<ProjectRecord | null> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const project = await dbExecuteProjectAction(id, action);
     if (project) {
@@ -314,25 +321,66 @@ async function tryAutoCreateCommercialDocument(
 
 /**
  * 受注確定（1クリック）
- * - 案件ステータス ordered
- * - 可能なら見積を accepted 扱い
+ * - 注文書の自動作成まで含めて成功扱い
+ * - 案件ステータス ordered（confirmed_date 自動付与）
+ * - 見積があれば最新を accepted に更新（可能な範囲で）
  * - 履歴追加
  */
 export async function confirmOrderForProject(projectId: string) {
-  const project = useProjectStore.getState().getProjectById(projectId);
-  if (!project) return null;
+  assertCanWriteBusinessData();
 
-  // 見積がある場合は最新を accepted にして、案件も ordered に揃える
-  const candidates = useQuoteStore
-    .getState()
-    .getQuotesByProjectId(projectId)
-    .slice()
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  const latest = candidates[0] ?? null;
-  if (latest && latest.status !== "accepted" && latest.status !== "rejected") {
-    await updateQuoteStatus(latest.id, "accepted");
-  } else {
-    await changeProjectStatus(projectId, "ordered");
+  const project = useProjectStore.getState().getProjectById(projectId);
+  if (!project) {
+    console.error("[confirmOrderForProject] project not found", { projectId });
+    throw new Error("案件が見つかりません");
+  }
+
+  // 書類管理テーブル未適用の場合、受注確定（注文書自動作成を含む）を完了させない
+  if (useAppDataStore.getState().migrationWarning?.includes("add-document-management.sql")) {
+    const message =
+      "書類管理テーブルが未適用のため、注文書を作成できません（supabase/add-document-management.sql を実行してください）";
+    console.error("[confirmOrderForProject] migration not applied", {
+      projectId,
+      migrationWarning: useAppDataStore.getState().migrationWarning,
+    });
+    throw new Error(message);
+  }
+
+  const existingOrder =
+    useOrderStore
+      .getState()
+      .getOrdersByProjectId(projectId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
+
+  // すでに注文書がある場合は重複生成しない（deleted_at があるものは除外済み）
+  let order: NonNullable<typeof existingOrder> | null = existingOrder;
+  let orderCreated = false;
+  if (!order) {
+    // 注文書の作成に失敗したら「受注確定」扱いにしないため、先に注文書を作る
+    const created = await ensureOrderForProject(projectId);
+    if (!created) {
+      console.error("[confirmOrderForProject] order creation returned null", {
+        projectId,
+      });
+      throw new Error("注文書の作成に失敗しました");
+    }
+    order = created;
+    orderCreated = true;
+  }
+
+  // 受注確定（status=ordered + confirmed_date）
+  await changeProjectStatus(projectId, "ordered");
+
+  // 見積がある場合は最新を accepted にする（rejected は維持）
+  const latestQuote =
+    useQuoteStore
+      .getState()
+      .getQuotesByProjectId(projectId)
+      .slice()
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0] ??
+    null;
+  if (latestQuote && latestQuote.status !== "accepted" && latestQuote.status !== "rejected") {
+    await updateQuoteStatus(latestQuote.id, "accepted");
   }
 
   await addProjectHistory({
@@ -340,16 +388,28 @@ export async function confirmOrderForProject(projectId: string) {
     type: "status_changed",
     title: "受注確定しました",
   });
-  await tryAutoCreateCommercialDocument("ensureOrderForProject", () =>
-    ensureOrderForProject(projectId)
-  );
-  return useProjectStore.getState().getProjectById(projectId) ?? null;
+  if (orderCreated) {
+    await addProjectHistory({
+      projectId,
+      type: "status_changed",
+      title: "注文書を作成しました",
+      description: order.orderNumber,
+    });
+  }
+
+  return {
+    project: useProjectStore.getState().getProjectById(projectId) ?? null,
+    order,
+    orderCreated,
+    orderAlreadyExisted: Boolean(existingOrder),
+  };
 }
 
 /**
  * 作業完了（ordered / in_progress から completed へ）
  */
 export async function completeWorkForProject(projectId: string) {
+  assertCanWriteBusinessData();
   await changeProjectStatus(projectId, "completed");
   await addProjectHistory({
     projectId,
@@ -369,6 +429,7 @@ export async function completeWorkForProject(projectId: string) {
  * - 案件 invoiceStatus も連動更新（updateInvoiceStatus 側で実施）
  */
 export async function issueInvoiceForProject(projectId: string) {
+  assertCanWriteBusinessData();
   const project = useProjectStore.getState().getProjectById(projectId);
   if (!project) return null;
 
@@ -429,6 +490,7 @@ export async function issueInvoiceForProject(projectId: string) {
  * - 最新の請求書を paid に更新（案件の入金状態も連動）
  */
 export async function markProjectPaid(projectId: string) {
+  assertCanWriteBusinessData();
   const invoices = useInvoiceStore
     .getState()
     .getInvoicesByProjectId(projectId)

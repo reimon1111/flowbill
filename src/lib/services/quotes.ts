@@ -27,8 +27,9 @@ import {
   resolveQuoteExpiryDate,
 } from "@/lib/quote-expiry";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
-import { buildQuoteInputItemsForProject, quoteNeedsItemSync } from "@/lib/services/project-items";
+import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 import { normalizeUnit } from "@/lib/constants/units";
+import { buildQuoteInputItemsForProject, quoteNeedsItemSync } from "@/lib/services/project-items";
 
 export const QUOTE_DELETE_BLOCKED_MESSAGE =
   "この見積書は承認済み、または請求書に紐づいているため削除できません。";
@@ -226,6 +227,7 @@ export async function syncDraftQuoteFromProject(
 }
 
 export async function createQuote(input: QuoteInput): Promise<QuoteRecord> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const { quote, items } = await dbInsertQuote(input);
     useQuoteStore.getState().mergeQuote(quote, items);
@@ -235,6 +237,7 @@ export async function createQuote(input: QuoteInput): Promise<QuoteRecord> {
 }
 
 export async function updateQuote(id: string, input: QuoteInput): Promise<QuoteRecord | null> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const result = await dbUpdateQuote(id, input);
     if (result) useQuoteStore.getState().mergeQuote(result.quote, result.items);
@@ -246,6 +249,7 @@ export async function updateQuote(id: string, input: QuoteInput): Promise<QuoteR
 export async function deleteQuote(
   id: string
 ): Promise<{ ok: true } | { ok: false; reason: string }> {
+  assertCanWriteBusinessData();
   const blockReason = getQuoteDeletionBlockReason(id);
   if (blockReason) {
     return { ok: false, reason: blockReason };
@@ -286,6 +290,7 @@ export async function updateQuoteStatus(
   id: string,
   status: QuoteStatus
 ): Promise<QuoteRecord | null> {
+  assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const quote = await dbUpdateQuoteStatus(id, status);
     if (quote) useQuoteStore.getState().mergeQuote(quote, useQuoteStore.getState().getQuoteItems(id));

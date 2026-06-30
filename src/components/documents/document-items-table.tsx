@@ -15,7 +15,7 @@ export type DocumentLineItem = {
 
 export function DocumentItemsTable({ items }: { items: DocumentLineItem[] }) {
   return (
-    <div className="document-items mt-3 overflow-x-auto">
+    <div className="document-items mt-3 overflow-x-auto print:overflow-visible">
       <table className="document-items-table w-full border-collapse border border-zinc-400 text-[11px] leading-tight text-zinc-800">
         <colgroup>
           <col className="w-auto" />

@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 
 type CustomerCardProps = {
   customer: CustomerListItem;
@@ -186,6 +187,11 @@ function CustomerActions({
   onCreateProject,
 }: Pick<CustomerCardProps, "customer" | "onDelete" | "onCreateProject">) {
   const router = useRouter();
+  const canWrite = useCanWriteBusinessData();
+
+  if (!canWrite) {
+    return null;
+  }
 
   return (
     <DropdownMenu>

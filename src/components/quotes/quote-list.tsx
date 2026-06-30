@@ -27,13 +27,20 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { QuoteListItem, QuoteStatus } from "@/lib/types";
 import { QuoteStatusBadge } from "@/components/quotes/quote-status-badge";
+import { QuoteExpiryListLabel } from "@/components/quotes/quote-expiry-fields";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { formatContactWithSama } from "@/lib/format-contact";
 import { getQuoteDisplayTotal } from "@/lib/quote-display";
-import { QuoteExpiryListLabel } from "@/components/quotes/quote-expiry-fields";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useQuoteStore } from "@/stores/quote-store";
+import { useAppDataStore } from "@/stores/app-data-store";
+import {
+  findProjectById,
+  resolveProjectNameFromStore,
+  UNKNOWN_CUSTOMER_LABEL,
+} from "@/lib/project-display";
 import {
   DocumentListActions,
   ListPageContainer,
@@ -52,6 +59,8 @@ const STATUS_FILTERS: Array<{ value: QuoteStatus | "all"; label: string }> = [
 ];
 
 export function QuoteList() {
+  const canWrite = useCanWriteBusinessData();
+  const hasInitialized = useAppDataStore((s) => s.hasInitialized);
   const quotes = useQuoteStore((s) => s.quotes);
   const quoteItems = useQuoteStore((s) => s.quoteItems);
   const projects = useProjectStore((s) => s.projects);
@@ -75,19 +84,23 @@ export function QuoteList() {
   );
 
   const listItems = useMemo(() => {
+    if (!hasInitialized) return [];
     return quotes.map((q) => {
-      const p = projects.find((pr) => pr.id === q.projectId);
+      const p = findProjectById(projects, q.projectId);
       const c = customers.find((cu) => cu.id === q.customerId);
       const items = quoteItems.filter((it) => it.quoteId === q.id);
       return {
         ...q,
-        projectName: p?.projectName ?? "（不明な案件）",
-        customerName: c?.customerName ?? "（不明な顧客）",
+        projectName: resolveProjectNameFromStore(q.projectId, projects, {
+          documentType: "quote",
+          documentId: q.id,
+        }),
+        customerName: c?.customerName ?? UNKNOWN_CUSTOMER_LABEL,
         displayTotal: getQuoteDisplayTotal(q, items),
         projectArchived: p?.archived ?? false,
       };
     });
-  }, [quotes, quoteItems, projects, customers]);
+  }, [hasInitialized, quotes, quoteItems, projects, customers]);
 
   const yearOptions = useMemo(
     () =>
@@ -124,16 +137,18 @@ export function QuoteList() {
         title="見積"
         description={`${listItems.length}件 — 案件から自然に見積が生まれる体験`}
         action={
-          <Link
-            href="/quotes/new"
-            className={cn(
-              buttonVariants({ size: "lg" }),
-              "h-10 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-            )}
-          >
-            <Plus className="size-4" strokeWidth={1.5} />
-            新規見積
-          </Link>
+          canWrite ? (
+            <Link
+              href="/quotes/new"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-10 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+              )}
+            >
+              <Plus className="size-4" strokeWidth={1.5} />
+              新規見積
+            </Link>
+          ) : undefined
         }
       />
 

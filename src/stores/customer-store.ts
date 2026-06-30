@@ -4,6 +4,7 @@ import {
   customerListMeta,
   initialCustomers,
 } from "@/lib/mock-customers";
+import { initialStoreData } from "@/lib/stores/store-initial";
 
 function generateId(): string {
   return `c${Date.now().toString(36)}`;
@@ -21,7 +22,7 @@ type CustomerStore = {
 };
 
 export const useCustomerStore = create<CustomerStore>((set, get) => ({
-  customers: initialCustomers,
+  customers: initialStoreData(initialCustomers, []),
 
   hydrate: (customers) => set({ customers }),
 
@@ -48,6 +49,8 @@ export const useCustomerStore = create<CustomerStore>((set, get) => ({
     const customer: Customer = {
       id: generateId(),
       ...input,
+      createdBy: null,
+      updatedBy: null,
       createdAt: now,
       updatedAt: now,
     };

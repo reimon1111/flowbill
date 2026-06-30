@@ -11,12 +11,7 @@ import { useOrderStore } from "@/stores/order-store";
 import { useDeliveryNoteStore } from "@/stores/delivery-note-store";
 import { useReceiptStore } from "@/stores/receipt-store";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import {
-  DOCUMENT_MANAGEMENT_MIGRATION_HINT,
-  isMissingDocumentManagementTables,
-  logSupabaseError,
-  toUserFacingDbError,
-} from "@/lib/db/errors";
+import { toUserFacingDbError } from "@/lib/db/errors";
 import {
   dbInsertDeliveryNote,
   dbInsertOrder,
@@ -24,6 +19,9 @@ import {
   dbUpdateDeliveryNote,
   dbUpdateOrder,
   dbUpdateReceipt,
+  dbSoftDeleteDeliveryNote,
+  dbSoftDeleteOrder,
+  dbSoftDeleteReceipt,
 } from "@/lib/db/write-commercial-documents";
 import type {
   DeliveryNoteInput,
@@ -39,6 +37,7 @@ import type {
 import type { CommercialDocumentFormValues, OrderDocumentFormValues } from "@/lib/validations/commercial-document";
 import { normalizeUnit } from "@/lib/constants/units";
 import { defaultOrderRecipientName } from "@/lib/order-recipient";
+import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 
 function defaultPaymentTerms(): string {
   return (
@@ -48,6 +47,7 @@ function defaultPaymentTerms(): string {
 }
 
 export async function createOrderFromProject(projectId: string) {
+  assertCanWriteBusinessData();
   const project = useProjectStore.getState().getProjectById(projectId);
   if (!project) return null;
 
@@ -82,6 +82,7 @@ export async function createOrderFromProject(projectId: string) {
 }
 
 export async function createDeliveryNoteFromProject(projectId: string) {
+  assertCanWriteBusinessData();
   const project = useProjectStore.getState().getProjectById(projectId);
   if (!project) return null;
 
@@ -110,6 +111,7 @@ export async function createDeliveryNoteFromProject(projectId: string) {
 }
 
 export async function createReceiptFromInvoice(invoiceId: string) {
+  assertCanWriteBusinessData();
   const invoice = useInvoiceStore.getState().getInvoiceById(invoiceId);
   if (!invoice) return null;
 
@@ -135,6 +137,7 @@ export async function createReceiptFromInvoice(invoiceId: string) {
 }
 
 export async function createReceiptFromProject(projectId: string) {
+  assertCanWriteBusinessData();
   const invoice = useInvoiceStore
     .getState()
     .getInvoicesByProjectId(projectId)
@@ -202,6 +205,7 @@ export async function updateOrder(
   id: string,
   input: OrderInput
 ): Promise<OrderRecord | null> {
+  assertCanWriteBusinessData();
   const updated = useOrderStore.getState().updateOrder(id, input);
   if (!updated) return null;
 
@@ -219,6 +223,7 @@ export async function updateDeliveryNote(
   id: string,
   input: DeliveryNoteInput
 ): Promise<DeliveryNoteRecord | null> {
+  assertCanWriteBusinessData();
   const updated = useDeliveryNoteStore.getState().updateDeliveryNote(id, input);
   if (!updated) return null;
 
@@ -239,6 +244,7 @@ export async function updateReceipt(
   id: string,
   input: ReceiptInput
 ): Promise<ReceiptRecord | null> {
+  assertCanWriteBusinessData();
   const updated = useReceiptStore.getState().updateReceipt(id, input);
   if (!updated) return null;
 
@@ -276,8 +282,68 @@ export async function ensureDeliveryNoteForProject(projectId: string) {
 export async function ensureReceiptForInvoice(invoiceId: string) {
   const existing = useReceiptStore
     .getState()
-    .receipts.filter((r) => r.invoiceId === invoiceId)
+    .receipts.filter((r) => r.invoiceId === invoiceId && !r.deletedAt)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   if (existing) return existing;
   return createReceiptFromInvoice(invoiceId);
+}
+
+export async function deleteOrder(
+  id: string
+): Promise<{ ok: true } | { ok: false }> {
+  assertCanWriteBusinessData();
+  const order = useOrderStore.getState().getOrderById(id);
+  if (!order || order.deletedAt) return { ok: false };
+
+  const updated = useOrderStore.getState().softDeleteOrder(id);
+  if (!updated) return { ok: false };
+
+  if (isSupabaseConfigured()) {
+    try {
+      await dbSoftDeleteOrder(id);
+    } catch (error) {
+      throw toUserFacingDbError(error);
+    }
+  }
+  return { ok: true };
+}
+
+export async function deleteDeliveryNote(
+  id: string
+): Promise<{ ok: true } | { ok: false }> {
+  assertCanWriteBusinessData();
+  const note = useDeliveryNoteStore.getState().getDeliveryNoteById(id);
+  if (!note || note.deletedAt) return { ok: false };
+
+  const updated = useDeliveryNoteStore.getState().softDeleteDeliveryNote(id);
+  if (!updated) return { ok: false };
+
+  if (isSupabaseConfigured()) {
+    try {
+      await dbSoftDeleteDeliveryNote(id);
+    } catch (error) {
+      throw toUserFacingDbError(error);
+    }
+  }
+  return { ok: true };
+}
+
+export async function deleteReceipt(
+  id: string
+): Promise<{ ok: true } | { ok: false }> {
+  assertCanWriteBusinessData();
+  const receipt = useReceiptStore.getState().getReceiptById(id);
+  if (!receipt || receipt.deletedAt) return { ok: false };
+
+  const updated = useReceiptStore.getState().softDeleteReceipt(id);
+  if (!updated) return { ok: false };
+
+  if (isSupabaseConfigured()) {
+    try {
+      await dbSoftDeleteReceipt(id);
+    } catch (error) {
+      throw toUserFacingDbError(error);
+    }
+  }
+  return { ok: true };
 }

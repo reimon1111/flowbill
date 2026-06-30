@@ -32,6 +32,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import type { PaymentDisplayStatus } from "@/lib/payment-utils";
 import type { PaymentListItem } from "@/lib/payment-utils";
 import { markInvoicePaid } from "@/lib/services/payments";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { enrichPaymentListItem } from "@/lib/payment-utils";
 import { useInvoiceStore } from "@/stores/invoice-store";
 import { useCustomerStore } from "@/stores/customer-store";
@@ -47,6 +48,7 @@ const FILTERS: Array<{ value: PaymentFilter; label: string }> = [
 ];
 
 export function PaymentList() {
+  const canWrite = useCanWriteBusinessData();
   const searchParams = useSearchParams();
 
   const [search, setSearch] = useState("");
@@ -126,7 +128,7 @@ export function PaymentList() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 px-8 py-10">
+    <div className="mx-auto min-w-0 max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <PageHeader
         title="入金管理"
         description="まだ入金されていない請求を、ひと目で把握できます"
@@ -209,6 +211,7 @@ export function PaymentList() {
             <PaymentRow
               key={inv.id}
               item={inv}
+              canWrite={canWrite}
               onMarkPaid={() => setConfirmTarget(inv)}
             />
           ))}
@@ -275,9 +278,11 @@ function SummaryPill({
 
 function PaymentRow({
   item,
+  canWrite,
   onMarkPaid,
 }: {
   item: PaymentListItem;
+  canWrite: boolean;
   onMarkPaid: () => void;
 }) {
   const isOverdue = item.paymentStatus === "overdue";
@@ -289,15 +294,16 @@ function PaymentRow({
       : "border-zinc-200/80 shadow-zinc-900/[0.02] hover:shadow-zinc-900/[0.04]"
   );
 
-  const markPaidButton = canMarkPaid ? (
-    <button
-      type="button"
-      onClick={onMarkPaid}
-      className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 sm:w-auto"
-    >
-      入金済みにする
-    </button>
-  ) : (
+  const markPaidButton =
+    canWrite && canMarkPaid ? (
+      <button
+        type="button"
+        onClick={onMarkPaid}
+        className="w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 sm:w-auto"
+      >
+        入金済みにする
+      </button>
+    ) : (
     <Link
       href={`/invoices/${item.id}`}
       className="inline-flex rounded-lg border border-zinc-200 px-2.5 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"

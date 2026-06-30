@@ -13,6 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import { BankAccountsManager } from "@/components/settings/bank-accounts-manager";
 import { ImageUploadField } from "@/components/settings/image-upload-field";
 import type { CompanySettings } from "@/lib/types";
+import { useCompanyMembershipStore } from "@/stores/company-membership-store";
+import { canManageMembers } from "@/lib/types/company-membership";
 import {
   companySettingsSchema,
   type CompanySettingsFormValues,
@@ -33,6 +35,9 @@ export function CompanySettingsForm({
 }: {
   settings: CompanySettings;
 }) {
+  const currentRole = useCompanyMembershipStore((s) => s.currentRole);
+  const canEdit = canManageMembers(currentRole);
+
   const form = useForm<CompanySettingsFormValues>({
     resolver: zodResolver(companySettingsSchema),
     defaultValues: {
@@ -93,6 +98,10 @@ export function CompanySettingsForm({
   }, [settings, form]);
 
   const onSubmit = async (values: CompanySettingsFormValues) => {
+    if (!canEdit) {
+      toast.error("会社情報を変更する権限がありません");
+      return;
+    }
     try {
       await updateCompanySettings(values);
       toast.success("会社設定を保存しました");
@@ -128,7 +137,7 @@ export function CompanySettingsForm({
         <Button
           type="submit"
           className="h-10 rounded-xl bg-zinc-900 hover:bg-zinc-800"
-          disabled={form.formState.isSubmitting}
+          disabled={form.formState.isSubmitting || !canEdit}
         >
           保存する
         </Button>
@@ -144,6 +153,7 @@ export function CompanySettingsForm({
             <Input
               {...form.register("companyName")}
               className="h-11 rounded-xl text-base"
+              disabled={!canEdit}
             />
             {form.formState.errors.companyName?.message && (
               <p className="mt-2 text-sm text-red-600">
@@ -155,24 +165,28 @@ export function CompanySettingsForm({
             <Input
               {...form.register("postalCode")}
               className="h-11 rounded-xl text-base"
+              disabled={!canEdit}
             />
           </Field>
           <Field label="住所" className="sm:col-span-2">
             <Input
               {...form.register("address")}
               className="h-11 rounded-xl text-base"
+              disabled={!canEdit}
             />
           </Field>
           <Field label="電話番号">
             <Input
               {...form.register("phone")}
               className="h-11 rounded-xl text-base"
+              disabled={!canEdit}
             />
           </Field>
           <Field label="FAX">
             <Input
               {...form.register("fax")}
               className="h-11 rounded-xl text-base"
+              disabled={!canEdit}
             />
           </Field>
           <Field label="担当者名">
@@ -180,6 +194,7 @@ export function CompanySettingsForm({
               {...form.register("contactName")}
               placeholder="帳票に表示する担当者名"
               className="h-11 rounded-xl text-base"
+              disabled={!canEdit}
             />
           </Field>
           <Field label="メール">
@@ -187,6 +202,7 @@ export function CompanySettingsForm({
               {...form.register("email")}
               type="email"
               className="h-11 rounded-xl text-base"
+              disabled={!canEdit}
             />
             {form.formState.errors.email?.message && (
               <p className="mt-2 text-sm text-red-600">
@@ -199,6 +215,7 @@ export function CompanySettingsForm({
               {...form.register("invoiceNumber")}
               placeholder="T1234567890123"
               className="h-11 rounded-xl text-base"
+              disabled={!canEdit}
             />
           </Field>
         </div>
@@ -215,6 +232,7 @@ export function CompanySettingsForm({
           <select
             {...form.register("quoteDefaultExpiryType")}
             className="h-11 w-full max-w-xs rounded-xl border border-zinc-200 bg-white px-3 text-base text-zinc-800 shadow-sm focus:border-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200/80"
+            disabled={!canEdit}
           >
             {QUOTE_EXPIRY_PERIOD_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -247,6 +265,7 @@ export function CompanySettingsForm({
             {...form.register("paymentTerms")}
             placeholder="例: 請求書発行後14日以内"
             className="h-11 max-w-xl rounded-xl text-base"
+            disabled={!canEdit}
           />
         </Field>
       </Section>
@@ -264,6 +283,7 @@ export function CompanySettingsForm({
               {...form.register("quoteMemoTemplate")}
               rows={3}
               className="min-h-[80px] rounded-xl border-zinc-200/80 text-base"
+              disabled={!canEdit}
             />
           </Field>
           <Field label="注文書の備考（デフォルト）">
@@ -271,6 +291,7 @@ export function CompanySettingsForm({
               {...form.register("orderMemoTemplate")}
               rows={3}
               className="min-h-[80px] rounded-xl border-zinc-200/80 text-base"
+              disabled={!canEdit}
             />
           </Field>
           <Field label="納品書の備考（デフォルト）">
@@ -278,6 +299,7 @@ export function CompanySettingsForm({
               {...form.register("deliveryNoteMemoTemplate")}
               rows={3}
               className="min-h-[80px] rounded-xl border-zinc-200/80 text-base"
+              disabled={!canEdit}
             />
           </Field>
           <Field label="請求書の備考（デフォルト）">
@@ -286,6 +308,7 @@ export function CompanySettingsForm({
               rows={3}
               placeholder="例: お振込手数料はご負担願います。"
               className="min-h-[80px] rounded-xl border-zinc-200/80 text-base"
+              disabled={!canEdit}
             />
           </Field>
           <Field label="領収書の備考（デフォルト）">
@@ -293,6 +316,7 @@ export function CompanySettingsForm({
               {...form.register("receiptMemoTemplate")}
               rows={3}
               className="min-h-[80px] rounded-xl border-zinc-200/80 text-base"
+              disabled={!canEdit}
             />
           </Field>
         </div>
@@ -305,7 +329,7 @@ export function CompanySettingsForm({
         title="振込口座"
         description="複数登録できます。請求書作成時に表示する口座を選択できます"
       >
-        <BankAccountsManager />
+        <BankAccountsManager readOnly={!canEdit} />
       </Section>
 
       <Separator className="bg-zinc-200/80" />
@@ -322,6 +346,7 @@ export function CompanySettingsForm({
             recommended="横600px × 縦200px"
             value={values.logoUrl ?? null}
             onChange={(next) => form.setValue("logoUrl", next, { shouldDirty: true })}
+            disabled={!canEdit}
           />
           <ImageUploadField
             label="会社印"
@@ -330,6 +355,7 @@ export function CompanySettingsForm({
             highlight
             value={values.stampUrl ?? null}
             onChange={(next) => form.setValue("stampUrl", next, { shouldDirty: true })}
+            disabled={!canEdit}
           />
           <ImageUploadField
             label="署名"
@@ -338,6 +364,7 @@ export function CompanySettingsForm({
             onChange={(next) =>
               form.setValue("signatureUrl", next, { shouldDirty: true })
             }
+            disabled={!canEdit}
           />
         </div>
       </Section>

@@ -183,19 +183,9 @@
     overflow: visible !important;
   }
 
-  /* 帳票以外を非表示（サイドバー・ヘッダー・操作UI） */
-  body * {
-    visibility: hidden;
-  }
-
-  .print-area,
-  .print-area * {
-    visibility: visible;
-  }
-
+  /* 帳票以外を非表示（.print-hidden を付与した UI 要素） */
   .print-hidden {
     display: none !important;
-    visibility: hidden !important;
   }
 
   aside,
@@ -226,20 +216,32 @@
     border-color: #000 !important;
   }
 
-  /* 詳細ページ内の帳票以外をレイアウトから除外（複数ページ印刷のため） */
+  /* 詳細ページの余白を除去し、帳票のみ印刷 */
   main > div {
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
-  main > div > *:not(.print-area) {
-    display: none !important;
+  /* アプリシェル・スクロールコンテナの高さ制限を解除（2ページ目以降が切れるのを防ぐ） */
+  .overflow-hidden,
+  .overflow-x-hidden,
+  .overflow-y-auto,
+  .h-screen {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
   }
 
   .print-area,
+  .print-area .document-preview,
+  .print-area .document-page,
+  .print-area .document-items,
+  .print-area .document-footer,
   .document-preview,
   .document-page {
+    overflow: visible !important;
+    max-height: none !important;
     font-family: var(--font-sans), "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic",
       "Meiryo", sans-serif !important;
     position: static !important;
@@ -247,15 +249,25 @@
     max-width: none !important;
     height: auto !important;
     min-height: auto !important;
-    overflow: visible !important;
     box-shadow: none !important;
     border: none !important;
     border-radius: 0 !important;
     background: #fff !important;
+    color: #000 !important;
     margin: 0 !important;
     padding: 0 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  .print-area * {
+    color: #000 !important;
+  }
+
+  .print-area .text-zinc-400,
+  .print-area .text-zinc-500,
+  .print-area .text-zinc-600 {
+    color: #444 !important;
   }
 
   .compact-print .document-title {
@@ -273,21 +285,34 @@
   .compact-print .document-meta,
   .compact-print .document-subject,
   .compact-print .document-greeting,
-  .compact-print .document-company-info {
-    font-size: 10px !important;
-    line-height: 1.4 !important;
+  .compact-print .document-company-info,
+  .compact-print .document-construction-site,
+  .compact-print .document-payment-terms {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+
+  .compact-print .document-customer > p:first-child {
+    font-size: 13px !important;
+    font-weight: 500 !important;
+  }
+
+  .compact-print .document-bank {
+    font-size: 11px !important;
+    line-height: 1.5 !important;
   }
 
   .compact-print .document-summary {
     margin-top: 2mm !important;
   }
 
-  .compact-print .document-summary .text-2xl {
-    font-size: 16px !important;
+  .compact-print .document-summary .text-2xl,
+  .compact-print .document-summary .text-3xl {
+    font-size: 18px !important;
   }
 
   .compact-print .document-summary .text-base {
-    font-size: 11px !important;
+    font-size: 13px !important;
   }
 
   .compact-print .document-items {
@@ -296,22 +321,30 @@
   }
 
   .compact-print .document-items-table {
-    font-size: 10px !important;
-    line-height: 1.25 !important;
+    font-size: 12px !important;
+    line-height: 1.45 !important;
   }
 
   .compact-print .document-items-table thead tr {
-    height: 20px;
+    height: auto;
+    min-height: 26px;
+  }
+
+  .compact-print .document-items-table thead th {
+    font-size: 11px !important;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
   }
 
   .compact-print .document-items-table th,
   .compact-print .document-items-table td {
-    padding-top: 1px !important;
-    padding-bottom: 1px !important;
+    padding-top: 3px !important;
+    padding-bottom: 3px !important;
   }
 
   .compact-print .document-item-row {
-    height: 20px;
+    height: auto;
+    min-height: 26px;
   }
 
   .compact-print .document-item-description {
@@ -320,12 +353,50 @@
 
   .compact-print .document-footer {
     margin-top: 2mm !important;
-    font-size: 9px !important;
+    font-size: 11px !important;
+    line-height: 1.5 !important;
+    overflow: visible !important;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .compact-print .document-footer-totals {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .compact-print .document-footer-totals-row {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .compact-print .document-footer-totals td {
+    padding-top: 5px !important;
+    padding-bottom: 5px !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    line-height: 1.45 !important;
+  }
+
+  .compact-print .document-footer-totals tr:last-child td {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+  }
+
+  .compact-print .document-bank,
+  .compact-print .document-signature {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    overflow: visible !important;
   }
 
   .compact-print .document-memo {
-    max-height: 12mm;
-    overflow: hidden;
+    max-height: none !important;
+    overflow: visible !important;
+    break-inside: auto;
+    page-break-inside: auto;
   }
 
   .compact-print .document-company-info {
@@ -357,12 +428,15 @@
 
   .compact-print.document-preview,
   .compact-print.document-page {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
     padding-right: 10mm !important;
     overflow: visible !important;
   }
 
   table {
     page-break-inside: auto;
+    break-inside: auto;
     border-collapse: collapse;
     width: 100%;
   }
@@ -375,7 +449,31 @@
     display: table-footer-group;
   }
 
+  .document-items-table {
+    page-break-inside: auto;
+    break-inside: auto;
+  }
+
+  .document-items-table thead {
+    display: table-header-group;
+  }
+
   .document-item-row {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .document-footer-totals {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .document-footer-totals-row {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .document-bank {
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -389,8 +487,8 @@
     width: 46% !important;
     max-width: 100% !important;
     padding: 2mm !important;
-    font-size: 9px !important;
-    line-height: 1.35 !important;
+    font-size: 11px !important;
+    line-height: 1.45 !important;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -402,6 +500,7 @@
   }
 
   .order-document-layout .document-order-recipient {
-    font-size: 10px !important;
+    font-size: 12px !important;
+    line-height: 1.5 !important;
   }
 }

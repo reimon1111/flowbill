@@ -2,7 +2,8 @@
 
 import { create } from "zustand";
 import type { CompanySettings } from "@/lib/types";
-import { initialCompanySettings } from "@/lib/mock-company-settings";
+import { initialCompanySettings, emptyCompanySettings } from "@/lib/mock-company-settings";
+import { initialStoreData } from "@/lib/stores/store-initial";
 
 type CompanySettingsStore = {
   settings: CompanySettings;
@@ -17,7 +18,7 @@ type CompanySettingsStore = {
 };
 
 export const useCompanySettingsStore = create<CompanySettingsStore>((set, get) => ({
-  settings: initialCompanySettings,
+  settings: initialStoreData(initialCompanySettings, emptyCompanySettings),
 
   hydrate: (settings) => set({ settings }),
 

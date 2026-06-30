@@ -177,7 +177,24 @@ export type CommercialListSortItem = {
   createdAt: string;
   issueDate: string;
   totalAmount: number;
+  documentNumber: string;
 };
+
+function compareStringDesc(a: string, b: string): number {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  return b.localeCompare(a);
+}
+
+function compareCommercialCreatedDesc<T extends CommercialListSortItem>(
+  a: T,
+  b: T
+): number {
+  const byCreated = compareDateDesc(a.createdAt, b.createdAt);
+  if (byCreated !== 0) return byCreated;
+  return compareStringDesc(a.documentNumber, b.documentNumber);
+}
 
 function isQuoteExpired(expiryDate: string): boolean {
   return getQuoteExpiryDisplayStatus(expiryDate) === "expired";
@@ -233,9 +250,12 @@ export function sortCommercialDocuments<T extends CommercialListSortItem>(
   sorted.sort((a, b) => {
     switch (sortKey) {
       case "created_desc":
-        return compareDateDesc(a.createdAt, b.createdAt);
-      case "created_asc":
-        return compareDateAsc(a.createdAt, b.createdAt);
+        return compareCommercialCreatedDesc(a, b);
+      case "created_asc": {
+        const byCreated = compareDateAsc(a.createdAt, b.createdAt);
+        if (byCreated !== 0) return byCreated;
+        return compareStringDesc(b.documentNumber, a.documentNumber);
+      }
       case "issue_desc":
         return compareDateDesc(a.issueDate, b.issueDate);
       case "issue_asc":
