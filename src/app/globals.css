@@ -203,6 +203,36 @@
     display: none !important;
   }
 
+  /* トースト・プレビュー操作 UI は PDF/印刷に含めない */
+  [data-sonner-toaster],
+  [data-sonner-toast],
+  .toaster,
+  .document-preview-toggle {
+    display: none !important;
+  }
+
+  /*
+   * 帳票本体（.print-area）のみ印刷対象にする。
+   * プレビュー折りたたみボタンや案内文が PDF に混入するのを防ぐ。
+   */
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
   aside,
   .app-header,
   nav {

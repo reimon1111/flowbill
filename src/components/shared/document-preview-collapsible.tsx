@@ -32,7 +32,7 @@ export function DocumentPreviewCollapsible({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left text-sm font-medium text-zinc-900 shadow-sm"
+        className="print-hidden document-preview-toggle flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left text-sm font-medium text-zinc-900 shadow-sm"
       >
         <span className="inline-flex items-center gap-2">
           <FileText className="size-4 text-zinc-500" />
