@@ -422,3 +422,57 @@ export async function reloadProjectsToStore(): Promise<void> {
       : (projectItemsRes.data as ProjectItemRow[]).map(projectItemFromRow)
   );
 }
+
+/** 単一案件のみ再取得（全件 reload より軽量） */
+export async function reloadSingleProjectToStore(projectId: string): Promise<void> {
+  const companyId = await resolveCompanyId();
+  const supabase = getSupabaseClient();
+
+  const [projectRes, historiesRes, itemsRes] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("*")
+      .eq("id", projectId)
+      .eq("company_id", companyId)
+      .single(),
+    supabase
+      .from("project_histories")
+      .select("*")
+      .eq("project_id", projectId)
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("project_items")
+      .select("*")
+      .eq("project_id", projectId)
+      .eq("company_id", companyId)
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  if (projectRes.error || !projectRes.data) return;
+  if (historiesRes.error) throw historiesRes.error;
+
+  const projectItemsMissing =
+    itemsRes.error != null && isMissingProjectItemsTable(itemsRes.error);
+  if (itemsRes.error && !projectItemsMissing) throw itemsRes.error;
+
+  const project = projectFromRow(projectRes.data as ProjectRow);
+  const store = useProjectStore.getState();
+  store.upsertProject(project);
+  store.hydrate({
+    projects: store.projects,
+    histories: [
+      ...(historiesRes.data as ProjectHistoryRow[]).map(projectHistoryFromRow),
+      ...store.histories.filter((h) => h.projectId !== projectId),
+    ],
+  });
+
+  const itemStore = useProjectItemStore.getState();
+  const nextItems = projectItemsMissing
+    ? itemStore.projectItems.filter((i) => i.projectId !== projectId)
+    : [
+        ...(itemsRes.data as ProjectItemRow[]).map(projectItemFromRow),
+        ...itemStore.projectItems.filter((i) => i.projectId !== projectId),
+      ];
+  itemStore.hydrate(nextItems);
+}

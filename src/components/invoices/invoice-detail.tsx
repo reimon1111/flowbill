@@ -35,6 +35,9 @@ import {
 import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
 import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { DocumentPreviewCollapsible } from "@/components/shared/document-preview-collapsible";
+import { handleDocumentExport } from "@/lib/document-export";
 
 function isOverdue(dueDate: string) {
   if (!dueDate) return false;
@@ -66,20 +69,27 @@ export function InvoiceDetail({
 }) {
   const router = useRouter();
   const canWrite = useCanWriteBusinessData();
+  const isMobile = useIsMobile();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const status = displayStatus(invoice);
   const actions = getInvoiceQuickActions(status);
   const deleteBlockReason = getInvoiceDeletionBlockReason(invoice.id);
   const cancelBlockReason = getInvoiceCancelBlockReason(invoice.id);
   const deletable = canDeleteInvoice(invoice.id);
-  const handlePrint = () => {
-    toast.message("印刷画面を開きます。保存先でPDFを選択できます。");
-    window.print();
+  const exportLabel = isMobile ? "PDFを保存" : "印刷 / PDF保存";
+
+  const handleExport = () => {
+    handleDocumentExport({ onOpenPreview: () => setPreviewOpen(true) });
   };
 
   const change = async (next: InvoiceActionType) => {
+    if (actionLoading) return;
+    setActionLoading(true);
+    try {
     const map: Record<InvoiceActionType, InvoiceDocumentStatus> = {
       mark_issued: "issued",
       mark_sent: "sent",
@@ -111,7 +121,9 @@ export function InvoiceDetail({
         description: "案件の入金状態が更新されました（案件ステータスは完了のまま）",
       });
     }
-
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleDeleteRequest = () => {
@@ -181,20 +193,21 @@ export function InvoiceDetail({
             <InvoiceStatusBadge status={status} />
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={handleExport}
               className={cn(
                 buttonVariants({ variant: "outline" }),
-                "h-9 gap-2 rounded-xl"
+                "h-10 min-h-10 gap-2 rounded-xl sm:h-9"
               )}
             >
               <Printer className="size-4" />
-              印刷/PDF保存
+              {exportLabel}
             </button>
             {canWrite
               ? actions.map((a) => (
                   <InvoiceActionButton
                     key={a}
                     action={a}
+                    disabled={actionLoading}
                     onAction={(act) => {
                       if (act === "cancel") {
                         if (cancelBlockReason) {
@@ -251,13 +264,15 @@ export function InvoiceDetail({
 
       <ActivityLogPanel targetType="invoice" targetId={invoice.id} className="mt-4" />
 
-      <InvoicePreview
-        invoice={invoice}
-        customer={customer}
-        items={items}
-        projectName={projectName}
-        constructionSite={constructionSite}
-      />
+      <DocumentPreviewCollapsible open={previewOpen} onOpenChange={setPreviewOpen}>
+        <InvoicePreview
+          invoice={invoice}
+          customer={customer}
+          items={items}
+          projectName={projectName}
+          constructionSite={constructionSite}
+        />
+      </DocumentPreviewCollapsible>
 
       <DeleteConfirmDialog
         open={cancelOpen}

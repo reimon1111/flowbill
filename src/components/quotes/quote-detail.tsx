@@ -25,7 +25,10 @@ import { QUOTE_EXPIRY_TYPE_LABELS } from "@/lib/quote-expiry";
 import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
 import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useOrderStore } from "@/stores/order-store";
+import { DocumentPreviewCollapsible } from "@/components/shared/document-preview-collapsible";
+import { handleDocumentExport } from "@/lib/document-export";
 
 export function QuoteDetail({
   quote,
@@ -42,9 +45,12 @@ export function QuoteDetail({
 }) {
   const router = useRouter();
   const canWrite = useCanWriteBusinessData();
+  const isMobile = useIsMobile();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [statusChanging, setStatusChanging] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const deleteBlockReason = getQuoteDeletionBlockReason(quote.id);
   const deletable = canDeleteQuote(quote.id);
   const projectOrders = useOrderStore((s) =>
@@ -52,12 +58,16 @@ export function QuoteDetail({
   );
   const showOrderGuidance =
     canWrite && quote.status === "accepted" && projectOrders.length === 0;
-  const handlePrint = () => {
-    toast.message("印刷画面を開きます。保存先でPDFを選択できます。");
-    window.print();
+  const exportLabel = isMobile ? "PDFを保存" : "印刷 / PDF保存";
+
+  const handleExport = () => {
+    handleDocumentExport({ onOpenPreview: () => setPreviewOpen(true) });
   };
 
   const changeStatus = async (status: QuoteStatus) => {
+    if (statusChanging) return;
+    setStatusChanging(true);
+    try {
     const updated = await updateQuoteStatus(quote.id, status);
     if (!updated) return;
 
@@ -76,7 +86,9 @@ export function QuoteDetail({
     } else {
       toast.success("見積ステータスを更新しました");
     }
-
+    } finally {
+      setStatusChanging(false);
+    }
   };
 
   const handleDeleteRequest = () => {
@@ -148,18 +160,19 @@ export function QuoteDetail({
             <QuoteStatusBadge status={quote.status} />
             <button
               type="button"
-              onClick={handlePrint}
+              onClick={handleExport}
               className={cn(
                 buttonVariants({ variant: "outline" }),
-                "h-9 gap-2 rounded-xl"
+                "h-10 min-h-10 gap-2 rounded-xl sm:h-9"
               )}
             >
               <Printer className="size-4" />
-              印刷/PDF保存
+              {exportLabel}
             </button>
             {canWrite && quote.status === "draft" && (
               <button
                 type="button"
+                disabled={statusChanging}
                 onClick={() => changeStatus("sent")}
                 className={cn(
                   buttonVariants(),
@@ -174,6 +187,7 @@ export function QuoteDetail({
               <>
                 <button
                   type="button"
+                  disabled={statusChanging}
                   onClick={() => changeStatus("accepted")}
                   className={cn(
                     buttonVariants(),
@@ -185,6 +199,7 @@ export function QuoteDetail({
                 </button>
                 <button
                   type="button"
+                  disabled={statusChanging}
                   onClick={() => setRejectOpen(true)}
                   className={cn(
                     buttonVariants({ variant: "outline" }),
@@ -274,13 +289,15 @@ export function QuoteDetail({
 
       <ActivityLogPanel targetType="quote" targetId={quote.id} className="mt-4" />
 
-      <QuotePreview
-        quote={quote}
-        customer={customer}
-        items={items}
-        projectName={projectName}
-        constructionSite={constructionSite}
-      />
+      <DocumentPreviewCollapsible open={previewOpen} onOpenChange={setPreviewOpen}>
+        <QuotePreview
+          quote={quote}
+          customer={customer}
+          items={items}
+          projectName={projectName}
+          constructionSite={constructionSite}
+        />
+      </DocumentPreviewCollapsible>
 
       <DeleteConfirmDialog
         open={rejectOpen}

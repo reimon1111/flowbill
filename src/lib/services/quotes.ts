@@ -18,7 +18,7 @@ import {
   dbUpdateQuoteStatus,
 } from "@/lib/db/write-quotes";
 import { dbInsertHistory } from "@/lib/db/write-projects";
-import { reloadProjectsToStore } from "@/lib/db/load-all";
+import { reloadSingleProjectToStore } from "@/lib/db/load-all";
 import { logSupabaseError, formatSupabaseError } from "@/lib/db/errors";
 import { todayISO } from "@/lib/quote-dates";
 import {
@@ -293,8 +293,10 @@ export async function updateQuoteStatus(
   assertCanWriteBusinessData();
   if (isSupabaseConfigured()) {
     const quote = await dbUpdateQuoteStatus(id, status);
-    if (quote) useQuoteStore.getState().mergeQuote(quote, useQuoteStore.getState().getQuoteItems(id));
-    await reloadProjectsToStore();
+    if (quote) {
+      useQuoteStore.getState().mergeQuote(quote, useQuoteStore.getState().getQuoteItems(id));
+      await reloadSingleProjectToStore(quote.projectId);
+    }
     return quote;
   }
   return useQuoteStore.getState().updateQuoteStatus(id, status);

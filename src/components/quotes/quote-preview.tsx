@@ -17,8 +17,7 @@ export function QuotePreview({
   projectName: string;
   constructionSite?: string;
 }) {
-  useCompanySettingsStore((s) => s.settings);
-  const company = useCompanySettingsStore.getState().getSettings();
+  const company = useCompanySettingsStore((s) => s.settings);
 
   return (
     <DocumentLayout

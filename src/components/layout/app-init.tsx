@@ -7,7 +7,7 @@ import { toDbErrorMessage } from "@/lib/db/errors";
 import { syncCustomerProjectCounts } from "@/lib/services/projects";
 import { useAppDataStore } from "@/stores/app-data-store";
 import { dbRefreshOverdueInvoices } from "@/lib/db/write-invoices";
-import { reloadInvoicesToStore, reloadProjectsToStore } from "@/lib/db/load-all";
+import { reloadInvoicesToStore } from "@/lib/db/load-all";
 import { clearAllBusinessStores } from "@/lib/stores/clear-business-stores";
 import { hydrateCompanyMembership } from "@/lib/services/company-switch";
 import { loadRecentActivityLogsToStore } from "@/lib/services/activity-log";
@@ -41,7 +41,6 @@ export function AppInit() {
         await loadAllDataFromSupabase();
         await dbRefreshOverdueInvoices();
         await reloadInvoicesToStore();
-        await reloadProjectsToStore();
         syncCustomerProjectCounts();
         try {
           await hydrateCompanyMembership();

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { QuoteDetail } from "@/components/quotes/quote-detail";
 import { PageContentLoader } from "@/components/shared/page-content-loader";
+import { ClientErrorBoundary } from "@/components/shared/client-error-boundary";
 import { useQuoteStore } from "@/stores/quote-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useCustomerStore } from "@/stores/customer-store";
@@ -73,12 +74,14 @@ export function QuoteDetailClient() {
   }
 
   return (
-    <QuoteDetail
-      quote={quote}
-      customer={customer}
-      projectName={project.projectName}
-      constructionSite={project.constructionSite}
-      items={items}
-    />
+    <ClientErrorBoundary title="見積詳細の表示に失敗しました" backHref="/quotes" backLabel="見積一覧へ">
+      <QuoteDetail
+        quote={quote}
+        customer={customer}
+        projectName={project.projectName}
+        constructionSite={project.constructionSite}
+        items={items}
+      />
+    </ClientErrorBoundary>
   );
 }

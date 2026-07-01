@@ -3,23 +3,9 @@ import { enrichPaymentListItem, getInvoiceDisplayStatus, isPaymentTrackable } fr
 import { useInvoiceStore } from "@/stores/invoice-store";
 import { updateInvoiceStatus } from "@/lib/services/invoices";
 import { syncCustomerProjectCounts } from "@/lib/services/projects";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { dbRefreshOverdueInvoices } from "@/lib/db/write-invoices";
-import { reloadInvoicesToStore, reloadProjectsToStore } from "@/lib/db/load-all";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 
-async function refreshOverdue() {
-  if (isSupabaseConfigured()) {
-    await dbRefreshOverdueInvoices();
-    await reloadInvoicesToStore();
-    await reloadProjectsToStore();
-  } else {
-    useInvoiceStore.getState().refreshOverdueInvoices();
-  }
-}
-
 export async function getPaymentListItems(): Promise<PaymentListItem[]> {
-  await refreshOverdue();
   return useInvoiceStore
     .getState()
     .getListItems()
@@ -55,7 +41,6 @@ export type PaymentDashboardStats = {
 };
 
 export async function getPaymentDashboardStatsAsync(): Promise<PaymentDashboardStats> {
-  await refreshOverdue();
   return getPaymentDashboardStats();
 }
 

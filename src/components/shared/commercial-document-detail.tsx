@@ -21,6 +21,9 @@ import { DocumentBackLinks } from "@/components/shared/document-back-links";
 import type { AuditMetadata } from "@/lib/types/audit";
 import type { ActivityLogTargetType } from "@/lib/types/activity-log";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { DocumentPreviewCollapsible } from "@/components/shared/document-preview-collapsible";
+import { handleDocumentExport } from "@/lib/document-export";
 
 type DeleteConfig = {
   confirmDescription: string;
@@ -83,9 +86,12 @@ export function CommercialDocumentDetail({
 }) {
   const router = useRouter();
   const canWrite = useCanWriteBusinessData();
+  const isMobile = useIsMobile();
   const labels = getDocumentLabels(kind);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const exportLabel = isMobile ? "PDFを保存" : "印刷 / PDF保存";
 
   const handleDelete = async () => {
     if (!deleteConfig) return;
@@ -139,14 +145,16 @@ export function CommercialDocumentDetail({
           ) : null}
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={() =>
+              handleDocumentExport({ onOpenPreview: () => setPreviewOpen(true) })
+            }
             className={cn(
               buttonVariants({ variant: "outline" }),
-              "h-9 gap-2 rounded-xl"
+              "h-10 min-h-10 gap-2 rounded-xl sm:h-9"
             )}
           >
             <Printer className="size-4" />
-            印刷 / PDF保存
+            {exportLabel}
           </button>
         </div>
       </div>
@@ -191,17 +199,19 @@ export function CommercialDocumentDetail({
         />
       ) : null}
 
-      <CommercialDocumentPreview
-        kind={kind}
-        document={document}
-        customer={customer}
-        items={items}
-        projectName={projectName}
-        constructionSite={constructionSite}
-        secondDate={secondDate}
-        bankAccountId={bankAccountId}
-        recipientName={recipientName}
-      />
+      <DocumentPreviewCollapsible open={previewOpen} onOpenChange={setPreviewOpen}>
+        <CommercialDocumentPreview
+          kind={kind}
+          document={document}
+          customer={customer}
+          items={items}
+          projectName={projectName}
+          constructionSite={constructionSite}
+          secondDate={secondDate}
+          bankAccountId={bankAccountId}
+          recipientName={recipientName}
+        />
+      </DocumentPreviewCollapsible>
 
       {deleteConfig ? (
         <DeleteConfirmDialog

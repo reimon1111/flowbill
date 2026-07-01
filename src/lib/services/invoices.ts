@@ -21,7 +21,7 @@ import {
   dbUpdateInvoiceStatus,
 } from "@/lib/db/write-invoices";
 import { dbInsertHistory, dbUpsertProject } from "@/lib/db/write-projects";
-import { reloadInvoicesToStore, reloadProjectsToStore } from "@/lib/db/load-all";
+import { reloadInvoicesToStore, reloadSingleProjectToStore } from "@/lib/db/load-all";
 import { dbRefreshOverdueInvoices } from "@/lib/db/write-invoices";
 import { resolveProjectFieldsAfterInvoiceChange } from "@/lib/invoice-project-sync";
 import { normalizeUnit } from "@/lib/constants/units";
@@ -193,7 +193,7 @@ export async function deleteInvoice(
       useInvoiceStore.getState().removeInvoice(id);
       await appendInvoiceDeletedHistory(invoice.projectId, invoice.invoiceNumber);
       await syncProjectAfterInvoiceRemovalDb(invoice.projectId, id);
-      await reloadProjectsToStore();
+      await reloadSingleProjectToStore(invoice.projectId);
     }
     return ok ? { ok: true } : { ok: false, reason: "請求書の削除に失敗しました" };
   }
@@ -241,8 +241,8 @@ export async function updateInvoiceStatus(
         invoice,
         useInvoiceStore.getState().getInvoiceItems(id)
       );
+      await reloadSingleProjectToStore(invoice.projectId);
     }
-    await reloadProjectsToStore();
     return invoice;
   }
   return useInvoiceStore.getState().updateInvoiceStatus(id, status);
@@ -280,7 +280,6 @@ export async function refreshOverdueInvoices(): Promise<void> {
   if (isSupabaseConfigured()) {
     await dbRefreshOverdueInvoices();
     await reloadInvoicesToStore();
-    await reloadProjectsToStore();
   } else {
     useInvoiceStore.getState().refreshOverdueInvoices();
   }

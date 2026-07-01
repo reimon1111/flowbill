@@ -33,20 +33,23 @@ export function InvoiceActionButton({
   action,
   onAction,
   className,
+  disabled,
 }: {
   action: InvoiceActionType;
   onAction: (action: InvoiceActionType) => void | Promise<void>;
   className?: string;
+  disabled?: boolean;
 }) {
   const variant =
     action === "mark_paid" ? "default" : action === "cancel" ? "outline" : "outline";
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={() => onAction(action)}
       className={cn(
         buttonVariants({ variant }),
-        "h-9 rounded-xl",
+        "h-10 min-h-10 rounded-xl sm:h-9",
         action === "mark_paid" ? "bg-emerald-600 text-white hover:bg-emerald-500" : "",
         className
       )}

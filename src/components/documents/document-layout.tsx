@@ -60,7 +60,7 @@ export function DocumentLayout({
 
   return (
     <div className="print-area overflow-x-auto print:overflow-visible">
-      <div className="document-preview document-page compact-print min-w-[640px] overflow-visible rounded-2xl border border-zinc-200/80 bg-white px-4 py-6 font-sans shadow-sm shadow-zinc-900/[0.04] sm:min-w-0 sm:px-8 sm:py-8 sm:pr-10">
+      <div className="document-preview document-page compact-print min-w-0 w-full overflow-visible rounded-2xl border border-zinc-200/80 bg-white px-4 py-6 font-sans shadow-sm shadow-zinc-900/[0.04] sm:px-8 sm:py-8 sm:pr-10">
       <DocumentHeader
         kind={kind}
         documentNumber={documentNumber}
