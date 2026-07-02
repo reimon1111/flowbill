@@ -37,7 +37,8 @@ import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { DocumentPreviewCollapsible } from "@/components/shared/document-preview-collapsible";
-import { handleDocumentExport } from "@/lib/document-export";
+import { useDocumentExport } from "@/hooks/use-document-export";
+import { LinePdfExportGuide } from "@/components/shared/line-pdf-export-guide";
 
 function isOverdue(dueDate: string) {
   if (!dueDate) return false;
@@ -74,17 +75,14 @@ export function InvoiceDetail({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const { previewOpen, setPreviewOpen, lineGuideOpen, setLineGuideOpen, onExport } =
+    useDocumentExport();
   const status = displayStatus(invoice);
   const actions = getInvoiceQuickActions(status);
   const deleteBlockReason = getInvoiceDeletionBlockReason(invoice.id);
   const cancelBlockReason = getInvoiceCancelBlockReason(invoice.id);
   const deletable = canDeleteInvoice(invoice.id);
   const exportLabel = isMobile ? "PDFを保存" : "印刷 / PDF保存";
-
-  const handleExport = () => {
-    handleDocumentExport({ onOpenPreview: () => setPreviewOpen(true) });
-  };
 
   const change = async (next: InvoiceActionType) => {
     if (actionLoading) return;
@@ -193,7 +191,7 @@ export function InvoiceDetail({
             <InvoiceStatusBadge status={status} />
             <button
               type="button"
-              onClick={handleExport}
+              onClick={onExport}
               className={cn(
                 buttonVariants({ variant: "outline" }),
                 "h-10 min-h-10 gap-2 rounded-xl sm:h-9"
@@ -263,6 +261,11 @@ export function InvoiceDetail({
       <AuditTrailPanel audit={invoice} />
 
       <ActivityLogPanel targetType="invoice" targetId={invoice.id} className="mt-4" />
+
+      <LinePdfExportGuide
+        open={lineGuideOpen}
+        onClose={() => setLineGuideOpen(false)}
+      />
 
       <DocumentPreviewCollapsible open={previewOpen} onOpenChange={setPreviewOpen}>
         <InvoicePreview

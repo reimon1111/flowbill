@@ -23,7 +23,8 @@ import type { ActivityLogTargetType } from "@/lib/types/activity-log";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { DocumentPreviewCollapsible } from "@/components/shared/document-preview-collapsible";
-import { handleDocumentExport } from "@/lib/document-export";
+import { useDocumentExport } from "@/hooks/use-document-export";
+import { LinePdfExportGuide } from "@/components/shared/line-pdf-export-guide";
 
 type DeleteConfig = {
   confirmDescription: string;
@@ -90,7 +91,8 @@ export function CommercialDocumentDetail({
   const labels = getDocumentLabels(kind);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const { previewOpen, setPreviewOpen, lineGuideOpen, setLineGuideOpen, onExport } =
+    useDocumentExport();
   const exportLabel = isMobile ? "PDFを保存" : "印刷 / PDF保存";
 
   const handleDelete = async () => {
@@ -145,9 +147,7 @@ export function CommercialDocumentDetail({
           ) : null}
           <button
             type="button"
-            onClick={() =>
-              handleDocumentExport({ onOpenPreview: () => setPreviewOpen(true) })
-            }
+            onClick={onExport}
             className={cn(
               buttonVariants({ variant: "outline" }),
               "h-10 min-h-10 gap-2 rounded-xl sm:h-9"
@@ -198,6 +198,11 @@ export function CommercialDocumentDetail({
           className="mt-4"
         />
       ) : null}
+
+      <LinePdfExportGuide
+        open={lineGuideOpen}
+        onClose={() => setLineGuideOpen(false)}
+      />
 
       <DocumentPreviewCollapsible open={previewOpen} onOpenChange={setPreviewOpen}>
         <CommercialDocumentPreview

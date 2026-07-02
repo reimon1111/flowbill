@@ -28,7 +28,8 @@ import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useOrderStore } from "@/stores/order-store";
 import { DocumentPreviewCollapsible } from "@/components/shared/document-preview-collapsible";
-import { handleDocumentExport } from "@/lib/document-export";
+import { useDocumentExport } from "@/hooks/use-document-export";
+import { LinePdfExportGuide } from "@/components/shared/line-pdf-export-guide";
 
 export function QuoteDetail({
   quote,
@@ -50,7 +51,8 @@ export function QuoteDetail({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [statusChanging, setStatusChanging] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const { previewOpen, setPreviewOpen, lineGuideOpen, setLineGuideOpen, onExport } =
+    useDocumentExport();
   const deleteBlockReason = getQuoteDeletionBlockReason(quote.id);
   const deletable = canDeleteQuote(quote.id);
   const projectOrders = useOrderStore((s) =>
@@ -59,10 +61,6 @@ export function QuoteDetail({
   const showOrderGuidance =
     canWrite && quote.status === "accepted" && projectOrders.length === 0;
   const exportLabel = isMobile ? "PDFを保存" : "印刷 / PDF保存";
-
-  const handleExport = () => {
-    handleDocumentExport({ onOpenPreview: () => setPreviewOpen(true) });
-  };
 
   const changeStatus = async (status: QuoteStatus) => {
     if (statusChanging) return;
@@ -160,7 +158,7 @@ export function QuoteDetail({
             <QuoteStatusBadge status={quote.status} />
             <button
               type="button"
-              onClick={handleExport}
+              onClick={onExport}
               className={cn(
                 buttonVariants({ variant: "outline" }),
                 "h-10 min-h-10 gap-2 rounded-xl sm:h-9"
@@ -288,6 +286,11 @@ export function QuoteDetail({
       <AuditTrailPanel audit={quote} />
 
       <ActivityLogPanel targetType="quote" targetId={quote.id} className="mt-4" />
+
+      <LinePdfExportGuide
+        open={lineGuideOpen}
+        onClose={() => setLineGuideOpen(false)}
+      />
 
       <DocumentPreviewCollapsible open={previewOpen} onOpenChange={setPreviewOpen}>
         <QuotePreview
