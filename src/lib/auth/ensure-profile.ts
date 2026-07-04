@@ -4,6 +4,7 @@ import { syncBrowserSession, waitForAuthSession } from "@/lib/auth/sync-session"
 import { formatSupabaseError, logSupabaseError } from "@/lib/db/errors";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { setCachedCompanyId } from "@/lib/db/company-context";
+import { consumePendingInviteToken } from "@/lib/auth/pending-invite-token";
 
 export type UserProfile = {
   id: string;
@@ -65,8 +66,10 @@ async function resolveExistingCompanyId(userId: string): Promise<string | null> 
 
 async function ensureViaRpc(email: string, userId: string): Promise<string> {
   const supabase = getSupabaseBrowserClient();
+  const inviteToken = consumePendingInviteToken();
   const { data, error } = await supabase.rpc("ensure_user_profile", {
     p_email: email,
+    p_invite_token: inviteToken,
   });
 
   if (error) {

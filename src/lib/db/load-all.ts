@@ -476,3 +476,34 @@ export async function reloadSingleProjectToStore(projectId: string): Promise<voi
       ];
   itemStore.hydrate(nextItems);
 }
+
+/** 単一見積のみ再取得（全件 reload より軽量） */
+export async function reloadSingleQuoteToStore(
+  quoteId: string
+): Promise<import("@/lib/types").QuoteRecord | null> {
+  const companyId = await resolveCompanyId();
+  const supabase = getSupabaseClient();
+
+  const [quoteRes, itemsRes] = await Promise.all([
+    supabase
+      .from("quotes")
+      .select("*")
+      .eq("id", quoteId)
+      .eq("company_id", companyId)
+      .single(),
+    supabase
+      .from("quote_items")
+      .select("*")
+      .eq("quote_id", quoteId)
+      .eq("company_id", companyId)
+      .order("sort_order", { ascending: true }),
+  ]);
+
+  if (quoteRes.error || !quoteRes.data) return null;
+  if (itemsRes.error) throw itemsRes.error;
+
+  const quote = quoteFromRow(quoteRes.data as QuoteRow);
+  const items = (itemsRes.data as QuoteItemRow[]).map(quoteItemFromRow);
+  useQuoteStore.getState().mergeQuote(quote, items);
+  return quote;
+}

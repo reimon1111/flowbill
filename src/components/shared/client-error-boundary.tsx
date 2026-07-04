@@ -8,19 +8,24 @@ import { cn } from "@/lib/utils";
 type Props = {
   children: ReactNode;
   title?: string;
+  description?: string;
   backHref?: string;
   backLabel?: string;
 };
 
 type State = {
   hasError: boolean;
+  errorMessage?: string;
 };
 
 export class ClientErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): State {
+    return {
+      hasError: true,
+      errorMessage: error.message,
+    };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -35,8 +40,14 @@ export class ClientErrorBoundary extends Component<Props, State> {
             {this.props.title ?? "画面の表示に失敗しました"}
           </p>
           <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-            通信状況を確認のうえ、再度お試しください。問題が続く場合は一覧から開き直してください。
+            {this.props.description ??
+              "画面の表示中に問題が発生しました。しばらくしてから再度お試しください。"}
           </p>
+          {process.env.NODE_ENV !== "production" && this.state.errorMessage ? (
+            <p className="mt-3 break-all text-xs text-zinc-400">
+              {this.state.errorMessage}
+            </p>
+          ) : null}
           {this.props.backHref ? (
             <Link
               href={this.props.backHref}

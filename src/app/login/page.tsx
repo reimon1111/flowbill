@@ -5,11 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { LoginForm } from "@/components/auth/login-form";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { readBrowserSession } from "@/lib/auth/browser-session";
 import {
   bootstrapAuthenticatedSession,
   logSessionCheck,
 } from "@/lib/auth/bootstrap-session";
+import {
+  extractInviteTokenFromRedirect,
+  setPendingInviteToken,
+} from "@/lib/auth/pending-invite-token";
 import { AUTH_USER_MESSAGES, logAuthError, mapAuthErrorToUserMessage } from "@/lib/auth/errors";
 import { toast } from "sonner";
 
@@ -39,18 +43,18 @@ function LoginPageContent() {
       return;
     }
 
-    const supabase = getSupabaseBrowserClient();
-
     async function checkExistingSession() {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        const session = await readBrowserSession();
         logSessionCheck(session);
 
         if (session?.user) {
+          const inviteToken = extractInviteTokenFromRedirect(redirectTo);
+          if (inviteToken) {
+            setPendingInviteToken(inviteToken);
+          }
           await bootstrapAuthenticatedSession(session.user, session);
-          router.replace(redirectTo);
+          router.replace(inviteToken ? "/" : redirectTo);
         }
       } catch (error) {
         logAuthError("login page session check error", error);

@@ -12,6 +12,7 @@ import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   acceptCompanyInvitation,
   fetchPublicInvitationByToken,
+  isActiveMemberOfCompany,
 } from "@/lib/services/company-membership";
 import { reloadAfterCompanyJoin } from "@/lib/services/company-switch";
 import { formatDate } from "@/lib/format";
@@ -69,6 +70,13 @@ export default function InviteAcceptPage() {
           return;
         }
         if (invitation.acceptedAt) {
+          if (user && (await isActiveMemberOfCompany(invitation.companyId, user.id))) {
+            if (!cancelled) {
+              toast.success("すでにこの会社のメンバーです");
+              router.replace("/");
+            }
+            return;
+          }
           if (!cancelled) setError("すでに承認済みです");
           return;
         }

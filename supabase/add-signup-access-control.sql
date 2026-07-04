@@ -205,8 +205,14 @@ grant execute on function public.check_signup_allowed(text, text, text) to anon,
 
 -- ---------------------------------------------------------------------------
 -- ensure_user_profile 更新（登録制限 + 招待参加 + allowed 消費・冪等）
+-- 招待トークン指定時は allowed_signups を使わず company_members に参加
 -- ---------------------------------------------------------------------------
-create or replace function public.ensure_user_profile(p_email text default '')
+drop function if exists public.ensure_user_profile(text);
+
+create or replace function public.ensure_user_profile(
+  p_email text default '',
+  p_invite_token text default null
+)
 returns text
 language plpgsql
 security definer
@@ -249,14 +255,6 @@ begin
     end if;
 
     if v_company_id is not null then
-      update public.allowed_signups
-      set
-        status = 'used',
-        used_at = coalesce(used_at, now()),
-        updated_at = now()
-      where lower(email) = v_email
-        and status = 'pending';
-
       return v_company_id;
     end if;
   end if;
@@ -277,29 +275,31 @@ begin
     values (v_profile_id, auth.uid(), v_company_id, coalesce(p_email, ''))
     on conflict (user_id) do update
       set
-        company_id = coalesce(public.profiles.company_id, excluded.company_id),
+        company_id = coalesce(excluded.company_id, public.profiles.company_id),
+        email = coalesce(nullif(excluded.email, ''), public.profiles.email),
         updated_at = now()
     returning company_id into v_company_id;
-
-    update public.allowed_signups
-    set
-      status = 'used',
-      used_at = coalesce(used_at, now()),
-      updated_at = now()
-    where lower(email) = v_email
-      and status = 'pending';
 
     return v_company_id;
   end if;
 
   -- 有効な会社招待があれば参加（新規会社は作らない）
-  select * into v_inv
-  from public.company_invitations
-  where lower(email) = v_email
-    and accepted_at is null
-    and expires_at > now()
-  order by created_at desc
-  limit 1;
+  if coalesce(p_invite_token, '') <> '' then
+    select * into v_inv
+    from public.company_invitations
+    where token = p_invite_token
+      and accepted_at is null
+      and expires_at > now()
+    limit 1;
+  else
+    select * into v_inv
+    from public.company_invitations
+    where lower(email) = v_email
+      and accepted_at is null
+      and expires_at > now()
+    order by created_at desc
+    limit 1;
+  end if;
 
   if found then
     v_suffix := substr(md5(random()::text), 1, 4);
@@ -309,7 +309,10 @@ begin
     insert into public.profiles (id, user_id, company_id, email)
     values (v_profile_id, auth.uid(), v_inv.company_id, coalesce(p_email, ''))
     on conflict (user_id) do update
-      set updated_at = now()
+      set
+        company_id = excluded.company_id,
+        email = coalesce(nullif(excluded.email, ''), public.profiles.email),
+        updated_at = now()
     returning company_id into v_company_id;
 
     insert into public.company_members (
@@ -369,7 +372,10 @@ begin
   insert into public.profiles (id, user_id, company_id, email)
   values (v_profile_id, auth.uid(), v_company_id, coalesce(p_email, ''))
   on conflict (user_id) do update
-    set updated_at = now()
+    set
+      company_id = excluded.company_id,
+      email = coalesce(nullif(excluded.email, ''), public.profiles.email),
+      updated_at = now()
   returning company_id into v_company_id;
 
   insert into public.company_members (
@@ -392,8 +398,8 @@ begin
 end;
 $$;
 
-revoke all on function public.ensure_user_profile(text) from public;
-grant execute on function public.ensure_user_profile(text) to authenticated;
+revoke all on function public.ensure_user_profile(text, text) from public;
+grant execute on function public.ensure_user_profile(text, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- テナント書き込み: 契約 active/trial のみ

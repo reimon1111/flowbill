@@ -21,6 +21,10 @@ import {
   signInWithEmail,
 } from "@/lib/auth/session";
 import { bootstrapAuthenticatedSession } from "@/lib/auth/bootstrap-session";
+import {
+  extractInviteTokenFromRedirect,
+  setPendingInviteToken,
+} from "@/lib/auth/pending-invite-token";
 
 export function LoginForm({ redirectTo = "/" }: { redirectTo?: string }) {
   const router = useRouter();
@@ -70,7 +74,16 @@ export function LoginForm({ redirectTo = "/" }: { redirectTo?: string }) {
   }
 
   async function goToApp(user: User, session: Session) {
+    const inviteToken = extractInviteTokenFromRedirect(redirectTo);
+    if (inviteToken) {
+      setPendingInviteToken(inviteToken);
+    }
     await bootstrapAuthenticatedSession(user, session);
+    if (inviteToken) {
+      toast.success("会社に参加しました");
+      router.push("/");
+      return;
+    }
     router.push(redirectTo);
   }
 

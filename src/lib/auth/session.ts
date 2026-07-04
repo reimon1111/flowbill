@@ -2,6 +2,7 @@ import type { AuthTokenResponsePassword } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   type AuthActionResult,
+  isStaleAuthSessionError,
   logAuthError,
   toAuthActionFailure,
 } from "@/lib/auth/errors";
@@ -85,16 +86,38 @@ export async function signOut() {
     const supabase = getSupabaseBrowserClient();
     const { error } = await supabase.auth.signOut();
     if (error) {
+      if (isStaleAuthSessionError(error)) {
+        await clearStaleBrowserSession();
+        return;
+      }
       logAuthError("signOut", error);
-      return;
     }
   } catch (error) {
+    if (isStaleAuthSessionError(error)) {
+      await clearStaleBrowserSession();
+      return;
+    }
     logAuthError("signOut unexpected", error);
     return;
   }
 
+  resetAppAuthState();
+}
+
+export function resetAppAuthState(): void {
   clearCompanyContext();
   clearAllBusinessStores();
   useAppDataStore.getState().resetForInit();
   useAuthStore.getState().reset();
+}
+
+/** 無効な refresh token など、サーバー側セッションが既に失効している場合のローカル破棄 */
+export async function clearStaleBrowserSession(): Promise<void> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    await supabase.auth.signOut({ scope: "local" });
+  } catch {
+    // ローカル破棄のみ。失敗してもアプリ状態はリセットする
+  }
+  resetAppAuthState();
 }

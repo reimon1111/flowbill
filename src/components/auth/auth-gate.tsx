@@ -12,6 +12,7 @@ import {
   isUserAlreadyBootstrapped,
   logSessionCheck,
 } from "@/lib/auth/bootstrap-session";
+import { readBrowserSession } from "@/lib/auth/browser-session";
 import { clearCompanyContext } from "@/lib/db/company-context";
 import { clearAllBusinessStores } from "@/lib/stores/clear-business-stores";
 import { toDbErrorMessage } from "@/lib/db/errors";
@@ -102,7 +103,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     const supabase = getSupabaseBrowserClient();
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    void readBrowserSession().then((session) => {
       void handleSession(session);
     });
 

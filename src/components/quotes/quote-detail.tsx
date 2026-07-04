@@ -19,7 +19,7 @@ import {
 } from "@/lib/services/quotes";
 import { DeleteConfirmDialog } from "@/components/shared/delete-confirm-dialog";
 import { formatSupabaseError } from "@/lib/db/errors";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { QUOTE_EXPIRY_TYPE_LABELS } from "@/lib/quote-expiry";
 import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
@@ -55,8 +55,10 @@ export function QuoteDetail({
     useDocumentExport();
   const deleteBlockReason = getQuoteDeletionBlockReason(quote.id);
   const deletable = canDeleteQuote(quote.id);
-  const projectOrders = useOrderStore((s) =>
-    s.orders.filter((o) => o.projectId === quote.projectId && !o.deletedAt)
+  const orders = useOrderStore((s) => s.orders);
+  const projectOrders = useMemo(
+    () => orders.filter((o) => o.projectId === quote.projectId && !o.deletedAt),
+    [orders, quote.projectId]
   );
   const showOrderGuidance =
     canWrite && quote.status === "accepted" && projectOrders.length === 0;

@@ -22,6 +22,7 @@ export const AUTH_USER_MESSAGES = {
   genericLoginFailed: "ログインに失敗しました。しばらくしてから再度お試しください。",
   genericSignupFailed: "登録に失敗しました。しばらくしてから再度お試しください。",
   sessionMissing: "セッションを取得できませんでした。再度お試しください。",
+  sessionExpired: "ログインの有効期限が切れました。再度ログインしてください。",
 } as const;
 
 type AuthErrorLike = {
@@ -66,6 +67,7 @@ function isExpectedInviteUserError(error: unknown): boolean {
 /** ユーザー向けメッセージに変換済みの想定内エラー（本番では console に出さない） */
 export function isExpectedAuthError(error: unknown): boolean {
   return (
+    isStaleAuthSessionError(error) ||
     isInvalidLoginCredentials(error) ||
     isEmailNotConfirmedError(error) ||
     isAlreadyRegistered(error) ||
@@ -138,6 +140,26 @@ function isNetworkError(error: unknown): boolean {
     message.includes("network request failed") ||
     message.includes("fetch failed")
   );
+}
+
+function isInvalidRefreshTokenError(error: unknown): boolean {
+  const authError = asAuthError(error);
+  if (!authError) return false;
+
+  const message = normalizeText(authError.message ?? "");
+  const code = normalizeText(authError.code ?? "");
+
+  return (
+    code === "refresh_token_not_found" ||
+    code === "invalid_refresh_token" ||
+    message.includes("invalid refresh token") ||
+    message.includes("refresh token not found")
+  );
+}
+
+/** セッション期限切れ・無効な refresh token（再ログインが必要） */
+export function isStaleAuthSessionError(error: unknown): boolean {
+  return isInvalidRefreshTokenError(error);
 }
 
 function isInvalidLoginCredentials(error: unknown): boolean {
@@ -227,6 +249,10 @@ export function toAuthUserMessage(
   error: unknown,
   context: "login" | "signup" = "login"
 ): string {
+  if (isStaleAuthSessionError(error)) {
+    return AUTH_USER_MESSAGES.sessionExpired;
+  }
+
   if (isNetworkError(error)) {
     return AUTH_USER_MESSAGES.networkError;
   }

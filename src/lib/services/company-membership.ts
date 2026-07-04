@@ -131,11 +131,28 @@ function publicInvitationFromRpcRow(
   };
 }
 
-/**
- * 未ログインでも token で招待を1件取得（RLS回避の security definer RPC 経由）
- * - token が見つからない場合: null
- * - それ以外のエラー: throw
- */
+export async function isActiveMemberOfCompany(
+  companyId: string,
+  userId: string
+): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false;
+
+  const supabase = getSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("company_members")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("user_id", userId)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (error) {
+    logSupabaseError("isActiveMemberOfCompany", error);
+    return false;
+  }
+  return Boolean(data);
+}
+
 export async function fetchPublicInvitationByToken(
   token: string
 ): Promise<PublicCompanyInvitationRecord | null> {

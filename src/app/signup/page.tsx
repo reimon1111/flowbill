@@ -12,6 +12,7 @@ import { assertSignupAllowed } from "@/lib/services/signup-access";
 import { signUpWithEmail } from "@/lib/auth/session";
 import { bootstrapAuthenticatedSession } from "@/lib/auth/bootstrap-session";
 import { profileSetupHint } from "@/lib/auth/ensure-profile";
+import { setPendingInviteToken } from "@/lib/auth/pending-invite-token";
 import {
   AUTH_USER_MESSAGES,
   logAuthError,
@@ -83,6 +84,10 @@ function SignupForm() {
         return;
       }
 
+      if (inviteToken) {
+        setPendingInviteToken(inviteToken);
+      }
+
       try {
         await bootstrapAuthenticatedSession(data.session.user, data.session);
       } catch (err) {
@@ -98,7 +103,8 @@ function SignupForm() {
       }
 
       if (inviteToken) {
-        router.replace(`/invite/${inviteToken}`);
+        toast.success("会社に参加しました");
+        router.replace("/");
         return;
       }
 
