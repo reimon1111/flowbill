@@ -6,11 +6,9 @@ import { loadAllDataFromSupabase } from "@/lib/db/load-all";
 import { toDbErrorMessage } from "@/lib/db/errors";
 import { syncCustomerProjectCounts } from "@/lib/services/projects";
 import { useAppDataStore } from "@/stores/app-data-store";
-import { dbRefreshOverdueInvoices } from "@/lib/db/write-invoices";
-import { reloadInvoicesToStore } from "@/lib/db/load-all";
+import { runBackgroundDataSync } from "@/lib/db/background-init";
 import { clearAllBusinessStores } from "@/lib/stores/clear-business-stores";
 import { hydrateCompanyMembership } from "@/lib/services/company-switch";
-import { loadRecentActivityLogsToStore } from "@/lib/services/activity-log";
 
 export function AppInit() {
   const hasInitialized = useAppDataStore((s) => s.hasInitialized);
@@ -38,17 +36,25 @@ export function AppInit() {
 
       try {
         useAppDataStore.getState().setSupabaseEnabled(true);
-        await loadAllDataFromSupabase();
-        await dbRefreshOverdueInvoices();
-        await reloadInvoicesToStore();
+
+        await Promise.all([
+          loadAllDataFromSupabase(),
+          hydrateCompanyMembership().catch((membershipError) => {
+            console.error("hydrateCompanyMembership", membershipError);
+          }),
+        ]);
+
         syncCustomerProjectCounts();
-        try {
-          await hydrateCompanyMembership();
-          await loadRecentActivityLogsToStore(10);
-        } catch (membershipError) {
-          console.error("hydrateCompanyMembership", membershipError);
+
+        if (!cancelled) {
+          useAppDataStore.getState().setReady(true);
         }
-        if (!cancelled) useAppDataStore.getState().setReady(true);
+
+        if (!cancelled) {
+          void runBackgroundDataSync().catch((backgroundError) => {
+            console.error("runBackgroundDataSync", backgroundError);
+          });
+        }
       } catch (e) {
         if (!cancelled) {
           useAppDataStore.getState().setError(toDbErrorMessage(e));

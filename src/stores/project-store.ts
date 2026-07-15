@@ -22,6 +22,8 @@ import { useCustomerStore } from "@/stores/customer-store";
 import { findProjectById } from "@/lib/project-display";
 import { PROJECT_STATUS_LABELS } from "@/lib/constants";
 import { applyProjectMilestoneDates } from "@/lib/project-milestone-dates";
+import { getProjectInvoiceState } from "@/lib/invoice-state";
+import { useInvoiceStore } from "@/stores/invoice-store";
 
 function generateId(prefix: string): string {
   return `${prefix}${Date.now().toString(36)}`;
@@ -31,13 +33,20 @@ function enrichProject(project: ProjectRecord): ProjectListItem {
   const customer = useCustomerStore
     .getState()
     .getCustomerById(project.customerId);
+  const invoiceState = getProjectInvoiceState(
+    project.id,
+    useInvoiceStore.getState().invoices
+  );
   return {
     ...project,
+    invoiceStatus: invoiceState.invoiceStatus,
+    paymentStatus: invoiceState.paymentStatus,
     customerName: customer?.customerName ?? "（削除された顧客）",
     nextAction: getNextAction({
       status: project.status,
-      invoiceStatus: project.invoiceStatus,
-      paymentStatus: project.paymentStatus,
+      invoiceStatus: invoiceState.invoiceStatus,
+      paymentStatus: invoiceState.paymentStatus,
+      hasMultipleActive: invoiceState.hasMultipleActive,
     }),
   };
 }
@@ -126,6 +135,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       constructionSite: input.constructionSite ?? "",
       status: input.status,
       amount: input.amount ?? 0,
+      discountLabel: input.discountLabel?.trim() ?? "",
+      discountAmount: input.discountAmount ?? 0,
+      customerContactName: input.customerContactName?.trim() ?? "",
+      customerDepartment: input.customerDepartment?.trim() ?? "",
+      customerPosition: input.customerPosition?.trim() ?? "",
       dueDate: input.dueDate,
       startDate: input.startDate ?? "",
       endDate: input.endDate ?? "",
@@ -163,6 +177,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             constructionSite: input.constructionSite ?? "",
             status: input.status,
             amount: input.amount ?? 0,
+            discountLabel: input.discountLabel?.trim() ?? "",
+            discountAmount: input.discountAmount ?? 0,
+            customerContactName: input.customerContactName?.trim() ?? "",
+            customerDepartment: input.customerDepartment?.trim() ?? "",
+            customerPosition: input.customerPosition?.trim() ?? "",
             dueDate: input.dueDate,
             startDate: input.startDate ?? "",
             endDate: input.endDate ?? "",
@@ -242,23 +261,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (!nextStatus) return null;
 
     let updated = get().changeStatus(id, nextStatus);
-
-    if (updated && action === "generate_invoice") {
-      updated = {
-        ...updated,
-        invoiceStatus: "issued",
-        updatedAt: new Date().toISOString(),
-      };
-      set((state) => ({
-        projects: state.projects.map((p) => (p.id === id ? updated! : p)),
-      }));
-      get().addHistory({
-        projectId: id,
-        type: "invoice_generated",
-        title: "請求書生成",
-        description: "STEP4で本実装",
-      });
-    }
 
     if (updated && action === "mark_paid") {
       updated = {

@@ -9,6 +9,9 @@ import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useInvoiceStore } from "@/stores/invoice-store";
 import type { CustomerInvoiceSummary, CustomerProjectSummary } from "@/lib/types";
+import { getInvoicePaymentStatus } from "@/lib/invoice-state";
+import { useProjectItemStore } from "@/stores/project-item-store";
+import { getProjectTotalWithTax } from "@/lib/project-amount-display";
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -18,10 +21,13 @@ export default function CustomerDetailPage() {
 
   const customer = useCustomerStore((s) => s.getCustomerById(id));
   const projectsRaw = useProjectStore((s) => s.projects);
+  const projectItemsRaw = useProjectItemStore((s) => s.projectItems);
   const invoicesRaw = useInvoiceStore((s) => s.invoices);
 
   const projects = useMemo((): CustomerProjectSummary[] => {
     void projectsRaw;
+    void projectItemsRaw;
+    const projectItems = useProjectItemStore.getState().projectItems;
     return useProjectStore
       .getState()
       .getListItems()
@@ -30,9 +36,9 @@ export default function CustomerDetailPage() {
         id: p.id,
         projectName: p.projectName,
         status: p.status,
-        amount: p.amount,
+        amount: getProjectTotalWithTax(p.id, p.amount, projectItems, p),
       }));
-  }, [id, projectsRaw]);
+  }, [id, projectsRaw, projectItemsRaw]);
 
   const invoices = useMemo((): CustomerInvoiceSummary[] => {
     void invoicesRaw;
@@ -40,18 +46,22 @@ export default function CustomerDetailPage() {
       .getState()
       .getListItems()
       .filter((inv) => inv.customerId === id)
-      .map((inv) => ({
-        id: inv.id,
-        invoiceNumber: inv.invoiceNumber,
-        issueDate: inv.issueDate,
-        amount: inv.totalAmount,
-        status:
-          inv.status === "paid"
+      .map((inv) => {
+        const paymentStatus = getInvoicePaymentStatus(inv);
+        const status =
+          paymentStatus === "paid"
             ? "paid"
-            : inv.status === "overdue"
+            : paymentStatus === "overdue"
               ? "overdue"
-              : "unpaid",
-      }));
+              : "unpaid";
+        return {
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          issueDate: inv.issueDate,
+          amount: inv.totalAmount,
+          status,
+        };
+      });
   }, [id, invoicesRaw]);
 
   useEffect(() => {

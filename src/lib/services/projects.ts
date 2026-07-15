@@ -22,16 +22,26 @@ import { useProjectItemStore } from "@/stores/project-item-store";
 import { useQuoteStore } from "@/stores/quote-store";
 import { useOrderStore } from "@/stores/order-store";
 import { dbReplaceProjectItems } from "@/lib/db/write-project-items";
-import { todayISO, addDaysToDate } from "@/lib/quote-dates";
-import { createInvoice, createInvoiceFromQuote, updateInvoiceStatus } from "@/lib/services/invoices";
+import {
+  buildProjectInvoiceHref,
+  resolveProjectInvoiceNavigation,
+  type ProjectInvoiceNavigation,
+} from "@/lib/project-invoice-actions";
+import { updateInvoiceStatus } from "@/lib/services/invoices";
+import {
+  getProjectInvoiceState,
+  isBillableInvoice,
+  isInvoiceOverdue,
+  isInvoiceUnpaidForAggregation,
+  isIssuedBillableInvoice,
+} from "@/lib/invoice-state";
+import { getProjectTotalWithTax } from "@/lib/project-amount-display";
+import { getActiveInvoicesForProject } from "@/lib/invoice-filters";
 import {
   ensureDeliveryNoteForProject,
   ensureOrderForProject,
-  ensureReceiptForInvoice,
 } from "@/lib/services/commercial-documents";
-import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { useAppDataStore } from "@/stores/app-data-store";
-import { DEFAULT_UNIT } from "@/lib/constants/units";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 import {
   isMissingProjectArchivedColumn,
@@ -59,7 +69,10 @@ export function getProjectDeletionBlockReason(projectId: string): string | null 
   const quotes = useQuoteStore.getState().getQuotesByProjectId(projectId);
   if (quotes.length > 0) return PROJECT_DELETE_BLOCKED_MESSAGE;
 
-  const invoices = useInvoiceStore.getState().getInvoicesByProjectId(projectId);
+  const invoices = getActiveInvoicesForProject(
+    useInvoiceStore.getState().invoices,
+    projectId
+  );
   if (invoices.length > 0) return PROJECT_DELETE_BLOCKED_MESSAGE;
 
   const project = useProjectStore.getState().getProjectById(projectId);
@@ -101,12 +114,14 @@ export async function createProject(
   input: ProjectInput
 ): Promise<{ project: ProjectRecord; quoteDraftFailed: boolean }> {
   assertCanWriteBusinessData();
+  // 進捗はアクションで進める。新規作成は常に見積中から開始する
+  const createInput: ProjectInput = { ...input, status: "estimate" };
   let project: ProjectRecord;
   let quoteDraftFailed = false;
 
   if (isSupabaseConfigured()) {
-    project = await dbInsertProject(input);
-    const items = await dbReplaceProjectItems(project.id, input);
+    project = await dbInsertProject(createInput);
+    const items = await dbReplaceProjectItems(project.id, createInput);
     useProjectItemStore.getState().hydrate([
       ...useProjectItemStore.getState().projectItems.filter(
         (i) => i.projectId !== project.id
@@ -125,30 +140,28 @@ export async function createProject(
       ],
     });
   } else {
-    project = useProjectStore.getState().addProject(input);
-    useProjectItemStore.getState().replaceForProject(project.id, input.items);
+    project = useProjectStore.getState().addProject(createInput);
+    useProjectItemStore.getState().replaceForProject(project.id, createInput.items);
   }
 
-  if (input.status === "estimate") {
-    try {
-      await ensureDraftQuoteForProject(project);
-      await syncDraftQuoteFromProject(project);
-      if (isSupabaseConfigured()) {
-        const histories = await dbFetchProjectHistories(project.id);
-        useProjectStore.getState().hydrate({
-          projects: useProjectStore.getState().projects,
-          histories: [
-            ...histories,
-            ...useProjectStore.getState().histories.filter(
-              (h) => h.projectId !== project.id
-            ),
-          ],
-        });
-      }
-    } catch (error) {
-      quoteDraftFailed = true;
-      logSupabaseError("ensureDraftQuoteForProject", error);
+  try {
+    await ensureDraftQuoteForProject(project);
+    await syncDraftQuoteFromProject(project);
+    if (isSupabaseConfigured()) {
+      const histories = await dbFetchProjectHistories(project.id);
+      useProjectStore.getState().hydrate({
+        projects: useProjectStore.getState().projects,
+        histories: [
+          ...histories,
+          ...useProjectStore.getState().histories.filter(
+            (h) => h.projectId !== project.id
+          ),
+        ],
+      });
     }
+  } catch (error) {
+    quoteDraftFailed = true;
+    logSupabaseError("ensureDraftQuoteForProject", error);
   }
 
   return { project, quoteDraftFailed };
@@ -159,12 +172,18 @@ export async function updateProject(
   input: ProjectInput
 ): Promise<ProjectRecord | null> {
   assertCanWriteBusinessData();
+  const existing = useProjectStore.getState().getProjectById(id);
+  // 進捗ステータスはアクション専用。フォーム更新では既存値を維持する
+  const updateInput: ProjectInput = {
+    ...input,
+    status: existing?.status ?? input.status,
+  };
   let project: ProjectRecord | null;
 
   if (isSupabaseConfigured()) {
-    project = await dbUpdateProject(id, input);
+    project = await dbUpdateProject(id, updateInput);
     if (project) {
-      const items = await dbReplaceProjectItems(id, input);
+      const items = await dbReplaceProjectItems(id, updateInput);
       useProjectItemStore.getState().hydrate([
         ...useProjectItemStore.getState().projectItems.filter(
           (i) => i.projectId !== id
@@ -174,9 +193,9 @@ export async function updateProject(
       useProjectStore.getState().upsertProject(project);
     }
   } else {
-    project = useProjectStore.getState().updateProject(id, input);
+    project = useProjectStore.getState().updateProject(id, updateInput);
     if (project) {
-      useProjectItemStore.getState().replaceForProject(id, input.items);
+      useProjectItemStore.getState().replaceForProject(id, updateInput.items);
     }
   }
 
@@ -423,66 +442,41 @@ export async function completeWorkForProject(projectId: string) {
 }
 
 /**
- * 請求書発行（1クリック）
- * - 優先: accepted 見積 → sent 見積 → 案件明細
- * - 請求書を作成して issued にする
- * - 案件 invoiceStatus も連動更新（updateInvoiceStatus 側で実施）
+ * 請求書発行ボタン用 — DBには書き込まず遷移先だけ決める
+ */
+export function resolveProjectInvoiceHref(
+  projectId: string,
+  options?: { allowAdditional?: boolean }
+): string {
+  const nav = resolveProjectInvoiceNavigation(
+    useInvoiceStore.getState().getInvoices(),
+    projectId,
+    options
+  );
+  return buildProjectInvoiceHref(projectId, nav);
+}
+
+export function getProjectInvoiceNavigation(
+  projectId: string,
+  options?: { allowAdditional?: boolean }
+): ProjectInvoiceNavigation {
+  return resolveProjectInvoiceNavigation(
+    useInvoiceStore.getState().getInvoices(),
+    projectId,
+    options
+  );
+}
+
+/**
+ * @deprecated 即時作成は行わない。resolveProjectInvoiceHref を使用してください。
  */
 export async function issueInvoiceForProject(projectId: string) {
   assertCanWriteBusinessData();
-  const project = useProjectStore.getState().getProjectById(projectId);
-  if (!project) return null;
-
-  const issueDate = todayISO();
-  const dueDate = project.dueDate || addDaysToDate(issueDate, 14);
-
-  const fromQuote = await createInvoiceFromQuote(projectId, issueDate, dueDate);
-  let invoice = fromQuote?.invoice ?? null;
-
-  if (!invoice) {
-    const projectItems = useProjectItemStore.getState().getByProjectId(projectId);
-    if (projectItems.length === 0) return null;
-
-    const settings = useCompanySettingsStore.getState().settings;
-    invoice = await createInvoice({
-      projectId,
-      customerId: project.customerId,
-      quoteId: "",
-      issueDate,
-      dueDate,
-      paymentTerms: settings.paymentTerms ?? "",
-      bankAccountId: null,
-      memo: settings.invoiceMemoTemplate ?? "",
-      items: projectItems.map((it, idx) => ({
-        quoteItemId: null,
-        name: it.name,
-        description: it.description,
-        width: it.width ?? "",
-        height: it.height ?? "",
-        quantity: it.quantity,
-        unit: it.unit || DEFAULT_UNIT,
-        unitPrice: it.unitPrice,
-        taxRate: it.taxRate,
-        sortOrder: it.sortOrder ?? idx,
-      })),
-    });
+  const nav = getProjectInvoiceNavigation(projectId);
+  if (nav.type === "existing") {
+    return useInvoiceStore.getState().getInvoiceById(nav.invoiceId) ?? null;
   }
-
-  const issued = await updateInvoiceStatus(invoice.id, "issued");
-  await addProjectHistory({
-    projectId,
-    type: "invoice_generated",
-    title: "請求書を発行しました",
-    description: invoice.invoiceNumber,
-  });
-
-  const result = issued ?? invoice;
-  if (result) {
-    await tryAutoCreateCommercialDocument("ensureReceiptForInvoice", () =>
-      ensureReceiptForInvoice(result.id)
-    );
-  }
-  return result;
+  return null;
 }
 
 /**
@@ -491,11 +485,10 @@ export async function issueInvoiceForProject(projectId: string) {
  */
 export async function markProjectPaid(projectId: string) {
   assertCanWriteBusinessData();
-  const invoices = useInvoiceStore
-    .getState()
-    .getInvoicesByProjectId(projectId)
-    .slice()
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const invoices = getActiveInvoicesForProject(
+    useInvoiceStore.getState().getInvoices(),
+    projectId
+  );
 
   const target =
     invoices.find((i) => i.status === "sent") ??
@@ -511,6 +504,7 @@ export async function markProjectPaid(projectId: string) {
     title: "入金済みにしました",
     description: target.invoiceNumber,
   });
+  syncCustomerProjectCounts();
   return updated;
 }
 export async function getProjectHistory(
@@ -550,6 +544,11 @@ export function projectInputFromForm(values: ProjectFormValues): ProjectInput {
     endDate: values.endDate.trim(),
     assigneeName: values.assigneeName.trim(),
     memo: values.memo.trim(),
+    discountLabel: values.discountLabel.trim(),
+    discountAmount: values.discountAmount ?? 0,
+    customerContactName: values.customerContactName.trim(),
+    customerDepartment: values.customerDepartment.trim(),
+    customerPosition: values.customerPosition.trim(),
     items,
   };
 }
@@ -565,22 +564,15 @@ export function getDashboardStats() {
   );
   const hasInvoiceIssued = (projectId: string) =>
     invoices.some(
-      (inv) =>
-        inv.projectId === projectId &&
-        ["issued", "sent", "paid", "overdue"].includes(inv.status)
+      (inv) => inv.projectId === projectId && isIssuedBillableInvoice(inv)
     );
 
   const unbilled = projects.filter(
     (p) => p.status === "completed" && !hasInvoiceIssued(p.id)
   );
 
-  const unpaidInvoices = invoices.filter(
-    (inv) => ["issued", "sent", "overdue"].includes(inv.status)
-  );
-  const overdueInvoices = unpaidInvoices.filter((inv) => {
-    const due = new Date(inv.dueDate + "T23:59:59");
-    return due < new Date();
-  });
+  const unpaidInvoices = invoices.filter(isInvoiceUnpaidForAggregation);
+  const overdueInvoices = invoices.filter((inv) => isInvoiceOverdue(inv));
 
   const now = new Date();
   const y = now.getFullYear();
@@ -590,11 +582,15 @@ export function getDashboardStats() {
     return d.getFullYear() === y && d.getMonth() === m;
   };
 
+  // draft は「請求済／今月請求額」に含めない（発行済みの有効請求のみ）
   const billedThisMonth = invoices.filter(
-    (inv) => inv.status !== "cancelled" && isThisMonth(inv.issueDate)
+    (inv) => isIssuedBillableInvoice(inv) && isThisMonth(inv.issueDate)
   );
   const paidThisMonth = invoices.filter(
-    (inv) => inv.status === "paid" && isThisMonth(inv.updatedAt.slice(0, 10))
+    (inv) =>
+      isBillableInvoice(inv) &&
+      inv.status === "paid" &&
+      isThisMonth(inv.updatedAt.slice(0, 10))
   );
 
   return {
@@ -619,6 +615,8 @@ export function syncCustomerProjectCounts() {
     .getState()
     .getListItems()
     .filter((p) => !p.archived);
+  const invoices = useInvoiceStore.getState().getInvoices();
+  const projectItems = useProjectItemStore.getState().projectItems;
 
   for (const customer of useCustomerStore.getState().customers) {
     const customerProjects = projects.filter(
@@ -627,15 +625,21 @@ export function syncCustomerProjectCounts() {
     const active = customerProjects.filter(
       (p) => !["completed", "lost"].includes(p.status)
     );
-    const unpaid = customerProjects.filter(
-      (p) =>
-        p.status === "completed" &&
-        (p.invoiceStatus === "issued" || p.invoiceStatus === "sent") &&
-        (p.paymentStatus === "unpaid" || p.paymentStatus === "overdue")
-    );
+    const unpaid = customerProjects.filter((p) => {
+      if (p.status !== "completed") return false;
+      const state = getProjectInvoiceState(p.id, invoices);
+      return (
+        (state.invoiceStatus === "issued" || state.invoiceStatus === "sent") &&
+        (state.paymentStatus === "unpaid" || state.paymentStatus === "overdue")
+      );
+    });
     customerListMeta[customer.id] = {
       activeProjectCount: active.length,
-      unpaidAmount: unpaid.reduce((s, p) => s + p.amount, 0),
+      unpaidAmount: unpaid.reduce(
+        (s, p) =>
+          s + getProjectTotalWithTax(p.id, p.amount, projectItems, p),
+        0
+      ),
     };
   }
 }

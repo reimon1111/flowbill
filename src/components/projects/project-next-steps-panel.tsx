@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { ProjectActionButton } from "@/components/projects/project-action-button";
 import { cn } from "@/lib/utils";
 import type {
+  InvoiceRecord,
   InvoiceStatus,
   ProjectActionType,
   ProjectPaymentStatus,
@@ -21,6 +22,7 @@ type ProjectNextStepsPanelProps = {
   invoiceStatus?: InvoiceStatus;
   paymentStatus?: ProjectPaymentStatus;
   latestQuoteId?: string;
+  invoices?: InvoiceRecord[];
   onAction: (action: ProjectActionType) => Promise<void>;
   loadingAction?: ProjectActionType | null;
   /** 見積をワンクリックで作って表示（任意） */
@@ -42,12 +44,19 @@ export function ProjectNextStepsPanel({
   loadingAction = null,
   onCreateQuoteAndOpen,
   creatingQuote,
+  invoices = [],
   className,
   variant = "panel",
 }: ProjectNextStepsPanelProps) {
   const canWrite = useCanWriteBusinessData();
   const quickActions = canWrite
-    ? getQuickActions({ status, invoiceStatus, paymentStatus })
+    ? getQuickActions({
+        status,
+        invoiceStatus,
+        paymentStatus,
+        projectId,
+        invoices,
+      })
     : [];
   const showQuoteLink = status === "estimate";
   const hasActions =
@@ -188,6 +197,7 @@ function ProjectNextStepsButtons({
           action={a.type}
           onAction={onAction}
           loading={loadingAction === a.type}
+          billingStatus={a.billingStatus}
         />
       ))}
     </div>

@@ -27,10 +27,10 @@ import type {
   ProjectActionType,
   ProjectHistoryEvent,
   ProjectListItem,
+  QuoteRecord,
 } from "@/lib/types";
 import {
-  InvoiceStatusBadge,
-  ProjectPaymentStatusBadge,
+  BillingProjectStatusBadge,
   ProjectStatusBadge,
 } from "@/components/projects/project-status-badge";
 import { ProjectTimeline } from "@/components/projects/project-timeline";
@@ -44,11 +44,11 @@ import {
   archiveProject,
   unarchiveProject,
   getProjectDeletionBlockReason,
-  issueInvoiceForProject,
+  resolveProjectInvoiceHref,
   markProjectPaid,
   syncCustomerProjectCounts,
 } from "@/lib/services/projects";
-import { formatSupabaseError } from "@/lib/db/errors";
+import { formatSupabaseError, PAYMENT_STATUS_UPDATE_FAILED_MESSAGE } from "@/lib/db/errors";
 import { getOrderCreationToastMessage } from "@/lib/order-creation-error";
 import { useProjectStore } from "@/stores/project-store";
 import { useProjectItemStore } from "@/stores/project-item-store";
@@ -59,13 +59,32 @@ import { useInvoiceStore } from "@/stores/invoice-store";
 import { useOrderStore } from "@/stores/order-store";
 import { useDeliveryNoteStore } from "@/stores/delivery-note-store";
 import { useReceiptStore } from "@/stores/receipt-store";
-import { InvoiceStatusBadge as InvoiceDocStatusBadge } from "@/components/invoices/invoice-status-badge";
+import { BillingStatusBadge } from "@/components/billing/billing-status-badge";
 import { formatDateTime } from "@/lib/format";
+import {
+  buildProjectInvoiceHref,
+  getProjectInvoiceTabState,
+} from "@/lib/project-invoice-actions";
+import { getProjectInvoiceState } from "@/lib/invoice-state";
+import {
+  getBillingStatusTheme,
+  getInvoiceBillingDisplayStatus,
+  getProjectBillingDisplayStatus,
+  getProjectBillingViewHref,
+} from "@/lib/billing-status-theme";
+import { getProjectTotalWithTax } from "@/lib/project-amount-display";
 import {
   createDeliveryNoteFromProject,
   createOrderFromProject,
   createReceiptFromProject,
 } from "@/lib/services/commercial-documents";
+import {
+  isQuoteConfirmedForOrder,
+} from "@/lib/order-create-source";
+import {
+  CreateOrderQuoteSelectDialog,
+  CreateOrderUnconfirmedDialog,
+} from "@/components/orders/create-order-dialogs";
 import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
 import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
 
@@ -99,18 +118,43 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
 
   const liveProject =
     useProjectStore((s) => s.projects.find((p) => p.id === project.id)) ?? project;
+  const quotes = useQuoteStore((s) => s.quotes);
+  const projectItemsList = useProjectItemStore((s) => s.projectItems);
+  const invoicesList = useInvoiceStore((s) => s.invoices);
+  const projectInvoiceState = useMemo(
+    () => getProjectInvoiceState(liveProject.id, invoicesList),
+    [liveProject.id, invoicesList]
+  );
+  const displayAmount = useMemo(
+    () =>
+      getProjectTotalWithTax(
+        liveProject.id,
+        liveProject.amount,
+        projectItemsList,
+        liveProject
+      ),
+    [liveProject.id, liveProject.amount, projectItemsList, liveProject.discountAmount, liveProject.discountLabel]
+  );
+  const billingStatus = useMemo(
+    () =>
+      getProjectBillingDisplayStatus(projectInvoiceState, liveProject.status),
+    [projectInvoiceState, liveProject.status]
+  );
   const nextAction = useMemo(
     () =>
       getNextAction({
         status: liveProject.status,
-        invoiceStatus: liveProject.invoiceStatus,
-        paymentStatus: liveProject.paymentStatus,
+        invoiceStatus: projectInvoiceState.invoiceStatus,
+        paymentStatus: projectInvoiceState.paymentStatus,
+        hasMultipleActive: projectInvoiceState.hasMultipleActive,
       }),
-    [liveProject.status, liveProject.invoiceStatus, liveProject.paymentStatus]
+    [
+      liveProject.status,
+      projectInvoiceState.invoiceStatus,
+      projectInvoiceState.paymentStatus,
+      projectInvoiceState.hasMultipleActive,
+    ]
   );
-  const quotes = useQuoteStore((s) => s.quotes);
-  const projectItemsList = useProjectItemStore((s) => s.projectItems);
-  const invoicesList = useInvoiceStore((s) => s.invoices);
   const ordersList = useOrderStore((s) => s.orders);
   const deliveryNotesList = useDeliveryNoteStore((s) => s.deliveryNotes);
   const receiptsList = useReceiptStore((s) => s.receipts);
@@ -136,12 +180,27 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
   const latestInvoice = useMemo(
     () =>
       invoicesList
-        .filter((inv) => inv.projectId === liveProject.id)
+        .filter(
+          (inv) =>
+            inv.projectId === liveProject.id &&
+            !inv.deletedAt &&
+            inv.status !== "cancelled"
+        )
         .sort(
           (a, b) =>
             new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         )[0],
     [invoicesList, liveProject.id]
+  );
+  const [showCancelledInvoices, setShowCancelledInvoices] = useState(false);
+  const invoiceTabState = useMemo(
+    () =>
+      getProjectInvoiceTabState({
+        invoices: invoicesList,
+        projectId: liveProject.id,
+        showCancelled: showCancelledInvoices,
+      }),
+    [invoicesList, liveProject.id, showCancelledInvoices]
   );
   const latestOrder = useMemo(
     () =>
@@ -174,12 +233,20 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
     [receiptsList, liveProject.id]
   );
 
-  const canCreateOrder =
-    canWrite &&
-    liveProject.status !== "estimate" &&
-    liveProject.status !== "lost";
+  const canCreateOrder = canWrite && liveProject.status !== "lost";
   const canCreateDelivery = canWrite && liveProject.status === "completed";
   const canCreateReceipt = canWrite && Boolean(latestInvoice);
+
+  const selectableQuotes = useMemo(
+    () =>
+      quotes
+        .filter(
+          (q) => q.projectId === liveProject.id && q.status !== "rejected"
+        )
+        .slice()
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [liveProject.id, quotes]
+  );
 
   const [loadingAction, setLoadingAction] = useState<ProjectActionType | null>(
     null
@@ -191,6 +258,10 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [orderSelectOpen, setOrderSelectOpen] = useState(false);
+  const [orderConfirmQuote, setOrderConfirmQuote] = useState<QuoteRecord | null>(
+    null
+  );
 
   const handleAction = async (action: ProjectActionType) => {
     if (!canWrite) {
@@ -216,14 +287,20 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         toast.success("作業を完了しました");
         return;
       }
-      if (action === "generate_invoice") {
-        const invoice = await issueInvoiceForProject(project.id);
-        if (invoice) router.push(`/invoices/${invoice.id}`);
-        toast.success("請求書を発行しました");
+      if (action === "generate_invoice" || action === "view_invoice") {
+        const href =
+          action === "view_invoice"
+            ? getProjectBillingViewHref(project.id, invoicesList)
+            : resolveProjectInvoiceHref(project.id);
+        router.push(href);
         return;
       }
       if (action === "mark_paid") {
-        await markProjectPaid(project.id);
+        const updated = await markProjectPaid(project.id);
+        if (!updated) {
+          toast.error(PAYMENT_STATUS_UPDATE_FAILED_MESSAGE);
+          return;
+        }
         toast.success("入金済みにしました");
         return;
       }
@@ -235,6 +312,19 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         toast.error(message ?? "注文書の作成に失敗しました", {
           description: message ? undefined : formatSupabaseError(error),
         });
+      } else if (action === "mark_paid") {
+        toast.error(
+          error instanceof Error &&
+            error.message !== PAYMENT_STATUS_UPDATE_FAILED_MESSAGE
+            ? error.message
+            : PAYMENT_STATUS_UPDATE_FAILED_MESSAGE,
+          {
+            description:
+              process.env.NODE_ENV === "development"
+                ? formatSupabaseError(error)
+                : undefined,
+          }
+        );
       } else {
         toast.error("操作に失敗しました", {
           description: formatSupabaseError(error),
@@ -246,14 +336,17 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
     }
   };
 
-  const handleCreateOrder = async () => {
+  const createOrderWithSource = async (quoteId: string | null) => {
+    if (creatingOrder) return;
     try {
       setCreatingOrder(true);
-      const order = await createOrderFromProject(liveProject.id);
+      const order = await createOrderFromProject(liveProject.id, { quoteId });
       if (!order) {
-        toast.error("注文書の作成に失敗しました");
+        toast.error("注文書を作成できませんでした。再度お試しください。");
         return;
       }
+      setOrderSelectOpen(false);
+      setOrderConfirmQuote(null);
       toast.success("注文書を作成しました", { description: order.orderNumber });
       router.push(`/orders/${order.id}`);
     } catch (error) {
@@ -262,12 +355,39 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         error,
       });
       const message = getOrderCreationToastMessage(error);
-      toast.error(message ?? "注文書の作成に失敗しました", {
-        description: message ? undefined : formatSupabaseError(error),
-      });
+      toast.error(
+        message ?? "注文書を作成できませんでした。再度お試しください。"
+      );
     } finally {
       setCreatingOrder(false);
     }
+  };
+
+  const proceedWithQuote = (quote: QuoteRecord) => {
+    if (!isQuoteConfirmedForOrder(quote)) {
+      setOrderSelectOpen(false);
+      setOrderConfirmQuote(quote);
+      return;
+    }
+    void createOrderWithSource(quote.id);
+  };
+
+  const handleCreateOrder = async () => {
+    if (!canWrite) {
+      toast.error(VIEWER_WRITE_DENIED_MESSAGE);
+      return;
+    }
+    if (creatingOrder) return;
+
+    if (selectableQuotes.length === 0) {
+      await createOrderWithSource(null);
+      return;
+    }
+    if (selectableQuotes.length === 1) {
+      proceedWithQuote(selectableQuotes[0]);
+      return;
+    }
+    setOrderSelectOpen(true);
   };
 
   const handleCreateDeliveryNote = async () => {
@@ -439,9 +559,10 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         projectId={liveProject.id}
         status={liveProject.status}
         nextAction={nextAction}
-        invoiceStatus={liveProject.invoiceStatus}
-        paymentStatus={liveProject.paymentStatus}
+        invoiceStatus={projectInvoiceState.invoiceStatus}
+        paymentStatus={projectInvoiceState.paymentStatus}
         latestQuoteId={latestQuote?.id}
+        invoices={invoicesList}
         onAction={handleAction}
         loadingAction={loadingAction}
         onCreateQuoteAndOpen={handleCreateQuoteAndOpen}
@@ -455,10 +576,11 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
             アーカイブ済み
           </span>
         )}
-        <InvoiceStatusBadge status={liveProject.invoiceStatus} />
-        <ProjectPaymentStatusBadge status={liveProject.paymentStatus} />
+        {billingStatus ? (
+          <BillingProjectStatusBadge status={billingStatus} />
+        ) : null}
         <span className="ml-auto rounded-lg bg-zinc-100 px-3 py-1 text-sm font-semibold tabular-nums text-zinc-700">
-          {liveProject.amount > 0 ? formatCurrency(liveProject.amount) : "金額 —"}
+          {displayAmount > 0 ? formatCurrency(displayAmount) : "金額 —"}
         </span>
       </div>
 
@@ -639,13 +761,9 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
           <ProjectDocumentTab
             label="注文書"
             emptyTitle="まだ注文書がありません"
-            emptyDescription={
-              liveProject.status === "ordered"
-                ? "注文書の作成に失敗しました。再作成してください。"
-                : "受注確定後、「注文書を作成」で作成できます。"
-            }
+            emptyDescription="「注文書を作成」で、見積書または案件の内容を引き継いで作成できます。"
             canCreate={canCreateOrder}
-            blockedHint="受注確定後に作成できます"
+            blockedHint="失注案件では作成できません"
             createLabel="注文書を作成"
             creating={creatingOrder}
             onCreate={handleCreateOrder}
@@ -672,118 +790,236 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         </TabsContent>
 
         <TabsContent value="invoice">
-          {!latestInvoice ? (
-            <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-8">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-zinc-900">
-                    まだ請求書がありません
-                  </h3>
-                  {liveProject.status !== "completed" ? (
-                    <p className="mt-2 text-sm text-zinc-500">
-                      案件が完了すると、見積の内容をコピーして請求書を生成できます。
-                    </p>
-                  ) : latestQuote ? (
-                    <p className="mt-2 text-sm text-zinc-500">
-                      見積内容をコピーして、請求書の下書きをすぐ作成できます。
-                    </p>
-                  ) : (
-                    <p className="mt-2 text-sm text-zinc-500">
-                      先に見積を作成してください。
-                    </p>
-                  )}
-                </div>
-                {liveProject.status === "completed" ? (
-                  latestQuote ? (
-                    <Link
-                      href={`/invoices/new?projectId=${project.id}`}
-                      className={cn(
-                        buttonVariants(),
-                        "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-                      )}
-                    >
-                      請求書を生成
-                    </Link>
-                  ) : (
-                    <Link
-                      href={`/quotes/new?projectId=${project.id}`}
-                      className={cn(
-                        buttonVariants(),
-                        "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
-                      )}
-                    >
-                      見積を作成
-                    </Link>
-                  )
-                ) : (
-                  <span className="rounded-xl bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-500">
-                    案件完了後に生成
-                  </span>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.02] sm:p-8">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-zinc-500">請求書</p>
-                  <h3 className="mt-1 text-lg font-semibold text-zinc-900">
-                    {latestInvoice.invoiceNumber}
-                  </h3>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <InvoiceDocStatusBadge status={latestInvoice.status} />
-                    <span className="text-sm text-zinc-500">
-                      発行 {formatDate(latestInvoice.issueDate)} / 期限{" "}
-                      {formatDate(latestInvoice.dueDate)}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs text-zinc-400">
-                    更新 {formatDateTime(latestInvoice.updatedAt)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">
-                    合計
-                  </p>
-                  <p className="mt-1 text-xl font-semibold tabular-nums text-zinc-900">
-                    {formatCurrency(Math.round(latestInvoice.totalAmount))}
-                  </p>
-                </div>
-              </div>
+          <div className="space-y-4">
+            {invoiceTabState.cancelledCount > 0 && (
+              <label className="flex items-center gap-2 text-sm text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={showCancelledInvoices}
+                  onChange={(e) => setShowCancelledInvoices(e.target.checked)}
+                  className="size-4 rounded border-zinc-300"
+                />
+                キャンセル済みも表示（{invoiceTabState.cancelledCount}件）
+              </label>
+            )}
 
-              <div className="mt-6 flex flex-wrap gap-2">
-                <Link
-                  href={`/invoices/${latestInvoice.id}`}
-                  className={cn(
-                    buttonVariants({ variant: "outline" }),
-                    "h-9 rounded-xl"
-                  )}
-                >
-                  詳細を見る
-                </Link>
-                <Link
-                  href={`/invoices/${latestInvoice.id}/edit`}
-                  className={cn(
-                    buttonVariants({ variant: "outline" }),
-                    "h-9 rounded-xl"
-                  )}
-                >
-                  編集
-                </Link>
-                {project.status === "completed" && (
-                  <Link
-                    href={`/invoices/new?projectId=${project.id}`}
-                    className={cn(
-                      buttonVariants(),
-                      "h-9 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+            {invoiceTabState.active.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-8">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-zinc-900">
+                      {invoiceTabState.hasOnlyCancelled
+                        ? "有効な請求書がありません"
+                        : "まだ請求書がありません"}
+                    </h3>
+                    {liveProject.status !== "completed" ? (
+                      <p className="mt-2 text-sm text-zinc-500">
+                        案件が完了すると、見積の内容をコピーして請求書を生成できます。
+                      </p>
+                    ) : latestQuote ? (
+                      <p className="mt-2 text-sm text-zinc-500">
+                        {invoiceTabState.hasOnlyCancelled
+                          ? "キャンセル済みの請求書のみです。再発行する場合は新しい請求書を作成してください。"
+                          : "見積内容をコピーして、請求書の下書きをすぐ作成できます。"}
+                      </p>
+                    ) : (
+                      <p className="mt-2 text-sm text-zinc-500">
+                        先に見積を作成してください。
+                      </p>
                     )}
-                  >
-                    追加で生成
-                  </Link>
-                )}
+                  </div>
+                  {liveProject.status === "completed" && canWrite ? (
+                    latestQuote ? (
+                      <Link
+                        href={resolveProjectInvoiceHref(liveProject.id)}
+                        className={cn(
+                          buttonVariants(),
+                          "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+                        )}
+                      >
+                        {invoiceTabState.hasOnlyCancelled
+                          ? "再発行する"
+                          : "請求書を発行"}
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/quotes/new?projectId=${project.id}`}
+                        className={cn(
+                          buttonVariants(),
+                          "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+                        )}
+                      >
+                        見積を作成
+                      </Link>
+                    )
+                  ) : liveProject.status !== "completed" ? (
+                    <span className="rounded-xl bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-500">
+                      案件完了後に生成
+                    </span>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          )}
+            ) : invoiceTabState.hasMultipleActive ? (
+              <div className="rounded-xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.02] sm:p-8">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-500">請求書</p>
+                    <h3 className="mt-1 text-lg font-semibold text-zinc-900">
+                      {invoiceTabState.active.length}件の請求書
+                    </h3>
+                    <p className="mt-2 text-sm text-zinc-500">
+                      この案件には複数の有効な請求書があります。
+                    </p>
+                  </div>
+                  {liveProject.status === "completed" && canWrite && (
+                    <Link
+                      href={buildProjectInvoiceHref(liveProject.id, {
+                        type: "additional",
+                      })}
+                      className={cn(
+                        buttonVariants({ variant: "outline" }),
+                        "h-9 rounded-xl"
+                      )}
+                    >
+                      追加請求書を作成
+                    </Link>
+                  )}
+                </div>
+                <ul className="mt-6 space-y-3">
+                  {invoiceTabState.active.map((inv) => (
+                    <li
+                      key={inv.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-100 px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-zinc-900">{inv.invoiceNumber}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <BillingStatusBadge
+                            status={getInvoiceBillingDisplayStatus(inv)}
+                          />
+                          <span className="text-xs text-zinc-500">
+                            {formatCurrency(Math.round(inv.totalAmount))}
+                          </span>
+                        </div>
+                      </div>
+                      <Link
+                        href={`/invoices/${inv.id}`}
+                        className={cn(
+                          buttonVariants({ variant: "outline", size: "sm" }),
+                          "h-8 rounded-lg"
+                        )}
+                      >
+                        詳細
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              invoiceTabState.primary && (
+                <div className="rounded-xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.02] sm:p-8">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-zinc-500">請求書</p>
+                      <h3 className="mt-1 text-lg font-semibold text-zinc-900">
+                        {invoiceTabState.primary.invoiceNumber}
+                      </h3>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <BillingStatusBadge
+                          status={getInvoiceBillingDisplayStatus(invoiceTabState.primary)}
+                        />
+                        <span className="text-sm text-zinc-500">
+                          発行 {formatDate(invoiceTabState.primary.issueDate)} / 期限{" "}
+                          {formatDate(invoiceTabState.primary.dueDate)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-zinc-400">
+                        更新 {formatDateTime(invoiceTabState.primary.updatedAt)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">
+                        合計
+                      </p>
+                      <p className="mt-1 text-xl font-semibold tabular-nums text-zinc-900">
+                        {formatCurrency(Math.round(invoiceTabState.primary.totalAmount))}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    {invoiceTabState.primary ? (
+                      <Link
+                        href={`/invoices/${invoiceTabState.primary.id}`}
+                        className={cn(
+                          buttonVariants({ variant: "outline" }),
+                          "h-9 rounded-xl",
+                          getBillingStatusTheme(
+                            getInvoiceBillingDisplayStatus(invoiceTabState.primary)
+                          ).buttonOutlineClass
+                        )}
+                      >
+                        {
+                          getBillingStatusTheme(
+                            getInvoiceBillingDisplayStatus(invoiceTabState.primary)
+                          ).actionLabel
+                        }
+                      </Link>
+                    ) : null}
+                    {canWrite && invoiceTabState.primary.status === "draft" && (
+                      <Link
+                        href={`/invoices/${invoiceTabState.primary.id}/edit`}
+                        className={cn(
+                          buttonVariants({ variant: "outline" }),
+                          "h-9 rounded-xl"
+                        )}
+                      >
+                        編集
+                      </Link>
+                    )}
+                    {liveProject.status === "completed" && canWrite && (
+                      <Link
+                        href={buildProjectInvoiceHref(liveProject.id, {
+                          type: "additional",
+                        })}
+                        className={cn(
+                          buttonVariants({ variant: "outline" }),
+                          "h-9 rounded-xl"
+                        )}
+                      >
+                        追加請求書を作成
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )
+            )}
+
+            {showCancelledInvoices &&
+              invoiceTabState.visible.some((inv) => inv.status === "cancelled") && (
+                <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/80 p-5">
+                  <p className="text-sm font-medium text-zinc-600">キャンセル済み</p>
+                  <ul className="mt-3 space-y-2">
+                    {invoiceTabState.visible
+                      .filter((inv) => inv.status === "cancelled")
+                      .map((inv) => (
+                        <li
+                          key={inv.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200/80 bg-white px-3 py-2 text-sm"
+                        >
+                          <span className="text-zinc-700">{inv.invoiceNumber}</span>
+                          <Link
+                            href={`/invoices/${inv.id}`}
+                            className="text-zinc-500 underline-offset-2 hover:text-zinc-900 hover:underline"
+                          >
+                            詳細
+                          </Link>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              )}
+          </div>
         </TabsContent>
 
         <TabsContent value="receipt">
@@ -817,6 +1053,29 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         description={`「${liveProject.projectName}」を削除します。この操作は取り消せません。`}
         onConfirm={handleDelete}
         loading={deleting}
+      />
+
+      <CreateOrderQuoteSelectDialog
+        open={orderSelectOpen}
+        onOpenChange={setOrderSelectOpen}
+        quotes={selectableQuotes}
+        loading={creatingOrder}
+        onSelectQuote={proceedWithQuote}
+        onSelectProject={() => {
+          void createOrderWithSource(null);
+        }}
+      />
+
+      <CreateOrderUnconfirmedDialog
+        open={Boolean(orderConfirmQuote)}
+        onOpenChange={(open) => {
+          if (!open) setOrderConfirmQuote(null);
+        }}
+        loading={creatingOrder}
+        onConfirm={() => {
+          if (!orderConfirmQuote) return;
+          void createOrderWithSource(orderConfirmQuote.id);
+        }}
       />
     </div>
   );
@@ -854,9 +1113,9 @@ function ProjectDocumentTab({
 }) {
   if (!latest) {
     return (
-      <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
+      <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-6 sm:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <h3 className="text-lg font-semibold text-zinc-900">{emptyTitle}</h3>
             <p className="mt-2 text-sm text-zinc-500">{emptyDescription}</p>
           </div>
@@ -867,7 +1126,7 @@ function ProjectDocumentTab({
               disabled={creating}
               className={cn(
                 buttonVariants(),
-                "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+                "h-9 w-full shrink-0 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 sm:w-auto"
               )}
             >
               {createLabel}
@@ -886,8 +1145,8 @@ function ProjectDocumentTab({
 
   return (
     <div className="rounded-xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.02] sm:p-8">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-zinc-500">{label}</p>
           <h3 className="mt-1 text-lg font-semibold text-zinc-900">{docNumber}</h3>
           <p className="mt-3 text-sm text-zinc-500">
@@ -897,7 +1156,7 @@ function ProjectDocumentTab({
             更新 {formatDateTime(latest.updatedAt)}
           </p>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right">
           <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">
             合計
           </p>
@@ -907,10 +1166,13 @@ function ProjectDocumentTab({
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <Link
           href={`${detailBasePath}/${latest.id}`}
-          className={cn(buttonVariants({ variant: "outline" }), "h-9 rounded-xl")}
+          className={cn(
+            buttonVariants({ variant: "outline" }),
+            "h-9 w-full rounded-xl sm:w-auto"
+          )}
         >
           詳細を見る
         </Link>
@@ -921,7 +1183,7 @@ function ProjectDocumentTab({
             disabled={creating}
             className={cn(
               buttonVariants(),
-              "h-9 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+              "h-9 w-full rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 sm:w-auto"
             )}
           >
             追加で作成

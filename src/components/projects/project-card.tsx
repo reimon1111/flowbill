@@ -15,14 +15,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  InvoiceStatusBadge,
-  ProjectPaymentStatusBadge,
+  BillingProjectStatusBadge,
   ProjectStatusBadge,
 } from "@/components/projects/project-status-badge";
 import { ProjectNextStepsPanel } from "@/components/projects/project-next-steps-panel";
 import { getProjectTitleHeadline } from "@/lib/project-title";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { useQuoteStore } from "@/stores/quote-store";
+import { useInvoiceStore } from "@/stores/invoice-store";
+import { useProjectItemStore } from "@/stores/project-item-store";
+import { getProjectInvoiceState } from "@/lib/invoice-state";
+import { getProjectBillingDisplayStatus, getBillingStatusTheme } from "@/lib/billing-status-theme";
+import { getProjectTotalWithTax } from "@/lib/project-amount-display";
 
 type ProjectCardProps = {
   project: ProjectListItem;
@@ -73,6 +77,14 @@ function useLatestQuoteId(projectId: string) {
   );
 }
 
+function useProjectDisplayAmount(project: ProjectListItem) {
+  const projectItems = useProjectItemStore((s) => s.projectItems);
+  return useMemo(
+    () => getProjectTotalWithTax(project.id, project.amount, projectItems, project),
+    [project.id, project.amount, projectItems]
+  );
+}
+
 function ProjectRow({
   project,
   onAction,
@@ -81,12 +93,26 @@ function ProjectRow({
 }: Omit<ProjectCardProps, "variant">) {
   const router = useRouter();
   const latestQuoteId = useLatestQuoteId(project.id);
+  const invoices = useInvoiceStore((s) => s.invoices);
+  const displayAmount = useProjectDisplayAmount(project);
+  const projectInvoiceState = useMemo(
+    () => getProjectInvoiceState(project.id, invoices),
+    [project.id, invoices]
+  );
+  const billingStatus = useMemo(
+    () => getProjectBillingDisplayStatus(projectInvoiceState, project.status),
+    [projectInvoiceState, project.status]
+  );
+  const dueDateAccent =
+    billingStatus === "overdue"
+      ? getBillingStatusTheme("overdue").textAccentClass
+      : "text-zinc-500";
 
   return (
     <article
       className={cn(
         "grid items-start gap-4 rounded-xl border border-zinc-200/80 bg-white px-5 py-4 shadow-sm shadow-zinc-900/[0.02] transition-shadow hover:shadow-md hover:shadow-zinc-900/[0.04]",
-        "grid-cols-[minmax(180px,1.1fr)_minmax(120px,0.9fr)_100px_88px_96px_72px_minmax(200px,1.3fr)_auto]"
+        "grid-cols-[minmax(180px,1.1fr)_minmax(120px,0.9fr)_108px_96px_72px_minmax(200px,1.3fr)_auto]"
       )}
     >
       <div className="min-w-0 space-y-1">
@@ -103,21 +129,19 @@ function ProjectRow({
         <ProjectStatusBadge status={project.status} />
       </div>
 
-      <InvoiceStatusBadge status={project.invoiceStatus} />
-      <ProjectPaymentStatusBadge status={project.paymentStatus} />
+      <div className="min-w-0">
+        {billingStatus ? (
+          <BillingProjectStatusBadge status={billingStatus} />
+        ) : (
+          <span className="text-sm text-zinc-400">—</span>
+        )}
+      </div>
 
       <p className="text-right text-base font-medium tabular-nums text-zinc-900">
-        {project.amount > 0 ? formatCurrency(project.amount) : "—"}
+        {displayAmount > 0 ? formatCurrency(displayAmount) : "—"}
       </p>
 
-      <p
-        className={cn(
-          "text-sm tabular-nums",
-          project.paymentStatus === "overdue"
-            ? "font-medium text-red-600"
-            : "text-zinc-500"
-        )}
-      >
+      <p className={cn("text-sm tabular-nums", dueDateAccent)}>
         {project.dueDate ? formatShortDate(project.dueDate) : "—"}
       </p>
 
@@ -125,9 +149,10 @@ function ProjectRow({
         projectId={project.id}
         status={project.status}
         nextAction={project.nextAction}
-        invoiceStatus={project.invoiceStatus}
-        paymentStatus={project.paymentStatus}
+        invoiceStatus={projectInvoiceState.invoiceStatus}
+        paymentStatus={projectInvoiceState.paymentStatus}
         latestQuoteId={latestQuoteId}
+        invoices={invoices}
         onAction={(action) => onAction(project.id, action)}
         variant="inline"
       />
@@ -152,6 +177,20 @@ function ProjectCardMobile({
 }: Omit<ProjectCardProps, "variant">) {
   const router = useRouter();
   const latestQuoteId = useLatestQuoteId(project.id);
+  const invoices = useInvoiceStore((s) => s.invoices);
+  const displayAmount = useProjectDisplayAmount(project);
+  const projectInvoiceState = useMemo(
+    () => getProjectInvoiceState(project.id, invoices),
+    [project.id, invoices]
+  );
+  const billingStatus = useMemo(
+    () => getProjectBillingDisplayStatus(projectInvoiceState, project.status),
+    [projectInvoiceState, project.status]
+  );
+  const dueDateAccent =
+    billingStatus === "overdue"
+      ? getBillingStatusTheme("overdue").textAccentClass
+      : "text-zinc-500";
 
   return (
     <article className="rounded-xl border border-zinc-200/80 bg-white p-5 shadow-sm shadow-zinc-900/[0.02]">
@@ -168,8 +207,9 @@ function ProjectCardMobile({
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <ProjectStatusBadge status={project.status} />
-            <InvoiceStatusBadge status={project.invoiceStatus} />
-            <ProjectPaymentStatusBadge status={project.paymentStatus} />
+            {billingStatus ? (
+              <BillingProjectStatusBadge status={billingStatus} />
+            ) : null}
           </div>
         </div>
         <ProjectMenu
@@ -182,16 +222,9 @@ function ProjectCardMobile({
 
       <div className="mt-4 flex items-center justify-between">
         <p className="text-base font-semibold tabular-nums text-zinc-900">
-          {project.amount > 0 ? formatCurrency(project.amount) : "—"}
+          {displayAmount > 0 ? formatCurrency(displayAmount) : "—"}
         </p>
-        <p
-          className={cn(
-            "text-sm tabular-nums",
-            project.paymentStatus === "overdue"
-              ? "font-medium text-red-600"
-              : "text-zinc-500"
-          )}
-        >
+        <p className={cn("text-sm tabular-nums", dueDateAccent)}>
           {project.dueDate ? `納期 ${formatShortDate(project.dueDate)}` : "納期 —"}
         </p>
       </div>
@@ -201,9 +234,10 @@ function ProjectCardMobile({
           projectId={project.id}
           status={project.status}
           nextAction={project.nextAction}
-          invoiceStatus={project.invoiceStatus}
-          paymentStatus={project.paymentStatus}
+          invoiceStatus={projectInvoiceState.invoiceStatus}
+          paymentStatus={projectInvoiceState.paymentStatus}
           latestQuoteId={latestQuoteId}
+          invoices={invoices}
           onAction={(action) => onAction(project.id, action)}
         />
       </div>

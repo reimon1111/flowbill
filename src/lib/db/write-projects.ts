@@ -102,6 +102,11 @@ export async function dbInsertProject(input: ProjectInput): Promise<ProjectRecor
     constructionSite: input.constructionSite ?? "",
     status: input.status,
     amount: input.amount ?? 0,
+    discountLabel: input.discountLabel?.trim() ?? "",
+    discountAmount: input.discountAmount ?? 0,
+    customerContactName: input.customerContactName?.trim() ?? "",
+    customerDepartment: input.customerDepartment?.trim() ?? "",
+    customerPosition: input.customerPosition?.trim() ?? "",
     dueDate: input.dueDate,
     startDate: input.startDate ?? "",
     endDate: input.endDate ?? "",
@@ -160,6 +165,11 @@ export async function dbUpdateProject(
       constructionSite: input.constructionSite ?? "",
       status: input.status,
       amount: input.amount ?? 0,
+      discountLabel: input.discountLabel?.trim() ?? "",
+      discountAmount: input.discountAmount ?? 0,
+      customerContactName: input.customerContactName?.trim() ?? "",
+      customerDepartment: input.customerDepartment?.trim() ?? "",
+      customerPosition: input.customerPosition?.trim() ?? "",
       dueDate: input.dueDate,
       startDate: input.startDate ?? "",
       endDate: input.endDate ?? "",
@@ -300,21 +310,6 @@ export async function dbExecuteProjectAction(
 
   let updated = await dbChangeProjectStatus(id, nextStatus);
   if (!updated) return null;
-
-  if (action === "generate_invoice") {
-    updated = {
-      ...updated,
-      invoiceStatus: "issued",
-      updatedAt: new Date().toISOString(),
-    };
-    await dbUpsertProject(updated);
-    await dbInsertHistory({
-      projectId: id,
-      type: "invoice_generated",
-      title: "請求書生成",
-      description: "定期請求または請求書画面から生成",
-    });
-  }
 
   if (action === "mark_paid") {
     updated = {

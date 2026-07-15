@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { resolveRouteId } from "@/lib/route-params";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { formatSupabaseError } from "@/lib/db/errors";
 import { PageHeader } from "@/components/shared/page-header";
 import { InvoiceForm } from "@/components/invoices/invoice-form";
 import { getInvoiceById, getInvoiceItems, invoiceInputFromForm, updateInvoice } from "@/lib/services/invoices";
@@ -33,6 +34,7 @@ export function EditInvoiceClient({ invoiceId: invoiceIdProp }: { invoiceId?: st
   const [quoteNumber, setQuoteNumber] = useState<string>("");
   const [projectId, setProjectId] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
+  const [saving, setSaving] = useState(false);
 
   const customer = useCustomerStore((s) =>
     customerId ? s.getCustomerById(customerId) : undefined
@@ -74,6 +76,11 @@ export function EditInvoiceClient({ invoiceId: invoiceIdProp }: { invoiceId?: st
         paymentTerms: inv.paymentTerms,
         bankAccountId: inv.bankAccountId,
         memo: inv.memo,
+        discountLabel: inv.discountLabel ?? "",
+        discountAmount: inv.discountAmount ?? 0,
+        customerContactName: inv.customerContactName ?? "",
+        customerDepartment: inv.customerDepartment ?? "",
+        customerPosition: inv.customerPosition ?? "",
         items: [],
       });
 
@@ -97,10 +104,23 @@ export function EditInvoiceClient({ invoiceId: invoiceIdProp }: { invoiceId?: st
   }, [invoiceId, router]);
 
   const handleSave = async (v: InvoiceFormValues) => {
-    const updated = await updateInvoice(invoiceId, invoiceInputFromForm(v));
-    if (!updated) return;
-    toast.success("請求書を更新しました", { description: updated.invoiceNumber });
-    router.push(`/invoices/${invoiceId}`);
+    if (saving) return;
+    setSaving(true);
+    try {
+      const updated = await updateInvoice(invoiceId, invoiceInputFromForm(v));
+      if (!updated) {
+        toast.error("請求書の更新に失敗しました");
+        return;
+      }
+      toast.success("請求書を更新しました", { description: updated.invoiceNumber });
+      router.push(`/invoices/${invoiceId}`);
+    } catch (error) {
+      toast.error("請求書の更新に失敗しました", {
+        description: formatSupabaseError(error),
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading || !values || !customer) {

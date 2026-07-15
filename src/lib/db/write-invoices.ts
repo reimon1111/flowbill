@@ -18,7 +18,10 @@ import {
 } from "@/lib/db/mappers";
 import { dbInsertHistory, dbUpsertProject } from "@/lib/db/write-projects";
 import { projectFromRow, type ProjectRow } from "@/lib/db/mappers";
-import { resolveProjectFieldsAfterInvoiceChange } from "@/lib/invoice-project-sync";
+import {
+  resolveProjectFieldsAfterInvoiceChange,
+  resolveStoredInvoiceStatus,
+} from "@/lib/invoice-state";
 import { insertRowsWithConstructionFallback } from "@/lib/db/line-item-insert";
 import { dbResolveBankAccountId } from "@/lib/db/write-bank-accounts";
 import { recordActivityLog } from "@/lib/db/write-activity-log";
@@ -43,9 +46,34 @@ async function nextInvoiceNumber(issueDate: string, companyId: string): Promise<
   return `INV-${y}-${String(n).padStart(4, "0")}`;
 }
 
-function isOverdue(dueDate: string) {
-  if (!dueDate) return false;
-  return new Date(dueDate + "T23:59:59") < new Date();
+async function syncProjectInvoiceFields(
+  projectId: string,
+  companyId: string,
+  now: string
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { data: projectData } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", projectId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (!projectData) return;
+
+  const { data: siblingRows } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("company_id", companyId);
+  const siblingInvoices = (siblingRows ?? []).map((row) =>
+    invoiceFromRow(row as InvoiceRow)
+  );
+  const derived = resolveProjectFieldsAfterInvoiceChange(projectId, siblingInvoices);
+  await dbUpsertProject({
+    ...projectFromRow(projectData as ProjectRow),
+    ...derived,
+    updatedAt: now,
+  });
 }
 
 export async function dbInsertInvoice(
@@ -59,7 +87,10 @@ export async function dbInsertInvoice(
     ...it,
     id: generateId("invi_"),
   }));
-  const totals = computeLineTotals(items);
+  const totals = computeLineTotals(items, {
+    discountLabel: input.discountLabel,
+    discountAmount: input.discountAmount,
+  });
   const bankAccountId = await dbResolveBankAccountId(input.bankAccountId);
 
   const invoice: InvoiceRecord = {
@@ -74,6 +105,11 @@ export async function dbInsertInvoice(
     subtotal: totals.subtotal,
     taxAmount: totals.taxAmount,
     totalAmount: totals.totalAmount,
+    discountLabel: input.discountLabel?.trim() ?? "",
+    discountAmount: input.discountAmount ?? 0,
+    customerContactName: input.customerContactName?.trim() ?? "",
+    customerDepartment: input.customerDepartment?.trim() ?? "",
+    customerPosition: input.customerPosition?.trim() ?? "",
     pdfUrl: null,
     memo: input.memo,
     paymentTerms: input.paymentTerms,
@@ -82,6 +118,7 @@ export async function dbInsertInvoice(
     updatedBy: userId,
     createdAt: now,
     updatedAt: now,
+    deletedAt: null,
   };
 
   const supabase = getSupabaseClient();
@@ -111,6 +148,40 @@ export async function dbInsertInvoice(
     description: activityDescriptionCreated("invoice", invoice.invoiceNumber),
   });
 
+  const { data: projectData } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", input.projectId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (projectData) {
+    const project = projectFromRow(projectData as ProjectRow);
+    const { data: siblingRows } = await supabase
+      .from("invoices")
+      .select("*")
+      .eq("project_id", input.projectId)
+      .eq("company_id", companyId);
+    const siblingInvoices = (siblingRows ?? []).map((row) =>
+      invoiceFromRow(row as InvoiceRow)
+    );
+    const derived = resolveProjectFieldsAfterInvoiceChange(
+      input.projectId,
+      siblingInvoices
+    );
+    await dbUpsertProject({
+      ...project,
+      ...derived,
+      updatedAt: now,
+    });
+    await dbInsertHistory({
+      projectId: input.projectId,
+      type: "invoice_generated",
+      title: "請求書を作成しました",
+      description: invoice.invoiceNumber,
+    });
+  }
+
   return { invoice, items };
 }
 
@@ -134,10 +205,13 @@ export async function dbUpdateInvoice(
     ...it,
     id: generateId("invi_"),
   }));
-  const totals = computeLineTotals(items);
+  const totals = computeLineTotals(items, {
+    discountLabel: input.discountLabel,
+    discountAmount: input.discountAmount,
+  });
   const bankAccountId = await dbResolveBankAccountId(input.bankAccountId);
 
-  const invoice: InvoiceRecord = {
+  const draft: InvoiceRecord = {
     ...existing,
     projectId: input.projectId,
     customerId: input.customerId,
@@ -147,10 +221,19 @@ export async function dbUpdateInvoice(
     subtotal: totals.subtotal,
     taxAmount: totals.taxAmount,
     totalAmount: totals.totalAmount,
+    discountLabel: input.discountLabel?.trim() ?? "",
+    discountAmount: input.discountAmount ?? 0,
+    customerContactName: input.customerContactName?.trim() ?? "",
+    customerDepartment: input.customerDepartment?.trim() ?? "",
+    customerPosition: input.customerPosition?.trim() ?? "",
     memo: input.memo,
     paymentTerms: input.paymentTerms,
     bankAccountId,
     updatedAt: now,
+  };
+  const invoice: InvoiceRecord = {
+    ...draft,
+    status: resolveStoredInvoiceStatus(draft),
   };
 
   const userId = await getAuthUserId();
@@ -181,6 +264,8 @@ export async function dbUpdateInvoice(
     targetLabel: invoice.invoiceNumber,
     description: activityDescriptionUpdated("invoice", invoice.invoiceNumber),
   });
+
+  await syncProjectInvoiceFields(input.projectId, companyId, now);
 
   return { invoice, items };
 }
@@ -214,6 +299,81 @@ export async function dbDeleteInvoice(invoiceId: string): Promise<boolean> {
   });
 
   return true;
+}
+
+export async function dbSoftDeleteInvoice(invoiceId: string): Promise<InvoiceRecord | null> {
+  const companyId = await resolveCompanyId();
+  const supabase = getSupabaseClient();
+  const { data, error: fetchError } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("id", invoiceId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+  if (fetchError) throw fetchError;
+  if (!data) return null;
+
+  const existing = invoiceFromRow(data as InvoiceRow);
+  if (existing.deletedAt) return existing;
+
+  const now = new Date().toISOString();
+  const updated: InvoiceRecord = {
+    ...existing,
+    deletedAt: now,
+    updatedAt: now,
+  };
+  const userId = await getAuthUserId();
+  const { error } = await supabase
+    .from("invoices")
+    .update(withUpdateAudit(invoiceToRow(companyId, updated), userId))
+    .eq("id", invoiceId)
+    .eq("company_id", companyId);
+  if (error) throw error;
+
+  const { data: projectData } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", updated.projectId)
+    .eq("company_id", companyId)
+    .maybeSingle();
+
+  if (projectData) {
+    const project = projectFromRow(projectData as ProjectRow);
+    const { data: siblingRows } = await supabase
+      .from("invoices")
+      .select("*")
+      .eq("project_id", updated.projectId)
+      .eq("company_id", companyId);
+    const siblingInvoices = (siblingRows ?? []).map((row) =>
+      invoiceFromRow(row as InvoiceRow)
+    );
+    const derived = resolveProjectFieldsAfterInvoiceChange(
+      updated.projectId,
+      siblingInvoices,
+      { excludeInvoiceId: updated.id }
+    );
+    await dbUpsertProject({
+      ...project,
+      ...derived,
+      updatedAt: now,
+    });
+    await dbInsertHistory({
+      projectId: updated.projectId,
+      type: "updated",
+      title: "請求書を削除しました",
+      description: updated.invoiceNumber,
+    });
+  }
+
+  recordActivityLog({
+    action: "deleted",
+    targetType: "invoice",
+    targetId: invoiceId,
+    targetLabel: updated.invoiceNumber,
+    description: activityDescriptionDeleted("invoice", updated.invoiceNumber),
+  });
+
+  return updated;
 }
 
 export async function dbUpdateInvoiceStatus(
@@ -256,12 +416,26 @@ export async function dbUpdateInvoiceStatus(
     const project = projectFromRow(projectData as ProjectRow);
     let patch = { ...project, updatedAt: new Date().toISOString() };
 
+    const siblingInvoicesForDerived = async () => {
+      const { data: siblingRows } = await supabase
+        .from("invoices")
+        .select("*")
+        .eq("project_id", updated.projectId)
+        .eq("company_id", companyId);
+      return (siblingRows ?? []).map((row) => invoiceFromRow(row as InvoiceRow));
+    };
+
     if (status === "issued") {
+      const derived = resolveProjectFieldsAfterInvoiceChange(
+        updated.projectId,
+        (await siblingInvoicesForDerived()).map((inv) =>
+          inv.id === updated.id ? updated : inv
+        )
+      );
       patch = {
         ...patch,
         status: "completed",
-        invoiceStatus: "issued",
-        paymentStatus: isOverdue(updated.dueDate) ? "overdue" : "unpaid",
+        ...derived,
       };
       await dbInsertHistory({
         projectId: updated.projectId,
@@ -271,7 +445,13 @@ export async function dbUpdateInvoiceStatus(
       });
     }
     if (status === "sent") {
-      patch = { ...patch, invoiceStatus: "sent" };
+      const derived = resolveProjectFieldsAfterInvoiceChange(
+        updated.projectId,
+        (await siblingInvoicesForDerived()).map((inv) =>
+          inv.id === updated.id ? updated : inv
+        )
+      );
+      patch = { ...patch, ...derived };
       await dbInsertHistory({
         projectId: updated.projectId,
         type: "updated",
@@ -280,7 +460,13 @@ export async function dbUpdateInvoiceStatus(
       });
     }
     if (status === "paid") {
-      patch = { ...patch, status: "completed", paymentStatus: "paid" };
+      const derived = resolveProjectFieldsAfterInvoiceChange(
+        updated.projectId,
+        (await siblingInvoicesForDerived()).map((inv) =>
+          inv.id === updated.id ? updated : inv
+        )
+      );
+      patch = { ...patch, status: "completed", ...derived };
       await dbInsertHistory({
         projectId: updated.projectId,
         type: "payment_received",
@@ -346,42 +532,53 @@ export async function dbUpdateInvoiceStatus(
   return updated;
 }
 
-export async function dbRefreshOverdueInvoices(): Promise<void> {
+export async function dbRefreshOverdueInvoices(): Promise<boolean> {
   const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
   const now = new Date().toISOString();
+  const userId = await getAuthUserId();
+  const today = new Date();
 
-  const { data: invoices, error } = await supabase
+  const { data: rows, error } = await supabase
     .from("invoices")
     .select("*")
     .eq("company_id", companyId)
-    .in("status", ["issued", "sent"]);
+    .is("deleted_at", null)
+    .in("status", ["issued", "sent", "overdue"]);
   if (error) throw error;
 
-  for (const row of invoices ?? []) {
-    const inv = invoiceFromRow(row as InvoiceRow);
-    if (!isOverdue(inv.dueDate)) continue;
+  const invoices = (rows ?? []).map((row) => invoiceFromRow(row as InvoiceRow));
+  const affectedProjectIds = new Set<string>();
+  let changed = false;
 
-    const updated: InvoiceRecord = { ...inv, status: "overdue", updatedAt: now };
-    await supabase
+  for (const inv of invoices) {
+    if (inv.status === "cancelled") continue;
+    const nextStatus = resolveStoredInvoiceStatus(inv, today);
+    if (nextStatus === inv.status) continue;
+
+    changed = true;
+    affectedProjectIds.add(inv.projectId);
+    const { error: updateError } = await supabase
       .from("invoices")
-      .update(withUpdateAudit(invoiceToRow(companyId, updated), await getAuthUserId()))
+      .update(
+        withUpdateAudit(
+          {
+            status: nextStatus,
+            updated_at: now,
+          },
+          userId
+        )
+      )
       .eq("id", inv.id)
       .eq("company_id", companyId);
-
-    const { data: projectData } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("id", inv.projectId)
-      .eq("company_id", companyId)
-      .single();
-    if (projectData) {
-      const project = projectFromRow(projectData as ProjectRow);
-      await dbUpsertProject({
-        ...project,
-        paymentStatus: "overdue",
-        updatedAt: now,
-      });
-    }
+    if (updateError) throw updateError;
   }
+
+  await Promise.all(
+    [...affectedProjectIds].map((projectId) =>
+      syncProjectInvoiceFields(projectId, companyId, now)
+    )
+  );
+
+  return changed;
 }

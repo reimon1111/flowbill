@@ -17,16 +17,20 @@ import {
   canDeleteQuote,
   updateQuoteStatus,
 } from "@/lib/services/quotes";
+import { createOrderFromQuote } from "@/lib/services/commercial-documents";
+import { isQuoteConfirmedForOrder } from "@/lib/order-create-source";
+import { CreateOrderUnconfirmedDialog } from "@/components/orders/create-order-dialogs";
+import { getOrderCreationToastMessage } from "@/lib/order-creation-error";
 import { DeleteConfirmDialog } from "@/components/shared/delete-confirm-dialog";
 import { formatSupabaseError } from "@/lib/db/errors";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import { QUOTE_EXPIRY_TYPE_LABELS } from "@/lib/quote-expiry";
 import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
 import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { VIEWER_WRITE_DENIED_MESSAGE } from "@/lib/guards/write-access";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { useOrderStore } from "@/stores/order-store";
 import { DocumentPreviewCollapsible } from "@/components/shared/document-preview-collapsible";
 import { useDocumentExport } from "@/hooks/use-document-export";
 import { LinePdfExportGuide } from "@/components/shared/line-pdf-export-guide";
@@ -51,17 +55,14 @@ export function QuoteDetail({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [statusChanging, setStatusChanging] = useState(false);
+  const [creatingOrder, setCreatingOrder] = useState(false);
+  const [orderConfirmOpen, setOrderConfirmOpen] = useState(false);
   const { previewOpen, setPreviewOpen, lineGuideOpen, setLineGuideOpen, onExport } =
     useDocumentExport();
   const deleteBlockReason = getQuoteDeletionBlockReason(quote.id);
   const deletable = canDeleteQuote(quote.id);
-  const orders = useOrderStore((s) => s.orders);
-  const projectOrders = useMemo(
-    () => orders.filter((o) => o.projectId === quote.projectId && !o.deletedAt),
-    [orders, quote.projectId]
-  );
-  const showOrderGuidance =
-    canWrite && quote.status === "accepted" && projectOrders.length === 0;
+  const canCreateOrderFromQuote =
+    canWrite && quote.status !== "rejected";
   const exportLabel = isMobile ? "PDFを保存" : "印刷 / PDF保存";
 
   const changeStatus = async (status: QuoteStatus) => {
@@ -76,9 +77,7 @@ export function QuoteDetail({
         description: "案件ステータスは「見積中」のままです",
       });
     } else if (status === "accepted") {
-      toast.success("見積を承認しました", {
-        description: "次は注文書を作成してください。",
-      });
+      toast.success("見積を承認しました");
     } else if (status === "rejected") {
       toast.success("見積を否認しました", {
         description: "案件ステータスを「失注」に更新しました",
@@ -89,6 +88,42 @@ export function QuoteDetail({
     } finally {
       setStatusChanging(false);
     }
+  };
+
+  const createOrder = async () => {
+    if (creatingOrder) return;
+    try {
+      setCreatingOrder(true);
+      const order = await createOrderFromQuote(quote.id);
+      if (!order) {
+        toast.error("注文書を作成できませんでした。再度お試しください。");
+        return;
+      }
+      setOrderConfirmOpen(false);
+      toast.success("注文書を作成しました", { description: order.orderNumber });
+      router.push(`/orders/${order.id}`);
+    } catch (error) {
+      console.error("createOrderFromQuote failed", { quoteId: quote.id, error });
+      const message = getOrderCreationToastMessage(error);
+      toast.error(
+        message ?? "注文書を作成できませんでした。再度お試しください。"
+      );
+    } finally {
+      setCreatingOrder(false);
+    }
+  };
+
+  const handleCreateOrderRequest = () => {
+    if (!canWrite) {
+      toast.error(VIEWER_WRITE_DENIED_MESSAGE);
+      return;
+    }
+    if (creatingOrder) return;
+    if (!isQuoteConfirmedForOrder(quote)) {
+      setOrderConfirmOpen(true);
+      return;
+    }
+    void createOrder();
   };
 
   const handleDeleteRequest = () => {
@@ -176,7 +211,7 @@ export function QuoteDetail({
                 onClick={() => changeStatus("sent")}
                 className={cn(
                   buttonVariants(),
-                  "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+                  "h-9 w-full gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 sm:w-auto"
                 )}
               >
                 <Send className="size-4" />
@@ -191,7 +226,7 @@ export function QuoteDetail({
                   onClick={() => changeStatus("accepted")}
                   className={cn(
                     buttonVariants(),
-                    "h-9 gap-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500"
+                    "h-9 w-full gap-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 sm:w-auto"
                   )}
                 >
                   <ThumbsUp className="size-4" />
@@ -203,7 +238,7 @@ export function QuoteDetail({
                   onClick={() => setRejectOpen(true)}
                   className={cn(
                     buttonVariants({ variant: "outline" }),
-                    "h-9 gap-2 rounded-xl"
+                    "h-9 w-full gap-2 rounded-xl sm:w-auto"
                   )}
                 >
                   <ThumbsDown className="size-4" />
@@ -211,6 +246,19 @@ export function QuoteDetail({
                 </button>
               </>
             )}
+            {canCreateOrderFromQuote ? (
+              <button
+                type="button"
+                disabled={creatingOrder}
+                onClick={handleCreateOrderRequest}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "h-9 w-full rounded-xl sm:w-auto"
+                )}
+              >
+                この見積書から注文書を作成
+              </button>
+            ) : null}
             {!deletable && quote.status === "accepted" && (
               <p className="text-xs text-zinc-500">
                 承認済みの見積は削除できません。案件の失注またはアーカイブをご利用ください。
@@ -219,24 +267,6 @@ export function QuoteDetail({
           </div>
         }
       />
-
-      {showOrderGuidance ? (
-        <div className="print-hidden rounded-xl border border-blue-200/80 bg-blue-50 px-5 py-4 text-sm text-blue-950">
-          <p className="font-medium">見積を承認しました。次は注文書を作成してください。</p>
-          <p className="mt-1 text-blue-800/90">
-            案件詳細の注文書タブから作成できます。
-          </p>
-          <Link
-            href={`/projects/${quote.projectId}?tab=order`}
-            className={cn(
-              buttonVariants(),
-              "mt-4 h-9 rounded-xl bg-blue-700 text-white hover:bg-blue-600"
-            )}
-          >
-            注文書を作成
-          </Link>
-        </div>
-      ) : null}
 
       {!deletable && deleteBlockReason && quote.status !== "accepted" && (
         <div className="print-hidden rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -322,6 +352,13 @@ export function QuoteDetail({
         description={`「${quote.quoteNumber}」を削除します。この操作は取り消せません。`}
         onConfirm={handleDelete}
         loading={deleting}
+      />
+
+      <CreateOrderUnconfirmedDialog
+        open={orderConfirmOpen}
+        onOpenChange={setOrderConfirmOpen}
+        loading={creatingOrder}
+        onConfirm={() => void createOrder()}
       />
     </div>
   );

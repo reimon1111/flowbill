@@ -17,7 +17,11 @@ import {
   dbInsertCustomer,
   dbUpdateCustomer,
 } from "@/lib/db/write-customers";
+import { logSupabaseError, toCustomerSaveError } from "@/lib/db/errors";
 import { useInvoiceStore } from "@/stores/invoice-store";
+import { getInvoicePaymentStatus } from "@/lib/invoice-state";
+import { useProjectItemStore } from "@/stores/project-item-store";
+import { getProjectTotalWithTax } from "@/lib/project-amount-display";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 
 function toListItem(customer: Customer): CustomerListItem {
@@ -45,12 +49,17 @@ export async function createCustomer(
   input: CustomerInput
 ): Promise<Customer> {
   assertCanWriteBusinessData();
-  if (isSupabaseConfigured()) {
-    const customer = await dbInsertCustomer(input);
-    useCustomerStore.getState().upsertCustomer(customer);
-    return customer;
+  try {
+    if (isSupabaseConfigured()) {
+      const customer = await dbInsertCustomer(input);
+      useCustomerStore.getState().upsertCustomer(customer);
+      return customer;
+    }
+    return useCustomerStore.getState().addCustomer(input);
+  } catch (error) {
+    logSupabaseError("createCustomer", error);
+    throw toCustomerSaveError(error);
   }
-  return useCustomerStore.getState().addCustomer(input);
 }
 
 export async function updateCustomer(
@@ -58,22 +67,32 @@ export async function updateCustomer(
   input: CustomerInput
 ): Promise<Customer | null> {
   assertCanWriteBusinessData();
-  if (isSupabaseConfigured()) {
-    const customer = await dbUpdateCustomer(id, input);
-    if (customer) useCustomerStore.getState().upsertCustomer(customer);
-    return customer;
+  try {
+    if (isSupabaseConfigured()) {
+      const customer = await dbUpdateCustomer(id, input);
+      if (customer) useCustomerStore.getState().upsertCustomer(customer);
+      return customer;
+    }
+    return useCustomerStore.getState().updateCustomer(id, input);
+  } catch (error) {
+    logSupabaseError("updateCustomer", error);
+    throw toCustomerSaveError(error);
   }
-  return useCustomerStore.getState().updateCustomer(id, input);
 }
 
 export async function deleteCustomer(id: string): Promise<boolean> {
   assertCanWriteBusinessData();
-  if (isSupabaseConfigured()) {
-    const ok = await dbDeleteCustomer(id);
-    if (ok) useCustomerStore.getState().removeCustomer(id);
-    return ok;
+  try {
+    if (isSupabaseConfigured()) {
+      const ok = await dbDeleteCustomer(id);
+      if (ok) useCustomerStore.getState().removeCustomer(id);
+      return ok;
+    }
+    return useCustomerStore.getState().deleteCustomer(id);
+  } catch (error) {
+    logSupabaseError("deleteCustomer", error);
+    throw toCustomerSaveError(error);
   }
-  return useCustomerStore.getState().deleteCustomer(id);
 }
 
 export async function getCustomerProjects(
@@ -83,11 +102,12 @@ export async function getCustomerProjects(
   if (!customer) return [];
 
   const projects = await getProjectsByCustomerId(customerId);
+  const projectItems = useProjectItemStore.getState().projectItems;
   return projects.map((p) => ({
     id: p.id,
     projectName: p.projectName,
     status: p.status,
-    amount: p.amount,
+    amount: getProjectTotalWithTax(p.id, p.amount, projectItems, p),
   }));
 }
 
@@ -101,18 +121,22 @@ export async function getCustomerInvoices(
     .getState()
     .getListItems()
     .filter((inv) => inv.customerId === customerId)
-    .map((inv) => ({
-      id: inv.id,
-      invoiceNumber: inv.invoiceNumber,
-      issueDate: inv.issueDate,
-      amount: inv.totalAmount,
-      status:
-        inv.status === "paid"
+    .map((inv) => {
+      const paymentStatus = getInvoicePaymentStatus(inv);
+      const status =
+        paymentStatus === "paid"
           ? "paid"
-          : inv.status === "overdue"
+          : paymentStatus === "overdue"
             ? "overdue"
-            : "unpaid",
-    }));
+            : "unpaid";
+      return {
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        issueDate: inv.issueDate,
+        amount: inv.totalAmount,
+        status,
+      };
+    });
 }
 
 export function customerInputFromForm(

@@ -282,9 +282,99 @@ export function isMissingConstructionItemFieldColumns(error: unknown): boolean {
   );
 }
 
+/** customers.fax 列未作成か（旧 schema.sql 系） */
+export function isMissingCustomerFaxColumn(error: unknown): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (!text.includes("fax")) return false;
+  return (
+    text.includes("customers") ||
+    shape.code === "PGRST204" ||
+    shape.code === "42703"
+  );
+}
+
+/** created_by / updated_by 列未作成か（add-audit-fields.sql 未適用） */
+export function isMissingAuditColumnError(error: unknown): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (!text.includes("created_by") && !text.includes("updated_by")) {
+    return false;
+  }
+  return (
+    shape.code === "PGRST204" ||
+    shape.code === "42703" ||
+    text.includes("column") ||
+    text.includes("schema cache")
+  );
+}
+
+export const PAYMENT_STATUS_UPDATE_FAILED_MESSAGE =
+  "入金ステータスを更新できませんでした。再度お試しください。";
+
+export function toPaymentStatusUpdateError(error: unknown): Error {
+  if (
+    error instanceof Error &&
+    error.message === PAYMENT_STATUS_UPDATE_FAILED_MESSAGE
+  ) {
+    return error;
+  }
+  logSupabaseError("paymentStatusUpdate", error);
+  if (process.env.NODE_ENV === "development") {
+    return new Error(formatSupabaseError(error));
+  }
+  return new Error(PAYMENT_STATUS_UPDATE_FAILED_MESSAGE);
+}
+
+export const CUSTOMER_SAVE_FAILED_MESSAGE =
+  "顧客情報を保存できませんでした。入力内容または権限をご確認ください。";
+
+export const ITEM_TEMPLATE_SAVE_FAILED_MESSAGE =
+  "請求項目テンプレを保存できませんでした。入力内容をご確認ください。";
+
+export function toItemTemplateSaveError(error: unknown): Error {
+  if (
+    error instanceof Error &&
+    error.message === ITEM_TEMPLATE_SAVE_FAILED_MESSAGE
+  ) {
+    return error;
+  }
+  logSupabaseError("itemTemplateSave", error);
+  if (process.env.NODE_ENV === "development") {
+    return new Error(formatSupabaseError(error));
+  }
+  return new Error(ITEM_TEMPLATE_SAVE_FAILED_MESSAGE);
+}
+
+export function toCustomerSaveError(error: unknown): Error {
+  if (error instanceof Error && error.message === CUSTOMER_SAVE_FAILED_MESSAGE) {
+    return error;
+  }
+  if (process.env.NODE_ENV === "development") {
+    return new Error(formatSupabaseError(error));
+  }
+  return new Error(CUSTOMER_SAVE_FAILED_MESSAGE);
+}
+
 export function logSupabaseError(label: string, error: unknown) {
   const shape = readSupabaseErrorShape(error);
-  console.error(label, formatSupabaseError(error), shape);
+  if (process.env.NODE_ENV === "development") {
+    console.error(label, {
+      message: shape.message,
+      details: shape.details,
+      hint: shape.hint,
+      code: shape.code,
+      status: shape.status,
+    });
+    return;
+  }
+  console.error(label, formatSupabaseError(error));
 }
 
 export function formatSupabaseError(error: unknown): string {

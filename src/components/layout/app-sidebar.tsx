@@ -187,7 +187,6 @@ export function AppSidebar({
     return (
       isActiveNavItem(pathname, "/customers") ||
       isActiveNavItem(pathname, "/item-templates") ||
-      isActiveNavItem(pathname, "/recurring-billings") ||
       isActiveNavItem(pathname, "/settings/company")
     );
   }, [pathname]);
@@ -297,9 +296,8 @@ export function AppSidebar({
         >
           <NavLink item={NAV_ITEMS[9]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
           <NavLink item={NAV_ITEMS[10]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
-          <NavLink item={NAV_ITEMS[11]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
           {canManage ? (
-            <NavLink item={NAV_ITEMS[12]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
+            <NavLink item={NAV_ITEMS[11]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
           ) : null}
         </CollapsibleGroup>
       </nav>

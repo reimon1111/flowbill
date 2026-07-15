@@ -49,6 +49,7 @@ export function getQuoteDeletionBlockReason(quoteId: string): string | null {
       (inv) =>
         inv.quoteId === quoteId &&
         inv.status !== "cancelled" &&
+        !inv.deletedAt &&
         inv.quoteId.length > 0
     );
   if (linkedInvoice) {
@@ -116,7 +117,10 @@ async function appendQuoteDraftHistory(projectId: string, quoteNumber: string) {
 
 function buildQuoteInputFromProject(
   quote: QuoteRecord,
-  project: Pick<ProjectRecord, "id" | "customerId" | "amount" | "projectName">
+  project: Pick<
+    ProjectRecord,
+    "id" | "customerId" | "amount" | "projectName" | "discountLabel" | "discountAmount" | "customerContactName" | "customerDepartment" | "customerPosition"
+  >
 ): QuoteInput {
   return {
     projectId: quote.projectId,
@@ -126,6 +130,11 @@ function buildQuoteInputFromProject(
     expiryDate: quote.expiryDate,
     paymentTerms: quote.paymentTerms,
     memo: quote.memo,
+    discountLabel: project.discountLabel ?? "",
+    discountAmount: project.discountAmount ?? 0,
+    customerContactName: project.customerContactName ?? "",
+    customerDepartment: project.customerDepartment ?? "",
+    customerPosition: project.customerPosition ?? "",
     items: buildQuoteInputItemsForProject(
       project.id,
       project.projectName,
@@ -136,7 +145,10 @@ function buildQuoteInputFromProject(
 
 export async function syncQuoteItemsFromProject(
   quote: QuoteRecord,
-  project: Pick<ProjectRecord, "id" | "customerId" | "amount" | "projectName">
+  project: Pick<
+    ProjectRecord,
+    "id" | "customerId" | "amount" | "projectName" | "discountLabel" | "discountAmount" | "customerContactName" | "customerDepartment" | "customerPosition"
+  >
 ): Promise<QuoteRecord> {
   const updated = await updateQuote(quote.id, buildQuoteInputFromProject(quote, project));
   return updated ?? quote;
@@ -144,7 +156,10 @@ export async function syncQuoteItemsFromProject(
 
 /** 案件に紐づく見積下書きがなければ1件作成（見積前ステータス用） */
 export async function ensureDraftQuoteForProject(
-  project: Pick<ProjectRecord, "id" | "customerId" | "amount" | "projectName">
+  project: Pick<
+    ProjectRecord,
+    "id" | "customerId" | "amount" | "projectName" | "discountLabel" | "discountAmount" | "customerContactName" | "customerDepartment" | "customerPosition"
+  >
 ): Promise<QuoteRecord | null> {
   const existing = useQuoteStore
     .getState()
@@ -174,6 +189,11 @@ export async function ensureDraftQuoteForProject(
     paymentTerms:
       useCompanySettingsStore.getState().settings.paymentTerms ?? "",
     memo: useCompanySettingsStore.getState().settings.quoteMemoTemplate ?? "",
+    discountLabel: project.discountLabel ?? "",
+    discountAmount: project.discountAmount ?? 0,
+    customerContactName: project.customerContactName ?? "",
+    customerDepartment: project.customerDepartment ?? "",
+    customerPosition: project.customerPosition ?? "",
     items: buildQuoteInputItemsForProject(
       project.id,
       project.projectName,
@@ -209,7 +229,10 @@ export async function getQuotesByProjectId(projectId: string): Promise<QuoteReco
 
 /** 案件金額・明細変更時、下書き見積へ反映 */
 export async function syncDraftQuoteFromProject(
-  project: Pick<ProjectRecord, "id" | "customerId" | "amount" | "projectName" | "status">
+  project: Pick<
+    ProjectRecord,
+    "id" | "customerId" | "amount" | "projectName" | "status" | "discountLabel" | "discountAmount" | "customerContactName" | "customerDepartment" | "customerPosition"
+  >
 ): Promise<void> {
   if (project.status !== "estimate") return;
 
@@ -316,6 +339,11 @@ export function quoteInputFromForm(values: QuoteFormValues): QuoteInput {
     expiryDate,
     paymentTerms: values.paymentTerms.trim(),
     memo: values.memo.trim(),
+    discountLabel: values.discountLabel.trim(),
+    discountAmount: values.discountAmount ?? 0,
+    customerContactName: values.customerContactName.trim(),
+    customerDepartment: values.customerDepartment.trim(),
+    customerPosition: values.customerPosition.trim(),
     items: values.items.map((i, idx) => ({
       itemTemplateId: i.itemTemplateId,
       name: i.name.trim(),

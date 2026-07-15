@@ -10,6 +10,8 @@ export function DocumentHeader({
   secondDate,
   customerName,
   contactName,
+  department,
+  position,
 }: {
   kind: DocumentKind;
   documentNumber: string;
@@ -17,6 +19,8 @@ export function DocumentHeader({
   secondDate?: string;
   customerName: string;
   contactName?: string;
+  department?: string;
+  position?: string;
 }) {
   const labels = getDocumentLabels(kind);
 
@@ -28,7 +32,12 @@ export function DocumentHeader({
       <div className="document-title-rule mt-2 border-b border-zinc-900" />
 
       <div className="document-header-body mt-4 flex items-start justify-between gap-6">
-        <DocumentRecipient customerName={customerName} contactName={contactName} />
+        <DocumentRecipient
+          customerName={customerName}
+          contactName={contactName}
+          department={department}
+          position={position}
+        />
 
         <div className="document-meta shrink-0 text-right text-xs leading-relaxed text-zinc-800">
           <p>

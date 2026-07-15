@@ -48,7 +48,7 @@ export function InvoiceDetailClient() {
 
   useEffect(() => {
     if (!hasInitialized || !invoiceId) return;
-    if (!invoice) router.replace("/invoices");
+    if (!invoice || invoice.deletedAt) router.replace("/invoices");
   }, [hasInitialized, invoice, invoiceId, router]);
 
   if (!invoiceId) {

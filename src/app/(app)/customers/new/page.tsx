@@ -12,16 +12,23 @@ import {
   customerInputFromForm,
 } from "@/lib/services/customers";
 import type { CustomerFormValues } from "@/lib/validations/customer";
+import { CUSTOMER_SAVE_FAILED_MESSAGE } from "@/lib/db/errors";
 
 export default function NewCustomerPage() {
   const router = useRouter();
 
   const handleSubmit = async (values: CustomerFormValues) => {
-    const customer = await createCustomer(customerInputFromForm(values));
-    toast.success("顧客を登録しました", {
-      description: customer.customerName,
-    });
-    router.push(`/customers/${customer.id}`);
+    try {
+      const customer = await createCustomer(customerInputFromForm(values));
+      toast.success("顧客を登録しました", {
+        description: customer.customerName,
+      });
+      router.push(`/customers/${customer.id}`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : CUSTOMER_SAVE_FAILED_MESSAGE;
+      toast.error(message);
+    }
   };
 
   return (

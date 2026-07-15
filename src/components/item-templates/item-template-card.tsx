@@ -55,20 +55,11 @@ export function ItemTemplateCard({
               onClick={() => onToggleFavorite(template)}
             />
           </div>
-          <span className="mt-1.5 inline-block rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
-            {template.category}
-          </span>
         </div>
         <p className="shrink-0 text-lg font-semibold tabular-nums text-zinc-900">
           {formatCurrency(template.unitPrice)}
         </p>
       </div>
-
-      {template.description && (
-        <p className="mt-3 line-clamp-2 text-sm text-zinc-500">
-          {template.description}
-        </p>
-      )}
 
       <div className="mt-4 flex items-center justify-between text-sm text-zinc-400">
         <span>{formatTaxRate(template.taxRate)}</span>
@@ -102,23 +93,15 @@ function TemplateRow({
   canWrite = true,
 }: ItemTemplateCardProps) {
   return (
-    <article className="group grid grid-cols-1 gap-3 rounded-xl border border-zinc-200/80 bg-white px-5 py-4 shadow-sm shadow-zinc-900/[0.02] transition-shadow hover:shadow-md hover:shadow-zinc-900/[0.04] lg:grid-cols-[minmax(140px,1fr)_80px_minmax(160px,1.2fr)_100px_80px_120px_auto] lg:items-center lg:gap-4">
+    <article className="group grid grid-cols-1 gap-3 rounded-xl border border-zinc-200/80 bg-white px-5 py-4 shadow-sm shadow-zinc-900/[0.02] transition-shadow hover:shadow-md hover:shadow-zinc-900/[0.04] lg:grid-cols-[minmax(140px,1fr)_100px_80px_120px_auto] lg:items-center lg:gap-4">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="truncate font-medium text-zinc-900">
-          {template.name}
-        </span>
+        <span className="truncate font-medium text-zinc-900">{template.name}</span>
         <FavoriteButton
           isFavorite={template.isFavorite}
           disabled={!canWrite}
           onClick={() => onToggleFavorite(template)}
         />
       </div>
-      <span className="inline-flex w-fit rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600 lg:w-auto">
-        {template.category}
-      </span>
-      <p className="truncate text-sm text-zinc-500 lg:block">
-        {template.description || "—"}
-      </p>
       <p className="font-semibold tabular-nums text-zinc-900">
         {formatCurrency(template.unitPrice)}
       </p>

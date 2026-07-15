@@ -31,7 +31,9 @@ export function InvoicePreview({
       issueDate={invoice.issueDate}
       secondDate={invoice.dueDate}
       customerName={customer.customerName}
-      contactName={customer.contactName}
+      contactName={invoice.customerContactName}
+      department={invoice.customerDepartment}
+      position={invoice.customerPosition}
       subject={projectName}
       constructionSite={constructionSite}
       paymentTerms={invoice.paymentTerms}
@@ -39,6 +41,8 @@ export function InvoicePreview({
       subtotal={invoice.subtotal}
       taxAmount={invoice.taxAmount}
       totalAmount={invoice.totalAmount}
+      discountLabel={invoice.discountLabel}
+      discountAmount={invoice.discountAmount}
       memo={invoice.memo}
       memoTemplate={company.invoiceMemoTemplate}
       company={company}

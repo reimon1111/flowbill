@@ -3,6 +3,7 @@ import type {
   ProjectPaymentStatus,
   ProjectStatus,
 } from "@/lib/types";
+import { BILLING_STATUS_THEME } from "@/lib/billing-status-theme";
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   estimate: "見積中",
@@ -44,35 +45,35 @@ export const PROJECT_STATUS_STYLES: Record<
 };
 
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
-  not_created: "未作成",
-  draft: "下書き",
-  issued: "発行済",
-  sent: "送付済",
+  not_created: BILLING_STATUS_THEME.unissued.statusLabel,
+  draft: BILLING_STATUS_THEME.unissued.statusLabel,
+  issued: BILLING_STATUS_THEME.unpaid.statusLabel,
+  sent: BILLING_STATUS_THEME.unpaid.statusLabel,
 };
 
 export const INVOICE_STATUS_STYLES: Record<InvoiceStatus, string> = {
-  not_created: "bg-zinc-100 text-zinc-600",
-  draft: "bg-slate-50 text-slate-600",
-  issued: "bg-violet-50 text-violet-700",
-  sent: "bg-violet-50/80 text-violet-600",
+  not_created: BILLING_STATUS_THEME.unissued.badgeClass,
+  draft: BILLING_STATUS_THEME.unissued.badgeClass,
+  issued: BILLING_STATUS_THEME.unpaid.badgeClass,
+  sent: BILLING_STATUS_THEME.unpaid.badgeClass,
 };
 
 export const PROJECT_PAYMENT_STATUS_LABELS: Record<
   ProjectPaymentStatus,
   string
 > = {
-  unpaid: "未入金",
-  paid: "入金済",
-  overdue: "期限超過",
+  unpaid: BILLING_STATUS_THEME.unpaid.statusLabel,
+  paid: BILLING_STATUS_THEME.paid.statusLabel,
+  overdue: BILLING_STATUS_THEME.overdue.statusLabel,
 };
 
 export const PROJECT_PAYMENT_STATUS_STYLES: Record<
   ProjectPaymentStatus,
   string
 > = {
-  unpaid: "bg-amber-50 text-amber-700",
-  paid: "bg-emerald-50 text-emerald-700",
-  overdue: "bg-red-50 text-red-600",
+  unpaid: BILLING_STATUS_THEME.unpaid.badgeClass,
+  paid: BILLING_STATUS_THEME.paid.badgeClass,
+  overdue: BILLING_STATUS_THEME.overdue.badgeClass,
 };
 
 export const NAV_ITEMS = [
@@ -91,6 +92,5 @@ export const NAV_ITEMS = [
     label: "請求項目テンプレ",
     icon: "FileText" as const,
   },
-  { href: "/recurring-billings", label: "定期請求", icon: "CalendarClock" },
   { href: "/settings/company", label: "会社設定", icon: "Building2" as const },
 ] as const;

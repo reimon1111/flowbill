@@ -92,7 +92,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
         input.issueDate,
         get().orders.map((o) => o.orderNumber)
       ),
-      status: "issued",
+      status: "draft",
       recipientName: input.recipientName ?? "",
       deletedAt: null,
       createdBy: null,

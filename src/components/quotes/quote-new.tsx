@@ -22,6 +22,8 @@ import {
 } from "@/lib/quote-expiry";
 import { DEFAULT_UNIT } from "@/lib/constants/units";
 import { quoteItemsFromProjectTitle } from "@/lib/project-title";
+import { resolveInheritedDiscount } from "@/lib/discount-totals";
+import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 
 function previewQuoteNumber(issueDate: string) {
   const quotes = useQuoteStore.getState().getQuotes();
@@ -124,6 +126,9 @@ export function NewQuoteClient({ projectId }: { projectId?: string }) {
     router.push(`/quotes/${quote.id}`);
   };
 
+  const inheritedDiscount = resolveInheritedDiscount(null, project);
+  const inheritedContact = pickCounterpartyContact(project);
+
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:py-10">
       <Link
@@ -154,6 +159,11 @@ export function NewQuoteClient({ projectId }: { projectId?: string }) {
           expiryDate,
           memo: companySettings.quoteMemoTemplate ?? "",
           paymentTerms: companySettings.paymentTerms ?? "",
+          discountLabel: inheritedDiscount.discountLabel,
+          discountAmount: inheritedDiscount.discountAmount,
+          customerContactName: inheritedContact.customerContactName,
+          customerDepartment: inheritedContact.customerDepartment,
+          customerPosition: inheritedContact.customerPosition,
         }}
         defaultItems={defaultItems}
         onSubmit={handleSave}

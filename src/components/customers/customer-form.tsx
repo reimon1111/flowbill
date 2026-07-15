@@ -14,6 +14,8 @@ import {
   type CustomerFormValues,
 } from "@/lib/validations/customer";
 import { formatFieldErrorMessage } from "@/lib/form-error-message";
+import { CUSTOMER_SAVE_FAILED_MESSAGE } from "@/lib/db/errors";
+import { toast } from "sonner";
 
 type CustomerFormProps = {
   defaultValues?: Partial<CustomerFormValues>;
@@ -36,7 +38,18 @@ export function CustomerForm({
   });
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form
+      onSubmit={handleSubmit(async (values) => {
+        try {
+          await onSubmit(values);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : CUSTOMER_SAVE_FAILED_MESSAGE;
+          toast.error(message);
+        }
+      })}
+      className="space-y-6"
+    >
       <FormSection
         title="基本情報"
         description="会社名は必須です。案件作成時に自動入力されます。"

@@ -17,6 +17,10 @@ import {
 import type { ItemTemplateFormValues } from "@/lib/validations/item-template";
 import type { ItemTemplate } from "@/lib/types";
 import { useItemTemplateStore } from "@/stores/item-template-store";
+import {
+  formatSupabaseError,
+  ITEM_TEMPLATE_SAVE_FAILED_MESSAGE,
+} from "@/lib/db/errors";
 
 export default function EditItemTemplatePage() {
   const params = useParams();
@@ -40,8 +44,6 @@ export default function EditItemTemplatePage() {
       setTemplate(loaded);
       setDefaultValues({
         name: loaded.name,
-        category: loaded.category,
-        description: loaded.description,
         unitPrice: loaded.unitPrice,
         taxRate: loaded.taxRate,
         isFavorite: loaded.isFavorite,
@@ -52,15 +54,39 @@ export default function EditItemTemplatePage() {
   }, [id, itemTemplates, router]);
 
   const handleSubmit = async (values: ItemTemplateFormValues) => {
-    const updated = await updateItemTemplate(
-      id,
-      itemTemplateInputFromForm(values)
-    );
-    if (!updated) return;
-    toast.success("テンプレを更新しました", {
-      description: "見積作成時にこの項目をすぐ呼び出せます",
-    });
-    router.push("/item-templates");
+    try {
+      const updated = await updateItemTemplate(
+        id,
+        itemTemplateInputFromForm(values)
+      );
+      if (!updated) {
+        toast.error(ITEM_TEMPLATE_SAVE_FAILED_MESSAGE);
+        return;
+      }
+      toast.success("テンプレを更新しました", {
+        description: "見積作成時にこの項目をすぐ呼び出せます",
+      });
+      router.push("/item-templates");
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("updateItemTemplate", {
+          message: error instanceof Error ? error.message : error,
+          error,
+          payload: itemTemplateInputFromForm(values),
+        });
+      }
+      toast.error(
+        error instanceof Error && error.message !== ITEM_TEMPLATE_SAVE_FAILED_MESSAGE
+          ? error.message
+          : ITEM_TEMPLATE_SAVE_FAILED_MESSAGE,
+        {
+          description:
+            process.env.NODE_ENV === "development"
+              ? formatSupabaseError(error)
+              : undefined,
+        }
+      );
+    }
   };
 
   if (loading || !defaultValues) {

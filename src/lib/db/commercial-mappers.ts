@@ -92,6 +92,11 @@ type CommercialHeaderRow = {
   subtotal: number;
   tax_amount: number;
   total_amount: number;
+  discount_label?: string | null;
+  discount_amount?: number | null;
+  customer_contact_name?: string | null;
+  customer_department?: string | null;
+  customer_position?: string | null;
   memo: string;
   deleted_at?: string | null;
   created_by?: string | null;
@@ -170,6 +175,11 @@ export function orderFromRow(row: OrderRow): OrderRecord {
     subtotal: num(row.subtotal),
     taxAmount: num(row.tax_amount),
     totalAmount: num(row.total_amount),
+    discountLabel: row.discount_label != null ? String(row.discount_label) : "",
+    discountAmount: num(row.discount_amount),
+    customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
+    customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
+    customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
     recipientName: row.recipient_name ?? "",
     deletedAt: row.deleted_at ?? null,
@@ -196,6 +206,11 @@ export function deliveryNoteFromRow(row: DeliveryNoteRow): DeliveryNoteRecord {
     subtotal: num(row.subtotal),
     taxAmount: num(row.tax_amount),
     totalAmount: num(row.total_amount),
+    discountLabel: row.discount_label != null ? String(row.discount_label) : "",
+    discountAmount: num(row.discount_amount),
+    customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
+    customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
+    customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
@@ -223,6 +238,11 @@ export function receiptFromRow(row: ReceiptRow): ReceiptRecord {
     subtotal: num(row.subtotal),
     taxAmount: num(row.tax_amount),
     totalAmount: num(row.total_amount),
+    discountLabel: row.discount_label != null ? String(row.discount_label) : "",
+    discountAmount: num(row.discount_amount),
+    customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
+    customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
+    customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
@@ -249,6 +269,11 @@ export function orderToRow(companyId: string, order: OrderRecord): OrderRow {
     subtotal: order.subtotal,
     tax_amount: order.taxAmount,
     total_amount: order.totalAmount,
+    discount_label: order.discountLabel,
+    discount_amount: order.discountAmount,
+    customer_contact_name: order.customerContactName || null,
+    customer_department: order.customerDepartment || null,
+    customer_position: order.customerPosition || null,
     memo: order.memo,
     recipient_name: order.recipientName,
     created_at: order.createdAt,
@@ -297,6 +322,11 @@ export function deliveryNoteToRow(
     subtotal: note.subtotal,
     tax_amount: note.taxAmount,
     total_amount: note.totalAmount,
+    discount_label: note.discountLabel,
+    discount_amount: note.discountAmount,
+    customer_contact_name: note.customerContactName || null,
+    customer_department: note.customerDepartment || null,
+    customer_position: note.customerPosition || null,
     memo: note.memo,
     created_at: note.createdAt,
     updated_at: note.updatedAt,
@@ -341,6 +371,11 @@ export function receiptToRow(companyId: string, receipt: ReceiptRecord): Receipt
     subtotal: receipt.subtotal,
     tax_amount: receipt.taxAmount,
     total_amount: receipt.totalAmount,
+    discount_label: receipt.discountLabel,
+    discount_amount: receipt.discountAmount,
+    customer_contact_name: receipt.customerContactName || null,
+    customer_department: receipt.customerDepartment || null,
+    customer_position: receipt.customerPosition || null,
     memo: receipt.memo,
     created_at: receipt.createdAt,
     updated_at: receipt.updatedAt,

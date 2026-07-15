@@ -1,4 +1,4 @@
-import { formatCurrency } from "@/lib/format";
+import { PrintableDocumentTotals } from "@/components/documents/printable-document-totals";
 import { resolveDocumentMemo } from "@/lib/document-memo";
 import type { CompanySettings } from "@/lib/types";
 import type { BankAccountDisplay } from "@/lib/services/bank-accounts";
@@ -11,6 +11,8 @@ export function DocumentFooter({
   subtotal,
   taxAmount,
   totalAmount,
+  discountLabel,
+  discountAmount,
   memo,
   memoTemplate,
   company,
@@ -20,6 +22,8 @@ export function DocumentFooter({
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel?: string;
+  discountAmount?: number;
   memo: string;
   memoTemplate: string;
   company: CompanySettings;
@@ -30,28 +34,13 @@ export function DocumentFooter({
 
   return (
     <footer className="document-footer mt-4 space-y-3 text-[10px] leading-snug text-zinc-700">
-      <table className="document-footer-totals ml-auto w-full max-w-[220px] border-collapse border border-zinc-300">
-        <tbody>
-          <tr className="document-footer-totals-row">
-            <td className="px-2 py-1">小計</td>
-            <td className="px-2 py-1 text-right tabular-nums">
-              {formatCurrency(subtotal)}
-            </td>
-          </tr>
-          <tr className="document-footer-totals-row border-t border-zinc-200">
-            <td className="px-2 py-1">消費税</td>
-            <td className="px-2 py-1 text-right tabular-nums">
-              {formatCurrency(Math.round(taxAmount))}
-            </td>
-          </tr>
-          <tr className="document-footer-totals-row border-t border-zinc-300 bg-zinc-50 font-medium text-zinc-900">
-            <td className="px-2 py-1">合計</td>
-            <td className="px-2 py-1 text-right tabular-nums">
-              {formatCurrency(Math.round(totalAmount))}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <PrintableDocumentTotals
+        subtotal={subtotal}
+        taxAmount={taxAmount}
+        totalAmount={totalAmount}
+        discountLabel={discountLabel}
+        discountAmount={discountAmount}
+      />
 
       {labels.showBankInfo ? (
         <DocumentBankInfo bankAccounts={bankAccounts} />

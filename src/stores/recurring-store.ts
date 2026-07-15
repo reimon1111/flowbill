@@ -127,6 +127,8 @@ export const useRecurringStore = create<RecurringStore>((set, get) => ({
       subtotal: totals.subtotal,
       taxAmount: totals.taxAmount,
       totalAmount: totals.totalAmount,
+      discountLabel: "",
+      discountAmount: 0,
       memo: input.memo,
       createdAt: now,
       updatedAt: now,
@@ -173,6 +175,8 @@ export const useRecurringStore = create<RecurringStore>((set, get) => ({
       subtotal: totals.subtotal,
       taxAmount: totals.taxAmount,
       totalAmount: totals.totalAmount,
+      discountLabel: existing?.discountLabel ?? "",
+      discountAmount: existing?.discountAmount ?? 0,
       memo: input.memo,
       updatedAt: now,
     };

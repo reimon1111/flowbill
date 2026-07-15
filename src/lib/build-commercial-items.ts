@@ -2,6 +2,10 @@ import type { CommercialDocumentItemInput } from "@/lib/commercial-document";
 import type { InvoiceItemRecord, QuoteItemRecord } from "@/lib/types";
 import type { ProjectItemRecord } from "@/lib/types";
 import { DEFAULT_UNIT } from "@/lib/constants/units";
+import {
+  calculateDocumentTotals,
+  type DocumentDiscountFields,
+} from "@/lib/discount-totals";
 
 export function itemsFromQuoteItems(
   items: QuoteItemRecord[]
@@ -54,15 +58,14 @@ export function itemsFromProjectItems(
   }));
 }
 
-export function computeCommercialTotals(items: Array<{ quantity: number; unitPrice: number; taxRate: number }>) {
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
-  const taxAmount = items.reduce(
-    (s, i) => s + i.quantity * i.unitPrice * i.taxRate,
-    0
-  );
+export function computeCommercialTotals(
+  items: Array<{ quantity: number; unitPrice: number; taxRate: number }>,
+  discount?: Partial<DocumentDiscountFields> | null
+) {
+  const totals = calculateDocumentTotals(items, discount);
   return {
-    subtotal,
-    taxAmount,
-    totalAmount: subtotal + taxAmount,
+    subtotal: totals.subtotal,
+    taxAmount: totals.taxAmount,
+    totalAmount: totals.totalAmount,
   };
 }

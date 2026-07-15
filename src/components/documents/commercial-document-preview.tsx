@@ -9,17 +9,9 @@ import { toDocumentLineItems } from "@/lib/document-items";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { useBankAccountStore } from "@/stores/bank-account-store";
 import { resolveBankAccountsForInvoiceDisplay } from "@/lib/services/bank-accounts";
-import type { CommercialDocumentItemRecord } from "@/lib/commercial-document";
+import type { CommercialDocumentItemRecord, CommercialDocView } from "@/lib/commercial-document";
 
-type CommercialDoc = {
-  documentNumber: string;
-  issueDate: string;
-  paymentTerms: string;
-  subtotal: number;
-  taxAmount: number;
-  totalAmount: number;
-  memo: string;
-};
+type CommercialDoc = CommercialDocView;
 
 export function CommercialDocumentPreview({
   kind,
@@ -62,6 +54,8 @@ export function CommercialDocumentPreview({
     subtotal: document.subtotal,
     taxAmount: document.taxAmount,
     totalAmount: document.totalAmount,
+    discountLabel: document.discountLabel,
+    discountAmount: document.discountAmount,
     memo: document.memo,
     memoTemplate: company[memoKey] ?? "",
     company,
@@ -69,7 +63,10 @@ export function CommercialDocumentPreview({
 
   if (kind === "order") {
     return (
-      <OrderDocumentLayout {...sharedProps} recipientName={recipientName ?? ""} />
+      <OrderDocumentLayout
+        {...sharedProps}
+        recipientName={recipientName ?? ""}
+      />
     );
   }
 
@@ -78,7 +75,9 @@ export function CommercialDocumentPreview({
       kind={kind}
       secondDate={secondDate}
       customerName={customer.customerName}
-      contactName={customer.contactName}
+      contactName={document.customerContactName}
+      department={document.customerDepartment}
+      position={document.customerPosition}
       bankAccounts={bankAccounts}
       {...sharedProps}
     />

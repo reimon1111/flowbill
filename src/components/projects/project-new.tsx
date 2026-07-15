@@ -40,7 +40,6 @@ export function NewProjectClient({ initialCustomerId }: { initialCustomerId?: st
 
     const hasDraftQuote =
       !quoteDraftFailed &&
-      values.status === "estimate" &&
       useQuoteStore.getState().getQuotesByProjectId(project.id).length > 0;
 
     toast.success("案件を作成しました", {

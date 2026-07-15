@@ -73,8 +73,8 @@ export function itemTemplateInputFromForm(
 ): ItemTemplateInput {
   return {
     name: values.name.trim(),
-    category: values.category,
-    description: values.description.trim(),
+    category: "その他",
+    description: "",
     unitPrice: values.unitPrice,
     taxRate: values.taxRate as TaxRate,
     isFavorite: values.isFavorite,

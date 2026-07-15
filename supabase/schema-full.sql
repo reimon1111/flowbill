@@ -140,6 +140,11 @@ create table if not exists public.projects (
   construction_site text not null default '',
   status text not null,
   amount numeric not null default 0,
+  discount_label text not null default '',
+  discount_amount numeric not null default 0,
+  customer_contact_name text,
+  customer_department text,
+  customer_position text,
   due_date date,
   start_date date,
   end_date date,
@@ -214,6 +219,11 @@ create table if not exists public.quotes (
   subtotal numeric not null default 0,
   tax_amount numeric not null default 0,
   total_amount numeric not null default 0,
+  discount_label text not null default '',
+  discount_amount numeric not null default 0,
+  customer_contact_name text,
+  customer_department text,
+  customer_position text,
   payment_terms text not null default '',
   memo text not null default '',
   created_at timestamptz not null default now(),
@@ -263,16 +273,25 @@ create table if not exists public.invoices (
   subtotal numeric not null default 0,
   tax_amount numeric not null default 0,
   total_amount numeric not null default 0,
+  discount_label text not null default '',
+  discount_amount numeric not null default 0,
+  customer_contact_name text,
+  customer_department text,
+  customer_position text,
   pdf_url text,
   payment_terms text not null default '',
   bank_account_id text references public.bank_accounts (id) on delete set null,
   memo text not null default '',
+  deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists invoices_company_id_idx on public.invoices (company_id);
 create index if not exists invoices_project_id_idx on public.invoices (project_id);
+create index if not exists invoices_deleted_at_idx
+  on public.invoices (deleted_at)
+  where deleted_at is null;
 
 -- ---------------------------------------------------------------------------
 -- 請求明細
@@ -310,18 +329,27 @@ create table if not exists public.orders (
   order_number text not null,
   issue_date date not null,
   payment_terms text not null default '',
-  status text not null default 'issued',
+  status text not null default 'draft',
   subtotal numeric not null default 0,
   tax_amount numeric not null default 0,
   total_amount numeric not null default 0,
+  discount_label text not null default '',
+  discount_amount numeric not null default 0,
+  customer_contact_name text,
+  customer_department text,
+  customer_position text,
   memo text not null default '',
   recipient_name text not null default '',
+  deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists orders_company_id_idx on public.orders (company_id);
 create index if not exists orders_project_id_idx on public.orders (project_id);
+create index if not exists orders_deleted_at_idx
+  on public.orders (deleted_at)
+  where deleted_at is null;
 
 create table if not exists public.order_items (
   id text primary key,
@@ -360,13 +388,22 @@ create table if not exists public.delivery_notes (
   subtotal numeric not null default 0,
   tax_amount numeric not null default 0,
   total_amount numeric not null default 0,
+  discount_label text not null default '',
+  discount_amount numeric not null default 0,
+  customer_contact_name text,
+  customer_department text,
+  customer_position text,
   memo text not null default '',
+  deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists delivery_notes_company_id_idx on public.delivery_notes (company_id);
 create index if not exists delivery_notes_project_id_idx on public.delivery_notes (project_id);
+create index if not exists delivery_notes_deleted_at_idx
+  on public.delivery_notes (deleted_at)
+  where deleted_at is null;
 
 create table if not exists public.delivery_note_items (
   id text primary key,
@@ -406,13 +443,22 @@ create table if not exists public.receipts (
   subtotal numeric not null default 0,
   tax_amount numeric not null default 0,
   total_amount numeric not null default 0,
+  discount_label text not null default '',
+  discount_amount numeric not null default 0,
+  customer_contact_name text,
+  customer_department text,
+  customer_position text,
   memo text not null default '',
+  deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists receipts_company_id_idx on public.receipts (company_id);
 create index if not exists receipts_project_id_idx on public.receipts (project_id);
+create index if not exists receipts_deleted_at_idx
+  on public.receipts (deleted_at)
+  where deleted_at is null;
 
 create table if not exists public.receipt_items (
   id text primary key,

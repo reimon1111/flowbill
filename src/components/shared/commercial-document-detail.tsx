@@ -13,6 +13,7 @@ import type { Customer } from "@/lib/types";
 import type { DocumentKind } from "@/components/documents/document-labels";
 import { getDocumentLabels } from "@/components/documents/document-labels";
 import type { CommercialDocumentItemRecord } from "@/lib/commercial-document";
+import type { CommercialDocView } from "@/lib/commercial-document";
 import { CommercialDocumentPreview } from "@/components/documents/commercial-document-preview";
 import { DeleteConfirmDialog } from "@/components/shared/delete-confirm-dialog";
 import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
@@ -64,15 +65,7 @@ export function CommercialDocumentDetail({
   constructionSite?: string;
   customer: Customer;
   items: CommercialDocumentItemRecord[];
-  document: {
-    documentNumber: string;
-    issueDate: string;
-    paymentTerms: string;
-    subtotal: number;
-    taxAmount: number;
-    totalAmount: number;
-    memo: string;
-  };
+  document: CommercialDocView;
   backHref: string;
   projectId: string;
   editHref?: string;

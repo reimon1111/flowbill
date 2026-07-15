@@ -73,6 +73,11 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
         expiryDate: q.expiryDate,
         paymentTerms: q.paymentTerms,
         memo: q.memo,
+        discountLabel: q.discountLabel ?? "",
+        discountAmount: q.discountAmount ?? 0,
+        customerContactName: q.customerContactName ?? "",
+        customerDepartment: q.customerDepartment ?? "",
+        customerPosition: q.customerPosition ?? "",
         items: [],
       });
 

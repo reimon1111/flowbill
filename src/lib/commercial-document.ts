@@ -38,6 +38,11 @@ export type CommercialDocumentInput = {
   issueDate: string;
   paymentTerms: string;
   memo: string;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   items: CommercialDocumentItemInput[];
 };
 
@@ -53,6 +58,11 @@ export type OrderRecord = {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   memo: string;
   /** 注文書の宛名（空欄可・帳票では手書き用スペースを表示） */
   recipientName: string;
@@ -88,6 +98,11 @@ export type DeliveryNoteRecord = {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   memo: string;
   deletedAt: string | null;
   createdBy: string | null;
@@ -121,6 +136,11 @@ export type ReceiptRecord = {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   memo: string;
   deletedAt: string | null;
   createdBy: string | null;
@@ -168,6 +188,11 @@ export type CommercialDocView = {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   memo: string;
 };
 
@@ -180,6 +205,11 @@ export function toCommercialDocView(
     | "subtotal"
     | "taxAmount"
     | "totalAmount"
+    | "discountLabel"
+    | "discountAmount"
+    | "customerContactName"
+    | "customerDepartment"
+    | "customerPosition"
     | "memo"
   >
 ): CommercialDocView {
@@ -190,6 +220,11 @@ export function toCommercialDocView(
     subtotal: record.subtotal,
     taxAmount: record.taxAmount,
     totalAmount: record.totalAmount,
+    discountLabel: record.discountLabel ?? "",
+    discountAmount: record.discountAmount ?? 0,
+    customerContactName: record.customerContactName ?? "",
+    customerDepartment: record.customerDepartment ?? "",
+    customerPosition: record.customerPosition ?? "",
     memo: record.memo,
   };
 }

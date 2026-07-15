@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { InvoiceForm } from "@/components/invoices/invoice-form";
-import { invoiceInputFromForm, createInvoice } from "@/lib/services/invoices";
+import { invoiceInputFromForm, createInvoice, getPrimaryInvoiceForProjectId } from "@/lib/services/invoices";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useQuoteStore } from "@/stores/quote-store";
@@ -18,6 +18,8 @@ import type { InvoiceFormValues } from "@/lib/validations/invoice";
 import { todayISO } from "@/lib/quote-dates";
 import { formatSupabaseError } from "@/lib/db/errors";
 import type { QuoteRecord } from "@/lib/types";
+import { resolveInheritedDiscount } from "@/lib/discount-totals";
+import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 
 function addDays(iso: string, days: number) {
   const d = new Date(iso + "T00:00:00");
@@ -49,6 +51,7 @@ export function NewInvoiceClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = searchParams.get("projectId") ?? undefined;
+  const allowAdditional = searchParams.get("additional") === "1";
 
   useInvoiceStore((s) => s.invoices);
   const allQuotes = useQuoteStore((s) => s.quotes);
@@ -71,6 +74,14 @@ export function NewInvoiceClient() {
   );
 
   const sourceQuote = useMemo(() => pickSourceQuote(candidates), [candidates]);
+
+  useEffect(() => {
+    if (!projectId || allowAdditional) return;
+    const existing = getPrimaryInvoiceForProjectId(projectId);
+    if (existing) {
+      router.replace(`/invoices/${existing.id}`);
+    }
+  }, [projectId, allowAdditional, router]);
 
   if (!projectId || !project || !customer) {
     return (
@@ -151,6 +162,14 @@ export function NewInvoiceClient() {
 
   const quoteNumber = sourceQuote.quoteNumber;
   const quoteItems = useQuoteStore.getState().getQuoteItems(sourceQuote.id);
+  const inheritedDiscount = resolveInheritedDiscount(sourceQuote, project);
+  const inheritedContact = pickCounterpartyContact(
+    sourceQuote.customerContactName?.trim() ||
+      sourceQuote.customerDepartment?.trim() ||
+      sourceQuote.customerPosition?.trim()
+      ? sourceQuote
+      : project
+  );
 
   const defaultItems = quoteItems.map((it, idx) => ({
     quoteItemId: it.id,
@@ -167,7 +186,9 @@ export function NewInvoiceClient() {
 
   const handleSave = async (values: InvoiceFormValues) => {
     try {
-      const invoice = await createInvoice(invoiceInputFromForm(values));
+      const invoice = await createInvoice(invoiceInputFromForm(values), {
+        allowAdditional,
+      });
       toast.success("請求書を保存しました", {
         description: `${invoice.invoiceNumber} — 請求書一覧に表示されます`,
       });
@@ -213,9 +234,17 @@ export function NewInvoiceClient() {
           quoteId: sourceQuote.id,
           issueDate,
           dueDate,
-          paymentTerms: companySettings.paymentTerms ?? "",
+          paymentTerms:
+            sourceQuote.paymentTerms?.trim() ||
+            companySettings.paymentTerms ||
+            "",
           bankAccountId: null,
           memo: companySettings.invoiceMemoTemplate ?? "",
+          discountLabel: inheritedDiscount.discountLabel,
+          discountAmount: inheritedDiscount.discountAmount,
+          customerContactName: inheritedContact.customerContactName,
+          customerDepartment: inheritedContact.customerDepartment,
+          customerPosition: inheritedContact.customerPosition,
         }}
         defaultItems={defaultItems}
         onSubmit={handleSave}

@@ -4,9 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Star } from "lucide-react";
 import { toast } from "sonner";
-import { CategoryFilter } from "@/components/item-templates/category-filter";
 import { ItemTemplateCard } from "@/components/item-templates/item-template-card";
-import { CategoryManagerDialog } from "@/components/item-templates/category-manager-dialog";
 import { DeleteConfirmDialog } from "@/components/shared/delete-confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
@@ -16,7 +14,7 @@ import {
   deleteItemTemplate,
   toggleItemTemplateFavorite,
 } from "@/lib/services/item-templates";
-import type { ItemTemplate, ItemTemplateCategory } from "@/lib/types";
+import type { ItemTemplate } from "@/lib/types";
 import { useItemTemplateStore } from "@/stores/item-template-store";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { cn } from "@/lib/utils";
@@ -25,30 +23,17 @@ export function ItemTemplateList() {
   const canWrite = useCanWriteBusinessData();
   const itemTemplates = useItemTemplateStore((s) => s.itemTemplates);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<ItemTemplateCategory | "all">("all");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ItemTemplate | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [categoryOpen, setCategoryOpen] = useState(false);
-
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const t of itemTemplates) set.add(t.category);
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "ja"));
-  }, [itemTemplates]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return itemTemplates
       .filter((t) => {
-        if (category !== "all" && t.category !== category) return false;
         if (favoritesOnly && !t.isFavorite) return false;
         if (!q) return true;
-        return (
-          t.name.toLowerCase().includes(q) ||
-          t.description.toLowerCase().includes(q) ||
-          t.category.toLowerCase().includes(q)
-        );
+        return t.name.toLowerCase().includes(q);
       })
       .sort((a, b) => {
         if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
@@ -56,20 +41,23 @@ export function ItemTemplateList() {
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
         );
       });
-  }, [itemTemplates, search, category, favoritesOnly]);
+  }, [itemTemplates, search, favoritesOnly]);
 
   const favorites = filtered.filter((t) => t.isFavorite);
   const others = filtered.filter((t) => !t.isFavorite);
-  const showSplit =
-    !favoritesOnly && category === "all" && !search && favorites.length > 0;
+  const showSplit = !favoritesOnly && !search && favorites.length > 0;
 
   const handleToggleFavorite = async (template: ItemTemplate) => {
-    await toggleItemTemplateFavorite(template.id);
-    toast.success(
-      template.isFavorite
-        ? "お気に入りを解除しました"
-        : "お気に入りに追加しました"
-    );
+    try {
+      await toggleItemTemplateFavorite(template.id);
+      toast.success(
+        template.isFavorite
+          ? "お気に入りを解除しました"
+          : "お気に入りに追加しました"
+      );
+    } catch {
+      toast.error("操作に失敗しました");
+    }
   };
 
   const handleDelete = async () => {
@@ -79,6 +67,8 @@ export function ItemTemplateList() {
       await deleteItemTemplate(deleteTarget.id);
       toast.success("請求項目テンプレを削除しました");
       setDeleteTarget(null);
+    } catch {
+      toast.error("削除に失敗しました");
     } finally {
       setDeleting(false);
     }
@@ -109,43 +99,35 @@ export function ItemTemplateList() {
         <SearchBar
           value={search}
           onChange={setSearch}
-          placeholder="項目名・説明・カテゴリで検索..."
+          placeholder="項目名で検索..."
           className="max-w-md flex-1"
-        />
-      </div>
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <CategoryFilter
-          categories={categories}
-          selectedCategory={category}
-          onCategoryChange={setCategory}
-          favoritesOnly={favoritesOnly}
-          onFavoritesOnlyChange={setFavoritesOnly}
         />
         <Button
           type="button"
-          variant="outline"
+          variant={favoritesOnly ? "default" : "outline"}
           className="h-10 rounded-xl"
-          disabled={!canWrite}
-          onClick={() => setCategoryOpen(true)}
+          onClick={() => setFavoritesOnly((v) => !v)}
         >
-          カテゴリを編集
+          <Star
+            className={cn(
+              "size-4",
+              favoritesOnly && "fill-amber-400 text-amber-400"
+            )}
+          />
+          お気に入りのみ
         </Button>
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState
           title={
-            search || category !== "all" || favoritesOnly
+            search || favoritesOnly
               ? "該当するテンプレが見つかりません"
               : "テンプレがまだ登録されていません"
           }
           description="よく使う項目を登録しておくと、見積作成が30秒で完了します"
           action={
-            canWrite &&
-            !search &&
-            category === "all" &&
-            !favoritesOnly && (
+            canWrite && !search && !favoritesOnly && (
               <Link
                 href="/item-templates/new"
                 className={cn(
@@ -197,11 +179,6 @@ export function ItemTemplateList() {
         onConfirm={handleDelete}
         loading={deleting}
       />
-
-      <CategoryManagerDialog
-        open={categoryOpen}
-        onOpenChange={(nextOpen) => setCategoryOpen(nextOpen)}
-      />
     </div>
   );
 }
@@ -212,57 +189,52 @@ function TemplateSection({
   items,
   onDelete,
   onToggleFavorite,
-  canWrite = true,
+  canWrite,
 }: {
   title: string;
   icon?: React.ReactNode;
   items: ItemTemplate[];
-  onDelete: (t: ItemTemplate) => void;
-  onToggleFavorite: (t: ItemTemplate) => void;
-  canWrite?: boolean;
+  onDelete: (template: ItemTemplate) => void;
+  onToggleFavorite: (template: ItemTemplate) => void;
+  canWrite: boolean;
 }) {
   return (
     <section className="space-y-4">
-      <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-900">
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-700">
         {icon}
         {title}
-        <span className="text-sm font-normal text-zinc-400">
-          {items.length}件
-        </span>
+        <span className="font-normal text-zinc-400">({items.length})</span>
       </h2>
-
       <div className="hidden lg:block">
-        <div className="mb-2 grid grid-cols-[minmax(140px,1fr)_80px_minmax(160px,1.2fr)_100px_80px_120px_auto] gap-4 px-5 text-xs font-medium uppercase tracking-wider text-zinc-400">
+        <div className="mb-2 grid grid-cols-[minmax(140px,1fr)_100px_80px_120px_auto] gap-4 px-5 text-xs font-medium uppercase tracking-wider text-zinc-400">
           <span>項目名</span>
-          <span>カテゴリ</span>
-          <span>説明</span>
           <span>単価</span>
           <span>税率</span>
           <span>更新日</span>
-          <span />
+          <span className="text-right">操作</span>
         </div>
-        <div className="space-y-2">
+        <ul className="space-y-2">
           {items.map((t) => (
-            <ItemTemplateCard
-              key={t.id}
-              template={t}
-              variant="row"
-              onDelete={onDelete}
-              onToggleFavorite={onToggleFavorite}
-              canWrite={canWrite}
-            />
+            <li key={t.id}>
+              <ItemTemplateCard
+                template={t}
+                variant="row"
+                onDelete={onDelete}
+                onToggleFavorite={onToggleFavorite}
+                canWrite={canWrite}
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
+      <div className="grid gap-4 sm:grid-cols-2 lg:hidden">
         {items.map((t) => (
           <ItemTemplateCard
             key={t.id}
             template={t}
-            variant="card"
             onDelete={onDelete}
             onToggleFavorite={onToggleFavorite}
+            canWrite={canWrite}
           />
         ))}
       </div>

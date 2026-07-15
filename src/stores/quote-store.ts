@@ -23,11 +23,21 @@ function id(prefix: string) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function computeTotals(items: Array<Pick<QuoteItemRecord, "amount" | "taxRate">>) {
-  const subtotal = items.reduce((s, i) => s + i.amount, 0);
-  const taxAmount = items.reduce((s, i) => s + i.amount * i.taxRate, 0);
-  const totalAmount = subtotal + taxAmount;
-  return { subtotal, taxAmount, totalAmount };
+import {
+  calculateDocumentTotals,
+  pickDocumentDiscount,
+} from "@/lib/discount-totals";
+
+function computeTotals(
+  items: Array<Pick<QuoteItemRecord, "amount" | "taxRate">>,
+  discount?: { discountLabel?: string; discountAmount?: number }
+) {
+  const totals = calculateDocumentTotals(items, discount);
+  return {
+    subtotal: totals.subtotal,
+    taxAmount: totals.taxAmount,
+    totalAmount: totals.totalAmount,
+  };
 }
 
 function yearOf(date: string) {
@@ -135,7 +145,7 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       };
     });
 
-    const totals = computeTotals(items);
+    const totals = computeTotals(items, pickDocumentDiscount(input));
 
     const quote: QuoteRecord = {
       id: quoteId,
@@ -149,6 +159,11 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       subtotal: totals.subtotal,
       taxAmount: totals.taxAmount,
       totalAmount: totals.totalAmount,
+      discountLabel: input.discountLabel?.trim() ?? "",
+      discountAmount: input.discountAmount ?? 0,
+      customerContactName: input.customerContactName?.trim() ?? "",
+      customerDepartment: input.customerDepartment?.trim() ?? "",
+      customerPosition: input.customerPosition?.trim() ?? "",
       memo: input.memo,
       paymentTerms: input.paymentTerms,
       createdBy: null,
@@ -193,7 +208,7 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
         updatedAt: now,
       };
     });
-    const totals = computeTotals(items);
+    const totals = computeTotals(items, pickDocumentDiscount(input));
 
     const updated: QuoteRecord = {
       ...existing,
@@ -205,6 +220,11 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       subtotal: totals.subtotal,
       taxAmount: totals.taxAmount,
       totalAmount: totals.totalAmount,
+      discountLabel: input.discountLabel?.trim() ?? "",
+      discountAmount: input.discountAmount ?? 0,
+      customerContactName: input.customerContactName?.trim() ?? "",
+      customerDepartment: input.customerDepartment?.trim() ?? "",
+      customerPosition: input.customerPosition?.trim() ?? "",
       memo: input.memo,
       paymentTerms: input.paymentTerms,
       updatedAt: now,

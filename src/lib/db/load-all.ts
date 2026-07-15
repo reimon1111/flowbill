@@ -11,8 +11,6 @@ import {
   projectItemFromRow,
   quoteFromRow,
   quoteItemFromRow,
-  recurringFromRow,
-  recurringItemFromRow,
   type CompanyRow,
   type CustomerRow,
   type InvoiceItemRow,
@@ -23,8 +21,6 @@ import {
   type ProjectRow,
   type QuoteItemRow,
   type QuoteRow,
-  type RecurringBillingItemRow,
-  type RecurringBillingRow,
 } from "@/lib/db/mappers";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { useCustomerStore } from "@/stores/customer-store";
@@ -34,7 +30,6 @@ import { useProjectStore } from "@/stores/project-store";
 import { useProjectItemStore } from "@/stores/project-item-store";
 import { useQuoteStore } from "@/stores/quote-store";
 import { useInvoiceStore } from "@/stores/invoice-store";
-import { useRecurringStore } from "@/stores/recurring-store";
 import { useBankAccountStore } from "@/stores/bank-account-store";
 import { useOrderStore } from "@/stores/order-store";
 import { useDeliveryNoteStore } from "@/stores/delivery-note-store";
@@ -84,8 +79,13 @@ export async function loadAllDataFromSupabase(): Promise<void> {
     quoteItemsRes,
     invoicesRes,
     invoiceItemsRes,
-    recurringRes,
-    recurringItemsRes,
+    bankAccountsRes,
+    ordersRes,
+    orderItemsRes,
+    deliveryNotesRes,
+    deliveryNoteItemsRes,
+    receiptsRes,
+    receiptItemsRes,
   ] = await Promise.all([
     supabase.from("companies").select("*").eq("id", companyId).single(),
     supabase
@@ -131,14 +131,31 @@ export async function loadAllDataFromSupabase(): Promise<void> {
       .order("created_at", { ascending: false }),
     supabase.from("invoice_items").select("*").eq("company_id", companyId),
     supabase
-      .from("recurring_billings")
+      .from("bank_accounts")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("orders")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase.from("order_items").select("*").eq("company_id", companyId),
+    supabase
+      .from("delivery_notes")
       .select("*")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false }),
     supabase
-      .from("recurring_billing_items")
+      .from("delivery_note_items")
       .select("*")
       .eq("company_id", companyId),
+    supabase
+      .from("receipts")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase.from("receipt_items").select("*").eq("company_id", companyId),
   ]);
 
   const projectItemsMissing =
@@ -168,22 +185,14 @@ export async function loadAllDataFromSupabase(): Promise<void> {
     quotesRes.error ??
     quoteItemsRes.error ??
     invoicesRes.error ??
-    invoiceItemsRes.error ??
-    recurringRes.error ??
-    recurringItemsRes.error;
+    invoiceItemsRes.error;
 
   if (firstError) throw firstError;
 
   const quotes = (quotesRes.data as QuoteRow[]).map(quoteFromRow);
   const invoices = (invoicesRes.data as InvoiceRow[]).map(invoiceFromRow);
-  let projects: ProjectRecord[] = (projectsRes.data as ProjectRow[]).map(
+  const projects: ProjectRecord[] = (projectsRes.data as ProjectRow[]).map(
     projectFromRow
-  );
-
-  projects = await fetchSupplementalProjects(
-    companyId,
-    projects,
-    collectProjectIdsFromDocuments(quotes, invoices)
   );
 
   if (companyRes.data) {
@@ -230,50 +239,6 @@ export async function loadAllDataFromSupabase(): Promise<void> {
     invoices,
     invoiceItems: (invoiceItemsRes.data as InvoiceItemRow[]).map(invoiceItemFromRow),
   });
-
-  useRecurringStore.getState().hydrate({
-    recurringBillings: (recurringRes.data as RecurringBillingRow[]).map(recurringFromRow),
-    recurringBillingItems: (recurringItemsRes.data as RecurringBillingItemRow[]).map(
-      recurringItemFromRow
-    ),
-  });
-
-  const [
-    bankAccountsRes,
-    ordersRes,
-    orderItemsRes,
-    deliveryNotesRes,
-    deliveryNoteItemsRes,
-    receiptsRes,
-    receiptItemsRes,
-  ] = await Promise.all([
-    supabase
-      .from("bank_accounts")
-      .select("*")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("orders")
-      .select("*")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false }),
-    supabase.from("order_items").select("*").eq("company_id", companyId),
-    supabase
-      .from("delivery_notes")
-      .select("*")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("delivery_note_items")
-      .select("*")
-      .eq("company_id", companyId),
-    supabase
-      .from("receipts")
-      .select("*")
-      .eq("company_id", companyId)
-      .order("created_at", { ascending: false }),
-    supabase.from("receipt_items").select("*").eq("company_id", companyId),
-  ]);
 
   const documentManagementMissing =
     [ordersRes, orderItemsRes, deliveryNotesRes, deliveryNoteItemsRes, receiptsRes, receiptItemsRes].some(

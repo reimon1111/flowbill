@@ -32,8 +32,10 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import type { PaymentDisplayStatus } from "@/lib/payment-utils";
 import type { PaymentListItem } from "@/lib/payment-utils";
 import { markInvoicePaid } from "@/lib/services/payments";
+import { PAYMENT_STATUS_UPDATE_FAILED_MESSAGE, formatSupabaseError } from "@/lib/db/errors";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { enrichPaymentListItem } from "@/lib/payment-utils";
+import { BILLING_STATUS_THEME } from "@/lib/billing-status-theme";
 import { useInvoiceStore } from "@/stores/invoice-store";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
@@ -44,7 +46,7 @@ const FILTERS: Array<{ value: PaymentFilter; label: string }> = [
   { value: "all", label: "すべて" },
   { value: "unpaid", label: "未入金" },
   { value: "overdue", label: "期限超過" },
-  { value: "paid", label: "入金済" },
+  { value: "paid", label: "入金済み" },
 ];
 
 export function PaymentList() {
@@ -114,14 +116,29 @@ export function PaymentList() {
   ).length;
 
   async function handleMarkPaid() {
-    if (!confirmTarget) return;
+    if (!confirmTarget || loading) return;
     setLoading(true);
     try {
       const updated = await markInvoicePaid(confirmTarget.id);
       if (updated) {
         toast.success("入金済みにしました");
         setConfirmTarget(null);
+      } else {
+        toast.error(PAYMENT_STATUS_UPDATE_FAILED_MESSAGE);
       }
+    } catch (error) {
+      toast.error(
+        error instanceof Error &&
+          error.message !== PAYMENT_STATUS_UPDATE_FAILED_MESSAGE
+          ? error.message
+          : PAYMENT_STATUS_UPDATE_FAILED_MESSAGE,
+        {
+          description:
+            process.env.NODE_ENV === "development"
+              ? formatSupabaseError(error)
+              : undefined,
+        }
+      );
     } finally {
       setLoading(false);
     }
@@ -146,7 +163,7 @@ export function PaymentList() {
           variant={overdueCount > 0 ? "danger" : "default"}
         />
         <SummaryPill
-          label="入金済"
+          label="入金済み"
           value={`${listItems.filter((i) => i.paymentStatus === "paid").length}件`}
         />
       </div>
@@ -255,7 +272,7 @@ function SummaryPill({
       className={cn(
         "rounded-xl border px-5 py-4",
         variant === "danger" &&
-          "border-red-200/80 bg-red-50/40 shadow-sm shadow-red-900/[0.03]",
+          `${BILLING_STATUS_THEME.overdue.cardClass} shadow-sm shadow-rose-900/[0.03]`,
         variant === "warning" &&
           "border-amber-200/80 bg-amber-50/30 shadow-sm shadow-amber-900/[0.02]",
         variant === "default" && "border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.02]"
@@ -265,7 +282,7 @@ function SummaryPill({
       <p
         className={cn(
           "mt-1 text-2xl font-semibold tabular-nums tracking-tight",
-          variant === "danger" && "text-red-700",
+          variant === "danger" && BILLING_STATUS_THEME.overdue.kpiTextClass,
           variant === "warning" && "text-amber-800",
           variant === "default" && "text-zinc-900"
         )}
@@ -287,10 +304,11 @@ function PaymentRow({
 }) {
   const isOverdue = item.paymentStatus === "overdue";
   const canMarkPaid = item.paymentStatus === "unpaid" || item.paymentStatus === "overdue";
+  const overdueTheme = BILLING_STATUS_THEME.overdue;
   const rowClass = cn(
     "rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md",
     isOverdue
-      ? "border-red-200/90 bg-red-50/20 shadow-red-900/[0.04] ring-1 ring-red-100"
+      ? `${overdueTheme.cardClass} shadow-rose-900/[0.04] ring-1 ring-rose-100`
       : "border-zinc-200/80 shadow-zinc-900/[0.02] hover:shadow-zinc-900/[0.04]"
   );
 
@@ -324,7 +342,7 @@ function PaymentRow({
           href={`/invoices/${item.id}`}
           className={cn(
             "font-medium hover:underline",
-            isOverdue ? "text-red-900" : "text-zinc-900"
+            isOverdue ? overdueTheme.kpiTextClass : "text-zinc-900"
           )}
         >
           {item.invoiceNumber}
@@ -337,7 +355,7 @@ function PaymentRow({
         <p
           className={cn(
             "text-sm tabular-nums",
-            isOverdue ? "font-semibold text-red-700" : "text-zinc-600"
+            isOverdue ? overdueTheme.textAccentClass : "text-zinc-600"
           )}
         >
           {formatDate(item.dueDate)}
@@ -346,7 +364,7 @@ function PaymentRow({
         <p
           className={cn(
             "text-sm font-medium tabular-nums",
-            isOverdue ? "text-red-700" : item.daysUntilDue <= 3 ? "text-amber-700" : "text-zinc-500"
+            isOverdue ? overdueTheme.textAccentClass : item.daysUntilDue <= 3 ? "text-amber-700" : "text-zinc-500"
           )}
         >
           {item.daysLabel}
@@ -361,7 +379,7 @@ function PaymentRow({
               href={`/invoices/${item.id}`}
               className={cn(
                 "font-semibold hover:underline",
-                isOverdue ? "text-red-900" : "text-zinc-900"
+                isOverdue ? overdueTheme.kpiTextClass : "text-zinc-900"
               )}
             >
               {item.invoiceNumber}
@@ -378,7 +396,7 @@ function PaymentRow({
           <span
             className={cn(
               "text-sm font-medium tabular-nums",
-              isOverdue ? "text-red-700" : "text-zinc-500"
+              isOverdue ? overdueTheme.textAccentClass : "text-zinc-500"
             )}
           >
             期限 {formatDate(item.dueDate)} · {item.daysLabel}

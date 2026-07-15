@@ -20,7 +20,12 @@ export type DocumentLayoutProps = {
   issueDate: string;
   secondDate?: string;
   customerName: string;
+  /** 先方担当者名（書類スナップショット） */
   contactName?: string;
+  /** 先方部署 */
+  department?: string;
+  /** 先方役職 */
+  position?: string;
   subject: string;
   constructionSite?: string;
   paymentTerms?: string;
@@ -28,6 +33,8 @@ export type DocumentLayoutProps = {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel?: string;
+  discountAmount?: number;
   memo: string;
   memoTemplate: string;
   company: CompanySettings;
@@ -41,6 +48,8 @@ export function DocumentLayout({
   secondDate,
   customerName,
   contactName,
+  department,
+  position,
   subject,
   constructionSite = "",
   paymentTerms = "",
@@ -48,6 +57,8 @@ export function DocumentLayout({
   subtotal,
   taxAmount,
   totalAmount,
+  discountLabel,
+  discountAmount,
   memo,
   memoTemplate,
   company,
@@ -68,6 +79,8 @@ export function DocumentLayout({
         secondDate={secondDate}
         customerName={customerName}
         contactName={contactName}
+        department={department}
+        position={position}
       />
 
       <div className="document-intro mt-3 flex flex-col gap-4 overflow-visible sm:flex-row sm:items-start sm:justify-between sm:gap-6">
@@ -98,6 +111,8 @@ export function DocumentLayout({
         subtotal={subtotal}
         taxAmount={taxAmount}
         totalAmount={totalAmount}
+        discountLabel={discountLabel}
+        discountAmount={discountAmount}
         memo={memo}
         memoTemplate={memoTemplate}
         company={company}

@@ -39,6 +39,8 @@ export async function dbInsertRecurring(
     subtotal: totals.subtotal,
     taxAmount: totals.taxAmount,
     totalAmount: totals.totalAmount,
+    discountLabel: "",
+    discountAmount: 0,
     memo: input.memo,
     createdAt: now,
     updatedAt: now,
@@ -92,6 +94,8 @@ export async function dbUpdateRecurring(
     subtotal: totals.subtotal,
     taxAmount: totals.taxAmount,
     totalAmount: totals.totalAmount,
+    discountLabel: "",
+    discountAmount: 0,
     memo: input.memo,
     updatedAt: now,
   };

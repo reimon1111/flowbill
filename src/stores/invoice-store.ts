@@ -12,7 +12,12 @@ import { initialInvoiceItems, initialInvoices } from "@/lib/mock-invoices";
 import { initialStoreData } from "@/lib/stores/store-initial";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
-import { resolveProjectFieldsAfterInvoiceChange } from "@/lib/invoice-project-sync";
+import {
+  isDeletedInvoice,
+  resolveProjectFieldsAfterInvoiceChange,
+  resolveStoredInvoiceStatus,
+} from "@/lib/invoice-state";
+import { isInvoiceInDefaultList } from "@/lib/invoice-filters";
 import { useQuoteStore } from "@/stores/quote-store";
 import { normalizeUnit } from "@/lib/constants/units";
 import {
@@ -24,17 +29,32 @@ function id(prefix: string) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function isOverdue(dueDate: string) {
-  if (!dueDate) return false;
-  const due = new Date(dueDate + "T23:59:59");
-  return due < new Date();
+function syncProjectFromInvoices(projectId: string, invoices: InvoiceRecord[]) {
+  const derived = resolveProjectFieldsAfterInvoiceChange(projectId, invoices);
+  const proj = useProjectStore.getState().getProjectById(projectId);
+  if (!proj) return;
+  useProjectStore.getState().upsertProject({
+    ...proj,
+    ...derived,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
-function computeTotals(items: Array<Pick<InvoiceItemRecord, "amount" | "taxRate">>) {
-  const subtotal = items.reduce((s, i) => s + i.amount, 0);
-  const taxAmount = items.reduce((s, i) => s + i.amount * i.taxRate, 0);
-  const totalAmount = subtotal + taxAmount;
-  return { subtotal, taxAmount, totalAmount };
+import {
+  calculateDocumentTotals,
+  pickDocumentDiscount,
+} from "@/lib/discount-totals";
+
+function computeTotals(
+  items: Array<Pick<InvoiceItemRecord, "amount" | "taxRate">>,
+  discount?: { discountLabel?: string; discountAmount?: number }
+) {
+  const totals = calculateDocumentTotals(items, discount);
+  return {
+    subtotal: totals.subtotal,
+    taxAmount: totals.taxAmount,
+    totalAmount: totals.totalAmount,
+  };
 }
 
 function yearOf(date: string) {
@@ -67,6 +87,7 @@ type InvoiceStore = {
   createInvoice: (input: InvoiceInput) => InvoiceRecord;
   updateInvoice: (id: string, input: InvoiceInput) => InvoiceRecord | null;
   deleteInvoice: (id: string) => boolean;
+  softDeleteInvoice: (id: string) => InvoiceRecord | null;
   updateInvoiceStatus: (id: string, status: InvoiceDocumentStatus) => InvoiceRecord | null;
   refreshOverdueInvoices: () => void;
 };
@@ -75,16 +96,28 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
   invoices: initialStoreData(initialInvoices, []),
   invoiceItems: initialStoreData(initialInvoiceItems, []),
 
-  hydrate: ({ invoices, invoiceItems }) => set({ invoices, invoiceItems }),
+  hydrate: ({ invoices, invoiceItems }) => {
+    const visibleInvoices = invoices.filter((inv) => !isDeletedInvoice(inv));
+    const visibleIds = new Set(visibleInvoices.map((inv) => inv.id));
+    set({
+      invoices: visibleInvoices,
+      invoiceItems: invoiceItems.filter((item) => visibleIds.has(item.invoiceId)),
+    });
+  },
 
-  mergeInvoice: (invoice, items) =>
+  mergeInvoice: (invoice, items) => {
+    if (invoice.deletedAt) {
+      get().removeInvoice(invoice.id);
+      return;
+    }
     set((state) => ({
       invoices: [invoice, ...state.invoices.filter((q) => q.id !== invoice.id)],
       invoiceItems: [
         ...items,
         ...state.invoiceItems.filter((i) => i.invoiceId !== invoice.id),
       ],
-    })),
+    }));
+  },
 
   removeInvoice: (invoiceId) =>
     set((state) => ({
@@ -92,20 +125,26 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       invoiceItems: state.invoiceItems.filter((i) => i.invoiceId !== invoiceId),
     })),
 
-  getInvoices: () => get().invoices,
-  getInvoiceById: (invoiceId) => get().invoices.find((q) => q.id === invoiceId),
+  getInvoices: () => get().invoices.filter(isInvoiceInDefaultList),
+  getInvoiceById: (invoiceId) =>
+    get().invoices.find((q) => q.id === invoiceId && !q.deletedAt),
   getInvoiceItems: (invoiceId) =>
     get()
       .invoiceItems.filter((i) => i.invoiceId === invoiceId)
       .sort((a, b) => a.sortOrder - b.sortOrder),
   getInvoicesByProjectId: (projectId) =>
-    get().invoices.filter((q) => q.projectId === projectId),
+    get()
+      .invoices.filter(
+        (q) => q.projectId === projectId && isInvoiceInDefaultList(q)
+      ),
 
   getListItems: () => {
     const customers = useCustomerStore.getState();
     const projects = useProjectStore.getState().projects;
     const quotes = useQuoteStore.getState();
-    return get().invoices.map((inv) => {
+    return get()
+      .invoices.filter(isInvoiceInDefaultList)
+      .map((inv) => {
       const c = customers.getCustomerById(inv.customerId);
       const q = quotes.getQuoteById(inv.quoteId);
       return {
@@ -147,7 +186,7 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
         updatedAt: now,
       };
     });
-    const totals = computeTotals(items);
+    const totals = computeTotals(items, pickDocumentDiscount(input));
 
     const invoice: InvoiceRecord = {
       id: invoiceId,
@@ -161,6 +200,11 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       subtotal: totals.subtotal,
       taxAmount: totals.taxAmount,
       totalAmount: totals.totalAmount,
+      discountLabel: input.discountLabel?.trim() ?? "",
+      discountAmount: input.discountAmount ?? 0,
+      customerContactName: input.customerContactName?.trim() ?? "",
+      customerDepartment: input.customerDepartment?.trim() ?? "",
+      customerPosition: input.customerPosition?.trim() ?? "",
       pdfUrl: null,
       memo: input.memo,
       paymentTerms: input.paymentTerms,
@@ -169,6 +213,7 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       updatedBy: null,
       createdAt: now,
       updatedAt: now,
+      deletedAt: null,
     };
 
     set((s) => ({
@@ -221,9 +266,9 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
         updatedAt: now,
       };
     });
-    const totals = computeTotals(items);
+    const totals = computeTotals(items, pickDocumentDiscount(input));
 
-    const updated: InvoiceRecord = {
+    const draft: InvoiceRecord = {
       ...existing,
       projectId: input.projectId,
       customerId: input.customerId,
@@ -233,16 +278,27 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       subtotal: totals.subtotal,
       taxAmount: totals.taxAmount,
       totalAmount: totals.totalAmount,
+      discountLabel: input.discountLabel?.trim() ?? "",
+      discountAmount: input.discountAmount ?? 0,
+      customerContactName: input.customerContactName?.trim() ?? "",
+      customerDepartment: input.customerDepartment?.trim() ?? "",
+      customerPosition: input.customerPosition?.trim() ?? "",
       memo: input.memo,
       paymentTerms: input.paymentTerms,
       bankAccountId: input.bankAccountId ?? null,
       updatedAt: now,
+    };
+    const updated: InvoiceRecord = {
+      ...draft,
+      status: resolveStoredInvoiceStatus(draft),
     };
 
     set((s) => ({
       invoices: s.invoices.map((q) => (q.id === invoiceId ? updated : q)),
       invoiceItems: [...items, ...s.invoiceItems.filter((i) => i.invoiceId !== invoiceId)],
     }));
+
+    syncProjectFromInvoices(updated.projectId, get().invoices);
 
     return updated;
   },
@@ -257,6 +313,26 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
     return true;
   },
 
+  softDeleteInvoice: (invoiceId) => {
+    const existing = get().invoices.find((q) => q.id === invoiceId);
+    if (!existing || existing.deletedAt) return null;
+    const projectId = existing.projectId;
+    set((s) => ({
+      invoices: s.invoices.filter((q) => q.id !== invoiceId),
+      invoiceItems: s.invoiceItems.filter((i) => i.invoiceId !== invoiceId),
+    }));
+    const derived = resolveProjectFieldsAfterInvoiceChange(projectId, get().invoices);
+    const proj = useProjectStore.getState().getProjectById(projectId);
+    if (proj) {
+      useProjectStore.getState().upsertProject({
+        ...proj,
+        ...derived,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+    return existing;
+  },
+
   updateInvoiceStatus: (invoiceId, status) => {
     const existing = get().getInvoiceById(invoiceId);
     if (!existing) return null;
@@ -266,11 +342,16 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       status,
       updatedAt: new Date().toISOString(),
     };
-    set((s) => ({
-      invoices: s.invoices.map((q) => (q.id === invoiceId ? updated : q)),
-    }));
+    const nextInvoices = get().invoices.map((q) =>
+      q.id === invoiceId ? updated : q
+    );
+    set({ invoices: nextInvoices });
 
     const projects = useProjectStore.getState();
+    const derived = resolveProjectFieldsAfterInvoiceChange(
+      updated.projectId,
+      nextInvoices
+    );
     const patchProject = (
       projectId: string,
       patch: Partial<{
@@ -288,12 +369,16 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       }));
     };
 
-    if (status === "issued") {
+    if (status === "issued" || status === "paid") {
       patchProject(updated.projectId, {
         status: "completed",
-        invoiceStatus: "issued",
-        paymentStatus: isOverdue(updated.dueDate) ? "overdue" : "unpaid",
+        ...derived,
       });
+    } else {
+      patchProject(updated.projectId, derived);
+    }
+
+    if (status === "issued") {
       projects.addHistory({
         projectId: updated.projectId,
         type: "invoice_generated",
@@ -303,7 +388,6 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
     }
 
     if (status === "sent") {
-      patchProject(updated.projectId, { invoiceStatus: "sent" });
       projects.addHistory({
         projectId: updated.projectId,
         type: "updated",
@@ -313,10 +397,6 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
     }
 
     if (status === "paid") {
-      patchProject(updated.projectId, {
-        status: "completed",
-        paymentStatus: "paid",
-      });
       projects.addHistory({
         projectId: updated.projectId,
         type: "payment_received",
@@ -326,11 +406,6 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
     }
 
     if (status === "cancelled") {
-      const derived = resolveProjectFieldsAfterInvoiceChange(
-        updated.projectId,
-        get().invoices.map((inv) => (inv.id === invoiceId ? updated : inv))
-      );
-      patchProject(updated.projectId, derived);
       projects.addHistory({
         projectId: updated.projectId,
         type: "updated",
@@ -343,31 +418,29 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
   },
 
   refreshOverdueInvoices: () => {
+    const today = new Date();
     const now = new Date().toISOString();
-    const overdueProjectIds = new Set<string>();
+    const affectedProjectIds = new Set<string>();
+
     set((s) => ({
       invoices: s.invoices.map((inv) => {
-        if (inv.status === "paid" || inv.status === "cancelled" || inv.status === "draft") {
+        if (
+          inv.deletedAt ||
+          inv.status === "cancelled" ||
+          inv.status === "paid" ||
+          inv.status === "draft"
+        ) {
           return inv;
         }
-        if (isOverdue(inv.dueDate) && (inv.status === "issued" || inv.status === "sent")) {
-          overdueProjectIds.add(inv.projectId);
-          return { ...inv, status: "overdue", updatedAt: now };
-        }
-        if (inv.status === "overdue") {
-          overdueProjectIds.add(inv.projectId);
-        }
-        return inv;
+        const nextStatus = resolveStoredInvoiceStatus(inv, today);
+        if (nextStatus === inv.status) return inv;
+        affectedProjectIds.add(inv.projectId);
+        return { ...inv, status: nextStatus, updatedAt: now };
       }),
     }));
-    if (overdueProjectIds.size > 0) {
-      useProjectStore.setState((state) => ({
-        projects: state.projects.map((p) =>
-          overdueProjectIds.has(p.id)
-            ? { ...p, paymentStatus: "overdue", updatedAt: now }
-            : p
-        ),
-      }));
+
+    for (const projectId of affectedProjectIds) {
+      syncProjectFromInvoices(projectId, get().invoices);
     }
   },
 }));

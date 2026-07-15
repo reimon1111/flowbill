@@ -29,6 +29,7 @@ import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { formatContactWithSama } from "@/lib/format-contact";
 import { getInvoiceListDisplayStatus } from "@/lib/payment-utils";
+import { getBillingStatusTheme } from "@/lib/billing-status-theme";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useQuoteStore } from "@/stores/quote-store";
@@ -40,6 +41,11 @@ import {
   resolveProjectNameFromStore,
   UNKNOWN_CUSTOMER_LABEL,
 } from "@/lib/project-display";
+import {
+  isInvoiceCancelled,
+  isInvoiceInDefaultList,
+  isInvoiceVisibleInLists,
+} from "@/lib/invoice-filters";
 import {
   DocumentListActions,
   ListPageContainer,
@@ -91,7 +97,9 @@ export function InvoiceList() {
     if (!hasInitialized) return [];
     const customerById = new Map(customers.map((c) => [c.id, c]));
     const quoteById = new Map(quotes.map((q) => [q.id, q]));
-    return invoices.map((inv) => {
+    return invoices
+      .filter(isInvoiceVisibleInLists)
+      .map((inv) => {
       const p = findProjectById(projects, inv.projectId);
       const c = customerById.get(inv.customerId);
       const q = quoteById.get(inv.quoteId);
@@ -121,7 +129,13 @@ export function InvoiceList() {
     const items = listItems.filter((inv) => {
       if (!includeArchivedProjects && inv.projectArchived) return false;
       const ds = getInvoiceListDisplayStatus(inv);
-      if (status !== "all" && ds !== status) return false;
+      if (status === "all") {
+        if (!isInvoiceInDefaultList(inv)) return false;
+      } else if (status === "cancelled") {
+        if (!isInvoiceCancelled(inv)) return false;
+      } else if (ds !== status) {
+        return false;
+      }
       if (unpaidOnly && !["issued", "sent", "overdue"].includes(ds)) return false;
       if (overdueOnly && ds !== "overdue") return false;
       if (!matchesYearFilter(inv.issueDate, yearFilter)) return false;
@@ -309,7 +323,9 @@ function InvoiceRow({ invoice }: { invoice: InvoiceListItem & { projectArchived:
         <p
           className={cn(
             "mt-0.5 text-xs",
-            status === "overdue" ? "font-medium text-red-600" : "text-zinc-400"
+            status === "overdue"
+              ? getBillingStatusTheme("overdue").textAccentClass
+              : "text-zinc-400"
           )}
         >
           発行 {formatDate(invoice.issueDate)} / 期限 {formatDate(invoice.dueDate)}
@@ -357,7 +373,9 @@ function InvoiceCard({ invoice }: { invoice: InvoiceListItem & { projectArchived
       <p
         className={cn(
           "mt-4 text-sm",
-          status === "overdue" ? "font-medium text-red-600" : "text-zinc-500"
+          status === "overdue"
+            ? getBillingStatusTheme("overdue").textAccentClass
+            : "text-zinc-500"
         )}
       >
         発行 {formatDate(invoice.issueDate)} / 期限 {formatDate(invoice.dueDate)}

@@ -1,36 +1,33 @@
-import type { InvoiceDocumentStatus, InvoiceListItem, InvoiceRecord } from "@/lib/types";
+import type { InvoiceListItem, InvoiceRecord } from "@/lib/types";
+import {
+  getInvoiceListDisplayStatus,
+  getInvoicePaymentStatus,
+  isBillableInvoice,
+  isDueDatePast,
+  isInvoicePaymentTrackable,
+  type InvoicePaymentDisplayStatus,
+} from "@/lib/invoice-state";
 
 /** 入金管理画面用の表示ステータス */
-export type PaymentDisplayStatus = "unpaid" | "paid" | "overdue";
+export type PaymentDisplayStatus = InvoicePaymentDisplayStatus;
 
-export function isInvoiceOverdue(dueDate: string): boolean {
-  if (!dueDate) return false;
-  const due = new Date(dueDate + "T23:59:59");
-  return due < new Date();
+export function isInvoiceOverdue(dueDate: string, today: Date = new Date()): boolean {
+  return isDueDatePast(dueDate, today);
 }
 
-/** 請求書の実効ステータス（期限超過は表示上で判定） */
+/** 請求書の実効ステータス（期限超過は due_date から動的判定） */
 export function getInvoiceDisplayStatus(
-  inv: Pick<InvoiceRecord, "status" | "dueDate">
+  inv: Pick<InvoiceRecord, "status" | "dueDate" | "deletedAt">,
+  today?: Date
 ): PaymentDisplayStatus | "draft" | "cancelled" {
-  if (inv.status === "paid") return "paid";
-  if (inv.status === "cancelled") return "cancelled";
-  if (inv.status === "draft") return "draft";
-  if (inv.status === "overdue" || isInvoiceOverdue(inv.dueDate)) {
-    return "overdue";
-  }
-  if (inv.status === "issued" || inv.status === "sent") {
-    return "unpaid";
-  }
-  return "unpaid";
+  return getInvoicePaymentStatus(inv, today);
 }
 
 /** 入金管理一覧に載せる請求書か */
 export function isPaymentTrackable(
-  inv: Pick<InvoiceRecord, "status" | "dueDate">
+  inv: Pick<InvoiceRecord, "status" | "dueDate" | "deletedAt">
 ): boolean {
-  const ds = getInvoiceDisplayStatus(inv);
-  return ds === "unpaid" || ds === "paid" || ds === "overdue";
+  return isInvoicePaymentTrackable(inv);
 }
 
 export function getDaysUntilDue(dueDate: string): number {
@@ -63,18 +60,11 @@ export type PaymentListItem = InvoiceListItem & {
   daysOverdue: number;
 };
 
-/** 請求書一覧の表示ステータス（期限超過は表示上で判定） */
-export function getInvoiceListDisplayStatus(
-  inv: Pick<InvoiceRecord, "status" | "dueDate">
-): InvoiceDocumentStatus {
-  const ds = getInvoiceDisplayStatus(inv);
-  if (ds === "overdue") return "overdue";
-  if (ds === "paid") return "paid";
-  return inv.status;
-}
+export { getInvoiceListDisplayStatus };
 
 export function enrichPaymentListItem(inv: InvoiceListItem): PaymentListItem | null {
-  const paymentStatus = getInvoiceDisplayStatus(inv);
+  if (!isBillableInvoice(inv)) return null;
+  const paymentStatus = getInvoicePaymentStatus(inv);
   if (paymentStatus === "draft" || paymentStatus === "cancelled") return null;
   const daysUntilDue = getDaysUntilDue(inv.dueDate);
   const daysOverdue = paymentStatus === "overdue" ? getDaysOverdue(inv.dueDate) : 0;

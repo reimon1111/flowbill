@@ -7,10 +7,7 @@ import { FormSection } from "@/components/shared/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { ITEM_TEMPLATE_CATEGORIES } from "@/lib/types";
-import { CategorySelect } from "@/components/item-templates/category-select";
 import {
   itemTemplateFormDefaults,
   itemTemplateFormSchema,
@@ -36,8 +33,6 @@ export function ItemTemplateForm({
   onSubmit,
   submitLabel = "保存する",
 }: ItemTemplateFormProps) {
-  void ITEM_TEMPLATE_CATEGORIES;
-
   const {
     register,
     control,
@@ -58,7 +53,6 @@ export function ItemTemplateForm({
           <Field label="項目名" required error={errors.name?.message}>
             <Input
               {...register("name")}
-              placeholder="HP制作"
               className={cn(inputClass, "text-lg font-medium")}
             />
           </Field>
@@ -72,40 +66,24 @@ export function ItemTemplateForm({
                 type="number"
                 min={0}
                 step={1}
-                placeholder="150000"
                 className={cn(inputClass, "pl-8 text-lg font-semibold tabular-nums")}
               />
             </div>
           </Field>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="カテゴリ" error={errors.category?.message}>
-            <Controller
-              name="category"
-              control={control}
-              render={({ field }) => (
-                <CategorySelect
-                  value={field.value}
-                  onChange={(v) => field.onChange(v)}
-                  disabled={isSubmitting}
-                />
-              )}
-            />
-          </Field>
-          <Field label="税率" error={errors.taxRate?.message}>
-            <select
-              {...register("taxRate", { valueAsNumber: true })}
-              className={selectClass}
-            >
-              {TAX_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
+        <Field label="税率" error={errors.taxRate?.message}>
+          <select
+            {...register("taxRate", { valueAsNumber: true })}
+            className={selectClass}
+          >
+            {TAX_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </Field>
 
         <Controller
           name="isFavorite"
@@ -122,9 +100,7 @@ export function ItemTemplateForm({
                   )}
                 />
                 <div>
-                  <p className="text-sm font-medium text-zinc-900">
-                    お気に入り
-                  </p>
+                  <p className="text-sm font-medium text-zinc-900">お気に入り</p>
                   <p className="text-xs text-zinc-500">
                     よく使う項目として一覧の上部に表示
                   </p>
@@ -137,20 +113,7 @@ export function ItemTemplateForm({
             </div>
           )}
         />
-      </FormSection>
 
-      <FormSection
-        title="補足説明"
-        description="見積の明細行に表示される説明文です（任意）"
-      >
-        <Field label="説明" error={errors.description?.message}>
-          <Textarea
-            {...register("description")}
-            placeholder="コーポレートサイト制作（10ページ程度）"
-            rows={3}
-            className="min-h-[100px] resize-none rounded-xl border-zinc-200/80 text-base"
-          />
-        </Field>
         <p className="rounded-lg bg-sky-50 px-4 py-3 text-sm text-sky-800">
           保存後、見積作成時にこの項目をすぐ呼び出せます。テンプレの単価を変更しても、過去の見積・請求の金額は変わりません。
         </p>

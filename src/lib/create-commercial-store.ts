@@ -10,6 +10,8 @@ import { computeCommercialTotals } from "@/lib/build-commercial-items";
 import { DEFAULT_UNIT } from "@/lib/constants/units";
 import { normalizeUnit } from "@/lib/constants/units";
 import { generateId } from "@/lib/db/ids";
+import { pickDocumentDiscount } from "@/lib/discount-totals";
+import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 
 export function nextCommercialNumber(
   prefix: string,
@@ -54,8 +56,11 @@ export function buildCommercialItemRecords<
   });
 }
 
-export function totalsFromInput(items: CommercialDocumentItemInput[]) {
-  return computeCommercialTotals(items);
+export function totalsFromInput(
+  items: CommercialDocumentItemInput[],
+  discount?: { discountLabel?: string; discountAmount?: number }
+) {
+  return computeCommercialTotals(items, discount);
 }
 
 export type CommercialHeaderFields = {
@@ -68,6 +73,11 @@ export type CommercialHeaderFields = {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -79,20 +89,37 @@ export function buildCommercialHeader(
     issueDate: string;
     paymentTerms: string;
     memo: string;
+    discountLabel?: string;
+    discountAmount?: number;
+    customerContactName?: string;
+    customerDepartment?: string;
+    customerPosition?: string;
   },
   items: CommercialDocumentItemInput[]
 ): Omit<CommercialHeaderFields, "createdAt" | "updatedAt" | "status"> & {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
 } {
-  const totals = totalsFromInput(items);
+  const discount = pickDocumentDiscount(input);
+  const contact = pickCounterpartyContact(input);
+  const totals = totalsFromInput(items, discount);
   return {
     projectId: input.projectId,
     customerId: input.customerId,
     issueDate: input.issueDate,
     paymentTerms: input.paymentTerms,
     memo: input.memo,
+    discountLabel: discount.discountLabel,
+    discountAmount: discount.discountAmount,
+    customerContactName: contact.customerContactName,
+    customerDepartment: contact.customerDepartment,
+    customerPosition: contact.customerPosition,
     ...totals,
   };
 }

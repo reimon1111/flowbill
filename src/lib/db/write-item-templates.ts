@@ -14,6 +14,61 @@ import {
   activityDescriptionDeleted,
   activityDescriptionUpdated,
 } from "@/lib/activity-log-messages";
+import {
+  isMissingAuditColumnError,
+  toItemTemplateSaveError,
+} from "@/lib/db/errors";
+
+type ItemTemplateWriteRow = ItemTemplateRow & Record<string, unknown>;
+
+function stripAuditFields(row: ItemTemplateWriteRow): ItemTemplateWriteRow {
+  const next = { ...row };
+  delete next.created_by;
+  delete next.updated_by;
+  return next;
+}
+
+async function runItemTemplateInsert(row: ItemTemplateWriteRow) {
+  const supabase = getSupabaseClient();
+  return supabase.from("item_templates").insert(row);
+}
+
+async function runItemTemplateUpdate(id: string, row: ItemTemplateWriteRow) {
+  const supabase = getSupabaseClient();
+  return supabase.from("item_templates").update(row).eq("id", id);
+}
+
+async function writeItemTemplateRow(
+  mode: "insert" | "update",
+  row: ItemTemplateWriteRow,
+  userId: string | null,
+  id?: string
+): Promise<void> {
+  let payload: ItemTemplateWriteRow =
+    mode === "insert" ? withCreateAudit(row, userId) : withUpdateAudit(row, userId);
+
+  let result =
+    mode === "insert"
+      ? await runItemTemplateInsert(payload)
+      : await runItemTemplateUpdate(id!, payload);
+
+  if (result.error && isMissingAuditColumnError(result.error)) {
+    payload = stripAuditFields(payload);
+    result =
+      mode === "insert"
+        ? await runItemTemplateInsert(payload)
+        : await runItemTemplateUpdate(id!, payload);
+    if (!result.error) {
+      console.warn(
+        "item_templates.created_by / updated_by 列が未作成のため監査列なしで保存しました。supabase/add-audit-fields.sql を適用してください。"
+      );
+    }
+  }
+
+  if (result.error) {
+    throw toItemTemplateSaveError(result.error);
+  }
+}
 
 export async function dbInsertItemTemplate(
   input: ItemTemplateInput
@@ -29,11 +84,11 @@ export async function dbInsertItemTemplate(
     createdAt: now,
     updatedAt: now,
   };
-  const supabase = getSupabaseClient();
-  const { error } = await supabase
-    .from("item_templates")
-    .insert(withCreateAudit(itemTemplateToRow(companyId, template), userId));
-  if (error) throw error;
+  await writeItemTemplateRow(
+    "insert",
+    itemTemplateToRow(companyId, template),
+    userId
+  );
 
   recordActivityLog({
     action: "created",
@@ -58,7 +113,8 @@ export async function dbUpdateItemTemplate(
     .select("*")
     .eq("id", id)
     .single();
-  if (fetchError || !data) return null;
+  if (fetchError) throw toItemTemplateSaveError(fetchError);
+  if (!data) return null;
 
   const prev = itemTemplateFromRow(data as ItemTemplateRow);
   const updated: ItemTemplate = {
@@ -67,11 +123,12 @@ export async function dbUpdateItemTemplate(
     updatedBy: userId,
     updatedAt: new Date().toISOString(),
   };
-  const { error } = await supabase
-    .from("item_templates")
-    .update(withUpdateAudit(itemTemplateToRow(companyId, updated), userId))
-    .eq("id", id);
-  if (error) throw error;
+  await writeItemTemplateRow(
+    "update",
+    itemTemplateToRow(companyId, updated),
+    userId,
+    id
+  );
 
   recordActivityLog({
     action: "updated",
@@ -93,12 +150,12 @@ export async function dbDeleteItemTemplate(id: string): Promise<boolean> {
     .eq("id", id)
     .eq("company_id", companyId)
     .maybeSingle();
-  if (fetchError) throw fetchError;
+  if (fetchError) throw toItemTemplateSaveError(fetchError);
 
   const name = String(data?.name ?? "");
 
   const { error } = await supabase.from("item_templates").delete().eq("id", id);
-  if (error) throw error;
+  if (error) throw toItemTemplateSaveError(error);
 
   recordActivityLog({
     action: "deleted",
@@ -122,7 +179,8 @@ export async function dbToggleItemTemplateFavorite(
     .select("*")
     .eq("id", id)
     .single();
-  if (fetchError || !data) return null;
+  if (fetchError) throw toItemTemplateSaveError(fetchError);
+  if (!data) return null;
 
   const prev = itemTemplateFromRow(data as ItemTemplateRow);
   const updated: ItemTemplate = {
@@ -131,11 +189,12 @@ export async function dbToggleItemTemplateFavorite(
     updatedBy: userId,
     updatedAt: new Date().toISOString(),
   };
-  const { error } = await supabase
-    .from("item_templates")
-    .update(withUpdateAudit(itemTemplateToRow(companyId, updated), userId))
-    .eq("id", id);
-  if (error) throw error;
+  await writeItemTemplateRow(
+    "update",
+    itemTemplateToRow(companyId, updated),
+    userId,
+    id
+  );
 
   recordActivityLog({
     action: "updated",

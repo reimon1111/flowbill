@@ -22,6 +22,7 @@ import {
   getInvoiceCancelBlockReason,
   getInvoiceDeletionBlockReason,
   canDeleteInvoice,
+  canSoftDeleteInvoice,
   updateInvoiceStatus,
 } from "@/lib/services/invoices";
 import { DeleteConfirmDialog } from "@/components/shared/delete-confirm-dialog";
@@ -40,18 +41,7 @@ import { DocumentPreviewCollapsible } from "@/components/shared/document-preview
 import { useDocumentExport } from "@/hooks/use-document-export";
 import { LinePdfExportGuide } from "@/components/shared/line-pdf-export-guide";
 
-function isOverdue(dueDate: string) {
-  if (!dueDate) return false;
-  const due = new Date(dueDate + "T23:59:59");
-  return due < new Date();
-}
-
-function displayStatus(inv: InvoiceRecord): InvoiceDocumentStatus {
-  if ((inv.status === "issued" || inv.status === "sent") && isOverdue(inv.dueDate)) {
-    return "overdue";
-  }
-  return inv.status;
-}
+import { getInvoiceListDisplayStatus } from "@/lib/payment-utils";
 
 export function InvoiceDetail({
   invoice,
@@ -77,11 +67,12 @@ export function InvoiceDetail({
   const [actionLoading, setActionLoading] = useState(false);
   const { previewOpen, setPreviewOpen, lineGuideOpen, setLineGuideOpen, onExport } =
     useDocumentExport();
-  const status = displayStatus(invoice);
+  const status = getInvoiceListDisplayStatus(invoice);
   const actions = getInvoiceQuickActions(status);
   const deleteBlockReason = getInvoiceDeletionBlockReason(invoice.id);
   const cancelBlockReason = getInvoiceCancelBlockReason(invoice.id);
   const deletable = canDeleteInvoice(invoice.id);
+  const canSoftDelete = canSoftDeleteInvoice();
   const exportLabel = isMobile ? "PDFを保存" : "印刷 / PDF保存";
 
   const change = async (next: InvoiceActionType) => {
@@ -224,10 +215,22 @@ export function InvoiceDetail({
         }
       />
 
-      {!deletable && deleteBlockReason && invoice.status !== "draft" && (
+      {!deletable && deleteBlockReason && invoice.status !== "draft" && !invoice.deletedAt && (
         <div className="print-hidden rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {deleteBlockReason}
         </div>
+      )}
+
+      {invoice.deletedAt && (
+        <div className="print-hidden rounded-xl border border-zinc-200/80 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
+          この請求書は削除済みです（{formatDateTime(invoice.deletedAt)}）。
+        </div>
+      )}
+
+      {!invoice.deletedAt && invoice.status !== "draft" && canSoftDelete && deletable && (
+        <p className="print-hidden text-xs text-zinc-500">
+          発行済みの請求書は論理削除されます。一覧・集計からは非表示になります。
+        </p>
       )}
 
       {invoice.status === "paid" && (

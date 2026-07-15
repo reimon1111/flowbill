@@ -92,7 +92,10 @@ export async function dbInsertQuote(
     ...it,
     id: generateId("qti_"),
   }));
-  const totals = computeLineTotals(items);
+  const totals = computeLineTotals(items, {
+    discountLabel: input.discountLabel,
+    discountAmount: input.discountAmount,
+  });
 
   const quote: QuoteRecord = {
     id: quoteId,
@@ -106,6 +109,11 @@ export async function dbInsertQuote(
     subtotal: totals.subtotal,
     taxAmount: totals.taxAmount,
     totalAmount: totals.totalAmount,
+    discountLabel: input.discountLabel?.trim() ?? "",
+    discountAmount: input.discountAmount ?? 0,
+    customerContactName: input.customerContactName?.trim() ?? "",
+    customerDepartment: input.customerDepartment?.trim() ?? "",
+    customerPosition: input.customerPosition?.trim() ?? "",
     memo: input.memo,
     paymentTerms: input.paymentTerms,
     createdBy: userId,
@@ -161,7 +169,10 @@ export async function dbUpdateQuote(
     ...it,
     id: generateId("qti_"),
   }));
-  const totals = computeLineTotals(items);
+  const totals = computeLineTotals(items, {
+    discountLabel: input.discountLabel,
+    discountAmount: input.discountAmount,
+  });
 
   const quote: QuoteRecord = {
     ...existing,
@@ -173,6 +184,11 @@ export async function dbUpdateQuote(
     subtotal: totals.subtotal,
     taxAmount: totals.taxAmount,
     totalAmount: totals.totalAmount,
+    discountLabel: input.discountLabel?.trim() ?? "",
+    discountAmount: input.discountAmount ?? 0,
+    customerContactName: input.customerContactName?.trim() ?? "",
+    customerDepartment: input.customerDepartment?.trim() ?? "",
+    customerPosition: input.customerPosition?.trim() ?? "",
     memo: input.memo,
     paymentTerms: input.paymentTerms,
     updatedAt: now,

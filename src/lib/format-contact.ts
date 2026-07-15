@@ -6,20 +6,54 @@ export function formatContactWithSama(name: string): string {
   return `${trimmed} 様`;
 }
 
-/** 帳票の宛先表示（会社名は常に御中、担当者は別行） */
+export type DocumentRecipientLines = {
+  /** 会社名行（常に御中付き） */
+  companyLine: string;
+  /** 部署・役職など（空配列可） */
+  orgLines: string[];
+  /** 担当者名 + 様（担当者未入力時は undefined） */
+  contactLine?: string;
+  /** 従来互換: companyLine と同じ */
+  primaryLine: string;
+};
+
+type FormatDocumentRecipientOptions = {
+  department?: string;
+  position?: string;
+};
+
+function withOnchu(company: string): string {
+  if (!company) return "";
+  return company.endsWith("御中") ? company : `${company} 御中`;
+}
+
+/**
+ * 帳票の宛先表示（見積・納品・請求・領収）。
+ *
+ * - 担当者なし: 「会社名 御中」
+ * - 担当者あり: 「会社名 御中」→ 部署 → 役職 → 「担当者名 様」
+ *   （会社名の御中は消さない）
+ */
 export function formatDocumentRecipient(
   customerName: string,
-  contactName?: string
-): { primaryLine: string; contactLine?: string } {
+  contactName?: string,
+  options?: FormatDocumentRecipientOptions
+): DocumentRecipientLines {
   const company = customerName.trim();
-  const contact = contactName?.trim();
+  const contact = contactName?.trim() ?? "";
+  const department = options?.department?.trim() ?? "";
+  const position = options?.position?.trim() ?? "";
+  const primaryLine = withOnchu(company);
 
-  const primaryLine = company.endsWith("御中")
-    ? company
-    : `${company} 御中`;
+  const orgLines = [department, position].filter(Boolean);
 
+  // 担当者未入力でも部署・役職だけある場合は表示する
   if (!contact) {
-    return { primaryLine };
+    return {
+      companyLine: primaryLine,
+      primaryLine,
+      orgLines,
+    };
   }
 
   const name = contact.endsWith("様")
@@ -27,7 +61,9 @@ export function formatDocumentRecipient(
     : contact;
 
   return {
+    companyLine: primaryLine,
     primaryLine,
-    contactLine: `担当者：${name}様`,
+    orgLines,
+    contactLine: formatContactWithSama(name),
   };
 }

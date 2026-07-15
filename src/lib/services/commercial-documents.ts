@@ -1,8 +1,13 @@
+import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import {
   itemsFromInvoiceItems,
 } from "@/lib/build-commercial-items";
 import { todayISO } from "@/lib/quote-dates";
 import { resolveCommercialItemsForProject } from "@/lib/services/project-items";
+import {
+  getSelectableQuotesForProject,
+  pickPreferredQuoteForOrder,
+} from "@/lib/order-create-source";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useQuoteStore } from "@/stores/quote-store";
@@ -35,6 +40,7 @@ import type {
   ReceiptRecord,
 } from "@/lib/commercial-document";
 import type { CommercialDocumentFormValues, OrderDocumentFormValues } from "@/lib/validations/commercial-document";
+import type { QuoteRecord } from "@/lib/types";
 import { normalizeUnit } from "@/lib/constants/units";
 import { defaultOrderRecipientName } from "@/lib/order-recipient";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
@@ -46,26 +52,71 @@ function defaultPaymentTerms(): string {
   );
 }
 
-export async function createOrderFromProject(projectId: string) {
+export type CreateOrderFromProjectOptions = {
+  /**
+   * 使用する見積 ID。
+   * null = 見積を使わず案件から作成。
+   * undefined = 承認 → 提出済み → 下書きの自動優先（受注確定など）。
+   */
+  quoteId?: string | null;
+};
+
+function resolveQuoteForOrder(
+  projectId: string,
+  quoteId: string | null | undefined
+): QuoteRecord | null {
+  const selectable = getSelectableQuotesForProject(projectId);
+
+  if (quoteId === null) return null;
+
+  if (typeof quoteId === "string") {
+    const selected = selectable.find((q) => q.id === quoteId) ?? null;
+    if (!selected) {
+      throw new Error("指定された見積書を利用できません");
+    }
+    return selected;
+  }
+
+  return pickPreferredQuoteForOrder(selectable);
+}
+
+export async function createOrderFromProject(
+  projectId: string,
+  options?: CreateOrderFromProjectOptions
+) {
   assertCanWriteBusinessData();
   const project = useProjectStore.getState().getProjectById(projectId);
   if (!project) return null;
 
-  const quote = useQuoteStore
-    .getState()
-    .getQuotesByProjectId(projectId)
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-
+  const quote = resolveQuoteForOrder(projectId, options?.quoteId);
   const settings = useCompanySettingsStore.getState().settings;
+  const templateMemo = settings.orderMemoTemplate ?? "";
+  const sourceMemo = quote?.memo?.trim()
+    ? quote.memo
+    : project.memo?.trim()
+      ? project.memo
+      : templateMemo;
+
   const input: OrderInput = {
     projectId: project.id,
     customerId: project.customerId,
     quoteId: quote?.id ?? "",
     issueDate: todayISO(),
-    paymentTerms: defaultPaymentTerms(),
-    memo: settings.orderMemoTemplate ?? "",
+    paymentTerms: quote?.paymentTerms?.trim() || defaultPaymentTerms(),
+    memo: sourceMemo,
     recipientName: defaultOrderRecipientName(settings.companyName),
-    items: resolveCommercialItemsForProject(projectId, project.projectName),
+    discountLabel: quote?.discountLabel ?? project.discountLabel ?? "",
+    discountAmount: quote?.discountAmount ?? project.discountAmount ?? 0,
+    ...pickCounterpartyContact(
+      (quote?.customerContactName?.trim() ||
+        quote?.customerDepartment?.trim() ||
+        quote?.customerPosition?.trim())
+        ? quote
+        : project
+    ),
+    items: resolveCommercialItemsForProject(projectId, project.projectName, {
+      quoteId: quote ? quote.id : options?.quoteId === null ? null : undefined,
+    }),
   };
 
   const order = useOrderStore.getState().createOrder(input);
@@ -79,6 +130,15 @@ export async function createOrderFromProject(projectId: string) {
     }
   }
   return order;
+}
+
+/** 見積詳細から注文書を作成（見積内容をスナップショット） */
+export async function createOrderFromQuote(quoteId: string) {
+  const quote = useQuoteStore.getState().getQuoteById(quoteId);
+  if (!quote || quote.status === "rejected") {
+    throw new Error("指定された見積書を利用できません");
+  }
+  return createOrderFromProject(quote.projectId, { quoteId: quote.id });
 }
 
 export async function createDeliveryNoteFromProject(projectId: string) {
@@ -99,6 +159,13 @@ export async function createDeliveryNoteFromProject(projectId: string) {
     issueDate: todayISO(),
     paymentTerms: defaultPaymentTerms(),
     memo: settings.deliveryNoteMemoTemplate ?? "",
+    discountLabel: order?.discountLabel ?? project.discountLabel ?? "",
+    discountAmount: order?.discountAmount ?? project.discountAmount ?? 0,
+    ...pickCounterpartyContact(
+      (order?.customerContactName?.trim() || order?.customerDepartment?.trim() || order?.customerPosition?.trim())
+        ? order
+        : project
+    ),
     items: resolveCommercialItemsForProject(projectId, project.projectName),
   };
 
@@ -125,6 +192,9 @@ export async function createReceiptFromInvoice(invoiceId: string) {
     issueDate: todayISO(),
     paymentTerms: invoice.paymentTerms || defaultPaymentTerms(),
     memo: settings.receiptMemoTemplate ?? "",
+    discountLabel: invoice.discountLabel ?? "",
+    discountAmount: invoice.discountAmount ?? 0,
+    ...pickCounterpartyContact(invoice),
     items: itemsFromInvoiceItems(invoiceItems),
   };
 
@@ -179,6 +249,11 @@ export function commercialDocumentInputFromForm(
     issueDate: values.issueDate,
     paymentTerms: values.paymentTerms.trim(),
     memo: values.memo.trim(),
+    discountLabel: values.discountLabel.trim(),
+    discountAmount: values.discountAmount ?? 0,
+    customerContactName: values.customerContactName.trim(),
+    customerDepartment: values.customerDepartment.trim(),
+    customerPosition: values.customerPosition.trim(),
     items: values.items.map((it, idx) => ({
       itemTemplateId: it.itemTemplateId,
       name: it.name.trim(),

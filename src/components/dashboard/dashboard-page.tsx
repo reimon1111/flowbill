@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { formatSupabaseError } from "@/lib/db/errors";
+import { formatSupabaseError, PAYMENT_STATUS_UPDATE_FAILED_MESSAGE } from "@/lib/db/errors";
 import { getOrderCreationToastMessage } from "@/lib/order-creation-error";
 import { TodayDescription } from "@/components/shared/today-description";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,13 +17,17 @@ import {
   getPaymentDashboardStats,
 } from "@/lib/services/payments";
 import { enrichPaymentListItem } from "@/lib/payment-utils";
+import { getProjectInvoiceState } from "@/lib/invoice-state";
+import { BILLING_STATUS_THEME } from "@/lib/billing-status-theme";
+import { getProjectTotalWithTax } from "@/lib/project-amount-display";
+import { useProjectItemStore } from "@/stores/project-item-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useInvoiceStore } from "@/stores/invoice-store";
 import {
   completeWorkForProject,
   confirmOrderForProject,
-  issueInvoiceForProject,
+  resolveProjectInvoiceHref,
   markProjectPaid,
 } from "@/lib/services/projects";
 import { ActivityLogFeed } from "@/components/shared/activity-log-panel";
@@ -53,37 +57,37 @@ const TONE_STYLES: Record<
   { card: string; badge: string; button: string; kpi: string; kpiText: string }
 > = {
   overdue: {
-    card: "border-red-200/80 bg-red-50/40",
-    badge: "bg-red-100 text-red-800",
-    button: "bg-red-700 text-white hover:bg-red-600",
-    kpi: "border-red-200/70 bg-red-50/50",
-    kpiText: "text-red-800",
+    card: BILLING_STATUS_THEME.overdue.cardClass,
+    badge: BILLING_STATUS_THEME.overdue.badgeClass,
+    button: BILLING_STATUS_THEME.overdue.buttonClass,
+    kpi: BILLING_STATUS_THEME.overdue.kpiClass,
+    kpiText: BILLING_STATUS_THEME.overdue.kpiTextClass,
   },
   unpaid: {
-    card: "border-orange-200/80 bg-orange-50/40",
-    badge: "bg-orange-100 text-orange-800",
-    button: "bg-orange-600 text-white hover:bg-orange-500",
-    kpi: "border-orange-200/70 bg-orange-50/50",
-    kpiText: "text-orange-800",
+    card: BILLING_STATUS_THEME.unpaid.cardClass,
+    badge: BILLING_STATUS_THEME.unpaid.badgeClass,
+    button: BILLING_STATUS_THEME.unpaid.buttonClass,
+    kpi: BILLING_STATUS_THEME.unpaid.kpiClass,
+    kpiText: BILLING_STATUS_THEME.unpaid.kpiTextClass,
   },
   unissued: {
-    card: "border-blue-200/80 bg-blue-50/40",
-    badge: "bg-blue-100 text-blue-800",
-    button: "bg-blue-700 text-white hover:bg-blue-600",
-    kpi: "border-blue-200/70 bg-blue-50/50",
-    kpiText: "text-blue-800",
+    card: BILLING_STATUS_THEME.unissued.cardClass,
+    badge: BILLING_STATUS_THEME.unissued.badgeClass,
+    button: BILLING_STATUS_THEME.unissued.buttonClass,
+    kpi: BILLING_STATUS_THEME.unissued.kpiClass,
+    kpiText: BILLING_STATUS_THEME.unissued.kpiTextClass,
   },
   work: {
     card: "border-emerald-200/80 bg-emerald-50/40",
-    badge: "bg-emerald-100 text-emerald-800",
-    button: "bg-emerald-700 text-white hover:bg-emerald-600",
+    badge: "inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700",
+    button: "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
     kpi: "border-emerald-200/70 bg-emerald-50/50",
     kpiText: "text-emerald-800",
   },
   order: {
     card: "border-violet-200/80 bg-violet-50/40",
-    badge: "bg-violet-100 text-violet-800",
-    button: "bg-violet-700 text-white hover:bg-violet-600",
+    badge: "inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-700",
+    button: "border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100",
     kpi: "border-violet-200/70 bg-violet-50/50",
     kpiText: "text-violet-800",
   },
@@ -95,6 +99,7 @@ export function DashboardPage() {
   useProjectStore((s) => s.projects);
   useCustomerStore((s) => s.customers);
   useInvoiceStore((s) => s.invoices);
+  const projectItems = useProjectItemStore((s) => s.projectItems);
   const recentActivityLogs = useActivityLogStore((s) => s.recentLogs);
 
   const stats = getDashboardStats();
@@ -105,6 +110,21 @@ export function DashboardPage() {
     .getListItems()
     .filter((p) => !p.archived);
   const invoices = useInvoiceStore.getState().getListItems();
+  const billableInvoices = useInvoiceStore.getState().getInvoices();
+
+  const projectAmountWithTax = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of projects) {
+      map.set(
+        p.id,
+        getProjectTotalWithTax(p.id, p.amount, projectItems, p)
+      );
+    }
+    return map;
+  }, [projects, projectItems]);
+
+  const sumProjectAmounts = (items: typeof projects) =>
+    items.reduce((s, p) => s + (projectAmountWithTax.get(p.id) ?? p.amount), 0);
 
   const overdueItems = useMemo(() => {
     return paymentStats.overdueItems
@@ -119,26 +139,30 @@ export function DashboardPage() {
   const unpaidItems = useMemo(
     () =>
       projects
-        .filter(
-          (p) =>
-            p.status === "completed" &&
-            (p.invoiceStatus === "issued" || p.invoiceStatus === "sent") &&
-            p.paymentStatus === "unpaid"
-        )
+        .filter((p) => {
+          if (p.status !== "completed") return false;
+          const state = getProjectInvoiceState(p.id, billableInvoices);
+          return (
+            (state.invoiceStatus === "issued" || state.invoiceStatus === "sent") &&
+            state.paymentStatus === "unpaid"
+          );
+        })
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
-    [projects]
+    [projects, billableInvoices]
   );
 
   const unissuedItems = useMemo(
     () =>
       projects
-        .filter(
-          (p) =>
-            p.status === "completed" &&
-            (p.invoiceStatus === "not_created" || p.invoiceStatus === "draft")
-        )
+        .filter((p) => {
+          if (p.status !== "completed") return false;
+          const state = getProjectInvoiceState(p.id, billableInvoices);
+          return (
+            state.invoiceStatus === "not_created" || state.invoiceStatus === "draft"
+          );
+        })
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    [projects]
+    [projects, billableInvoices]
   );
 
   const workPendingItems = useMemo(
@@ -205,28 +229,28 @@ export function DashboardPage() {
         tone: "unpaid" as const,
         label: "未入金",
         count: unpaidItems.length,
-        amount: unpaidItems.reduce((s, p) => s + p.amount, 0),
+        amount: sumProjectAmounts(unpaidItems),
         hint: "入金確認が必要です",
       },
       {
         tone: "unissued" as const,
         label: "請求書未発行",
         count: unissuedItems.length,
-        amount: unissuedItems.reduce((s, p) => s + p.amount, 0),
+        amount: sumProjectAmounts(unissuedItems),
         hint: "請求書を発行できます",
       },
       {
         tone: "work" as const,
         label: "作業完了待ち",
         count: workPendingItems.length,
-        amount: workPendingItems.reduce((s, p) => s + p.amount, 0),
+        amount: sumProjectAmounts(workPendingItems),
         hint: "作業完了にできます",
       },
       {
         tone: "order" as const,
         label: "受注待ち",
         count: orderPendingItems.length,
-        amount: orderPendingItems.reduce((s, p) => s + p.amount, 0),
+        amount: sumProjectAmounts(orderPendingItems),
         hint: "受注確認が必要です",
       },
       {
@@ -245,6 +269,7 @@ export function DashboardPage() {
       workPendingItems,
       orderPendingItems,
       stats.paidThisMonth,
+      projectAmountWithTax,
     ]
   );
 
@@ -253,12 +278,25 @@ export function DashboardPage() {
   const handleMarkPaid = async (projectId: string, invoiceId?: string) => {
     try {
       setBusyKey(`paid:${invoiceId ?? projectId}`);
-      await markProjectPaid(projectId);
+      const updated = await markProjectPaid(projectId);
+      if (!updated) {
+        toast.error(PAYMENT_STATUS_UPDATE_FAILED_MESSAGE);
+        return;
+      }
       toast.success("入金済みにしました");
     } catch (error) {
-      toast.error("操作に失敗しました", {
-        description: formatSupabaseError(error),
-      });
+      toast.error(
+        error instanceof Error &&
+          error.message !== PAYMENT_STATUS_UPDATE_FAILED_MESSAGE
+          ? error.message
+          : PAYMENT_STATUS_UPDATE_FAILED_MESSAGE,
+        {
+          description:
+            process.env.NODE_ENV === "development"
+              ? formatSupabaseError(error)
+              : undefined,
+        }
+      );
     } finally {
       setBusyKey(null);
     }
@@ -267,15 +305,7 @@ export function DashboardPage() {
   const handleIssueInvoice = async (projectId: string) => {
     try {
       setBusyKey(`issue:${projectId}`);
-      const inv = await issueInvoiceForProject(projectId);
-      if (inv) {
-        toast.success("請求書を発行しました");
-        router.push(`/invoices/${inv.id}`);
-      }
-    } catch (error) {
-      toast.error("操作に失敗しました", {
-        description: formatSupabaseError(error),
-      });
+      router.push(resolveProjectInvoiceHref(projectId));
     } finally {
       setBusyKey(null);
     }
@@ -346,7 +376,7 @@ export function DashboardPage() {
         categoryLabel: "未入金",
         projectName: p.projectName,
         customerName: p.customerName,
-        amount: p.amount,
+        amount: projectAmountWithTax.get(p.id) ?? p.amount,
         dateLabel: p.dueDate ? `期限 ${formatShortDate(p.dueDate)}` : "期限 —",
         buttonLabel: "入金済みにする",
         busyKey: `paid:${p.id}`,
@@ -363,9 +393,9 @@ export function DashboardPage() {
         categoryLabel: "請求書未発行",
         projectName: p.projectName,
         customerName: p.customerName,
-        amount: p.amount,
+        amount: projectAmountWithTax.get(p.id) ?? p.amount,
         dateLabel: p.dueDate ? `納期 ${formatShortDate(p.dueDate)}` : "納期 —",
-        buttonLabel: "請求書を発行",
+        buttonLabel: BILLING_STATUS_THEME.unissued.actionLabel,
         busyKey: `issue:${p.id}`,
         href: `/projects/${p.id}`,
         projectId: p.id,
@@ -380,7 +410,7 @@ export function DashboardPage() {
         categoryLabel: "作業完了待ち",
         projectName: p.projectName,
         customerName: p.customerName,
-        amount: p.amount,
+        amount: projectAmountWithTax.get(p.id) ?? p.amount,
         dateLabel: p.dueDate ? `納期 ${formatShortDate(p.dueDate)}` : "納期 —",
         buttonLabel: "作業完了にする",
         busyKey: `complete:${p.id}`,
@@ -397,7 +427,7 @@ export function DashboardPage() {
         categoryLabel: "受注待ち",
         projectName: p.projectName,
         customerName: p.customerName,
-        amount: p.amount,
+        amount: projectAmountWithTax.get(p.id) ?? p.amount,
         dateLabel: p.dueDate ? `納期 ${formatShortDate(p.dueDate)}` : "納期 —",
         buttonLabel: "受注確定する",
         busyKey: `order:${p.id}`,
@@ -408,7 +438,7 @@ export function DashboardPage() {
     }
 
     return tasks;
-  }, [overdueItems, unpaidItems, unissuedItems, workPendingItems, orderPendingItems]);
+  }, [overdueItems, unpaidItems, unissuedItems, workPendingItems, orderPendingItems, projectAmountWithTax]);
 
   const runTaskAction = async (task: DashboardTask) => {
     switch (task.action) {
@@ -581,7 +611,7 @@ function TaskCard({
         styles.card
       )}
     >
-      <span className={cn("inline-flex w-fit rounded-md px-2 py-0.5 text-xs font-semibold", styles.badge)}>
+      <span className={cn("inline-flex w-fit text-xs font-semibold", styles.badge)}>
         {task.categoryLabel}
       </span>
 
@@ -635,7 +665,7 @@ function RevenueSummary({
       <dl className="mt-5 space-y-4">
         <SummaryRow label="請求額（今月）" value={billedThisMonth} />
         <SummaryRow label="入金済額（今月）" value={summary.paid} accent="text-emerald-700" />
-        <SummaryRow label="未入金額（全体）" value={summary.unpaidTotal} accent="text-orange-700" />
+        <SummaryRow label="未入金額（全体）" value={summary.unpaidTotal} accent="text-amber-700" />
       </dl>
 
       <div className="mt-6">

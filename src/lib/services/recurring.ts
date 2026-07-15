@@ -124,6 +124,11 @@ async function findOrCreateRecurringProject(
     endDate: "",
     assigneeName: "",
     memo: "定期請求から自動作成された案件",
+    discountLabel: "",
+    discountAmount: 0,
+    customerContactName: "",
+    customerDepartment: "",
+    customerPosition: "",
     items: [],
   });
   return project.id;
@@ -163,6 +168,11 @@ export async function createInvoiceFromRecurring(
     expiryDate,
     paymentTerms: settings.paymentTerms ?? "",
     memo: recurring.memo ? `定期請求: ${recurring.memo}` : `定期請求: ${recurring.title}`,
+    discountLabel: recurring.discountLabel ?? "",
+    discountAmount: recurring.discountAmount ?? 0,
+    customerContactName: "",
+    customerDepartment: "",
+    customerPosition: "",
     items: items.map((it, idx) => ({
       itemTemplateId: it.itemTemplateId,
       name: it.name,
@@ -190,6 +200,11 @@ export async function createInvoiceFromRecurring(
     paymentTerms: quote.paymentTerms || settings.paymentTerms || "",
     bankAccountId: null,
     memo: recurring.memo,
+    discountLabel: recurring.discountLabel ?? "",
+    discountAmount: recurring.discountAmount ?? 0,
+    customerContactName: "",
+    customerDepartment: "",
+    customerPosition: "",
     items: qItems.map((it, idx) => ({
       quoteItemId: it.id,
       name: it.name,

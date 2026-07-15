@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm, Controller, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Save } from "lucide-react";
 import { FormSection } from "@/components/shared/form-section";
@@ -16,20 +16,14 @@ import {
   type InvoiceFormValues,
 } from "@/lib/validations/invoice";
 import { InvoiceItemsEditor, type InvoiceItemDraft } from "@/components/invoices/invoice-items-editor";
-import { formatCurrency } from "@/lib/format";
+import { DiscountSection } from "@/components/shared/discount-section";
+import { DocumentTotalsSummary } from "@/components/shared/document-totals-summary";
+import { CounterpartyContactFieldsEditor } from "@/components/shared/counterparty-contact-fields";
+import { discountFormDefaults } from "@/lib/validations/discount";
+import { counterpartyContactFormDefaults } from "@/lib/validations/counterparty-contact";
 import { formatFieldErrorMessage } from "@/lib/form-error-message";
 import { useBankAccountStore } from "@/stores/bank-account-store";
 import { formatBankAccountOptionLabel } from "@/lib/services/bank-accounts";
-
-function compute(items: InvoiceItemDraft[]) {
-  const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
-  const taxAmount = items.reduce(
-    (s, i) => s + i.quantity * i.unitPrice * i.taxRate,
-    0
-  );
-  const totalAmount = subtotal + taxAmount;
-  return { subtotal, taxAmount, totalAmount };
-}
 
 function toFormItems(items: InvoiceItemDraft[]): InvoiceFormValues["items"] {
   return items.map((it, idx) => ({
@@ -89,7 +83,30 @@ export function InvoiceForm({
       ),
     [bankAccountsRaw]
   );
-  const totals = useMemo(() => compute(items), [items]);
+  const totalsItems = useMemo(
+    () =>
+      items.map((item) => ({
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        taxRate: item.taxRate,
+      })),
+    [items]
+  );
+  const discountLabel =
+    useWatch({ control: form.control, name: "discountLabel" }) ??
+    discountFormDefaults.discountLabel;
+  const discountAmount =
+    useWatch({ control: form.control, name: "discountAmount" }) ??
+    discountFormDefaults.discountAmount;
+  const customerContactName =
+    useWatch({ control: form.control, name: "customerContactName" }) ??
+    counterpartyContactFormDefaults.customerContactName;
+  const customerDepartment =
+    useWatch({ control: form.control, name: "customerDepartment" }) ??
+    counterpartyContactFormDefaults.customerDepartment;
+  const customerPosition =
+    useWatch({ control: form.control, name: "customerPosition" }) ??
+    counterpartyContactFormDefaults.customerPosition;
   const bankAccountId = form.watch("bankAccountId");
 
   useEffect(() => {
@@ -218,6 +235,35 @@ export function InvoiceForm({
           </div>
         </FormSection>
 
+        <FormSection title="先方担当者" description="帳票の宛名に表示されます（任意）。">
+          <CounterpartyContactFieldsEditor
+            value={{
+              customerContactName,
+              customerDepartment,
+              customerPosition,
+            }}
+            onChange={(next) => {
+              form.setValue("customerContactName", next.customerContactName, {
+                shouldValidate: true,
+              });
+              form.setValue("customerDepartment", next.customerDepartment, {
+                shouldValidate: true,
+              });
+              form.setValue("customerPosition", next.customerPosition, {
+                shouldValidate: true,
+              });
+            }}
+            disabled={form.formState.isSubmitting}
+            errors={{
+              customerContactName:
+                form.formState.errors.customerContactName?.message,
+              customerDepartment:
+                form.formState.errors.customerDepartment?.message,
+              customerPosition: form.formState.errors.customerPosition?.message,
+            }}
+          />
+        </FormSection>
+
         <FormSection
           title="明細（見積からコピー）"
           description="必要な場合のみ編集してください。合計はリアルタイムで更新されます。"
@@ -240,6 +286,23 @@ export function InvoiceForm({
           />
         </FormSection>
 
+        <FormSection title="値引き">
+          <DiscountSection
+            value={{ discountLabel, discountAmount }}
+            onChange={(next) => {
+              form.setValue("discountLabel", next.discountLabel, {
+                shouldValidate: true,
+              });
+              form.setValue("discountAmount", next.discountAmount, {
+                shouldValidate: true,
+              });
+            }}
+            disabled={form.formState.isSubmitting}
+            amountError={form.formState.errors.discountAmount?.message}
+            labelError={form.formState.errors.discountLabel?.message}
+          />
+        </FormSection>
+
         <FormSection title="備考">
           <Textarea
             {...form.register("memo")}
@@ -254,17 +317,10 @@ export function InvoiceForm({
         <div className="space-y-4 rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm shadow-zinc-900/[0.03]">
           <p className="text-sm font-semibold text-zinc-900">合計</p>
 
-          <div className="space-y-2 text-sm">
-            <Row label="小計" value={formatCurrency(Math.round(totals.subtotal))} />
-            <Row label="消費税" value={formatCurrency(Math.round(totals.taxAmount))} />
-            <div className="border-t border-zinc-100 pt-3">
-              <Row
-                label="合計"
-                value={formatCurrency(Math.round(totals.totalAmount))}
-                strong
-              />
-            </div>
-          </div>
+          <DocumentTotalsSummary
+            items={totalsItems}
+            discount={{ discountLabel, discountAmount }}
+          />
 
           <div className="grid gap-2">
             <Button
@@ -292,30 +348,6 @@ export function InvoiceForm({
           </p>
         </div>
       </aside>
-    </div>
-  );
-}
-
-function Row({
-  label,
-  value,
-  strong,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-zinc-500">{label}</span>
-      <span
-        className={cn(
-          "tabular-nums",
-          strong ? "text-lg font-semibold text-zinc-900" : "font-medium text-zinc-900"
-        )}
-      >
-        {value}
-      </span>
     </div>
   );
 }

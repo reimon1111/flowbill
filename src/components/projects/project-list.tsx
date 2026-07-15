@@ -39,16 +39,18 @@ import {
   archiveProject,
   unarchiveProject,
   getProjectDeletionBlockReason,
-  issueInvoiceForProject,
+  resolveProjectInvoiceHref,
   markProjectPaid,
   syncCustomerProjectCounts,
 } from "@/lib/services/projects";
-import { formatSupabaseError } from "@/lib/db/errors";
+import { formatSupabaseError, PAYMENT_STATUS_UPDATE_FAILED_MESSAGE } from "@/lib/db/errors";
 import { getOrderCreationToastMessage } from "@/lib/order-creation-error";
 import { useProjectStore } from "@/stores/project-store";
+import { useInvoiceStore } from "@/stores/invoice-store";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { VIEWER_WRITE_DENIED_MESSAGE } from "@/lib/guards/write-access";
+import { getProjectBillingViewHref } from "@/lib/billing-status-theme";
 
 type StatusFilter = ProjectStatus | "all";
 
@@ -56,6 +58,7 @@ export function ProjectList() {
   const router = useRouter();
   const canWrite = useCanWriteBusinessData();
   useProjectStore((s) => s.projects);
+  useInvoiceStore((s) => s.invoices);
   useCustomerStore((s) => s.customers);
 
   const [search, setSearch] = useState("");
@@ -179,14 +182,26 @@ export function ProjectList() {
         return;
       }
       if (action === "generate_invoice") {
-        const invoice = await issueInvoiceForProject(projectId);
-        if (invoice) router.push(`/invoices/${invoice.id}`);
-        toast.success("請求書を発行しました");
+        router.push(resolveProjectInvoiceHref(projectId));
+        return;
+      }
+      if (action === "view_invoice") {
+        router.push(
+          getProjectBillingViewHref(
+            projectId,
+            useInvoiceStore.getState().invoices
+          )
+        );
         return;
       }
       if (action === "mark_paid") {
-        await markProjectPaid(projectId);
+        const updated = await markProjectPaid(projectId);
+        if (!updated) {
+          toast.error(PAYMENT_STATUS_UPDATE_FAILED_MESSAGE);
+          return;
+        }
         toast.success("入金済みにしました");
+        syncCustomerProjectCounts();
         return;
       }
       syncCustomerProjectCounts();
@@ -197,6 +212,19 @@ export function ProjectList() {
         toast.error(message ?? "注文書の作成に失敗しました", {
           description: message ? undefined : formatSupabaseError(error),
         });
+      } else if (action === "mark_paid") {
+        toast.error(
+          error instanceof Error &&
+            error.message !== PAYMENT_STATUS_UPDATE_FAILED_MESSAGE
+            ? error.message
+            : PAYMENT_STATUS_UPDATE_FAILED_MESSAGE,
+          {
+            description:
+              process.env.NODE_ENV === "development"
+                ? formatSupabaseError(error)
+                : undefined,
+          }
+        );
       } else {
         toast.error("操作に失敗しました", {
           description: formatSupabaseError(error),
@@ -386,11 +414,10 @@ export function ProjectList() {
       ) : (
         <>
           <div className="hidden lg:block">
-            <div className="mb-2 grid grid-cols-[minmax(180px,1.1fr)_minmax(120px,0.9fr)_100px_88px_96px_72px_minmax(200px,1.3fr)_auto] gap-4 px-5 text-xs font-medium uppercase tracking-wider text-zinc-400">
+            <div className="mb-2 grid grid-cols-[minmax(180px,1.1fr)_minmax(120px,0.9fr)_108px_96px_72px_minmax(200px,1.3fr)_auto] gap-4 px-5 text-xs font-medium uppercase tracking-wider text-zinc-400">
               <span>案件 / 顧客</span>
               <span>ステータス</span>
-              <span>請求</span>
-              <span>入金</span>
+              <span>請求・入金</span>
               <span className="text-right">金額</span>
               <span>納期</span>
               <span>次にやること</span>

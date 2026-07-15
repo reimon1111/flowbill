@@ -119,6 +119,11 @@ function resolveEditPayload(
             issueDate: doc.issueDate,
             paymentTerms: doc.paymentTerms,
             memo: doc.memo,
+            discountLabel: doc.discountLabel ?? "",
+            discountAmount: doc.discountAmount ?? 0,
+            customerContactName: doc.customerContactName ?? "",
+            customerDepartment: doc.customerDepartment ?? "",
+            customerPosition: doc.customerPosition ?? "",
             recipientName: (doc as OrderRecord).recipientName ?? "",
             items: [],
           }
@@ -128,6 +133,11 @@ function resolveEditPayload(
             issueDate: doc.issueDate,
             paymentTerms: doc.paymentTerms,
             memo: doc.memo,
+            discountLabel: doc.discountLabel ?? "",
+            discountAmount: doc.discountAmount ?? 0,
+            customerContactName: doc.customerContactName ?? "",
+            customerDepartment: doc.customerDepartment ?? "",
+            customerPosition: doc.customerPosition ?? "",
             items: [],
           },
     items: docItems.map((it) => ({

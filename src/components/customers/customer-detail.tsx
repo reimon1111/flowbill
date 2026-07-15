@@ -13,7 +13,9 @@ import {
   Receipt,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
+import { BillingStatusBadge } from "@/components/billing/billing-status-badge";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
+import { paymentStatusToBilling } from "@/lib/billing-status-theme";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import type {
@@ -207,7 +209,7 @@ export function CustomerDetail({
                     <p className="font-semibold tabular-nums text-zinc-900">
                       {formatCurrency(inv.amount)}
                     </p>
-                    <InvoiceStatus status={inv.status} />
+                    <BillingStatusBadge status={paymentStatusToBilling(inv.status)} />
                   </div>
                 </Link>
               </li>
@@ -262,27 +264,5 @@ function DetailItem({
       </dt>
       <dd className="mt-1 text-base text-zinc-900">{value}</dd>
     </div>
-  );
-}
-
-function InvoiceStatus({
-  status,
-}: {
-  status: CustomerInvoiceSummary["status"];
-}) {
-  const styles = {
-    paid: "text-emerald-600",
-    unpaid: "text-amber-700",
-    overdue: "text-red-600",
-  };
-  const labels = {
-    paid: "入金済",
-    unpaid: "未入金",
-    overdue: "期限超過",
-  };
-  return (
-    <p className={cn("text-xs font-medium", styles[status])}>
-      {labels[status]}
-    </p>
   );
 }

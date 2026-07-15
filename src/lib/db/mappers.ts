@@ -5,6 +5,10 @@ import {
   parseQuoteExpiryType,
   type QuoteExpiryPeriodType,
 } from "@/lib/quote-expiry";
+import {
+  calculateDocumentTotals,
+  type DocumentDiscountFields,
+} from "@/lib/discount-totals";
 import type {
   CompanySettings,
   Customer,
@@ -386,6 +390,11 @@ export type ProjectRow = {
   construction_site?: string;
   status: string;
   amount: number;
+  discount_label?: string | null;
+  discount_amount?: number | null;
+  customer_contact_name?: string | null;
+  customer_department?: string | null;
+  customer_position?: string | null;
   due_date: string | null;
   start_date?: string | null;
   end_date?: string | null;
@@ -420,6 +429,11 @@ export function projectFromRow(row: ProjectRow): ProjectRecord {
     constructionSite: row.construction_site ?? "",
     status: normalizedStatus as ProjectStatus,
     amount: num(row.amount),
+    discountLabel: row.discount_label != null ? String(row.discount_label) : "",
+    discountAmount: num(row.discount_amount),
+    customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
+    customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
+    customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     dueDate: toDateStr(row.due_date),
     startDate: toDateStr(row.start_date),
     endDate: toDateStr(row.end_date),
@@ -448,6 +462,11 @@ export function projectToRow(
     construction_site: p.constructionSite ?? "",
     status: p.status,
     amount: p.amount,
+    discount_label: p.discountLabel,
+    discount_amount: p.discountAmount,
+    customer_contact_name: p.customerContactName || null,
+    customer_department: p.customerDepartment || null,
+    customer_position: p.customerPosition || null,
     due_date: p.dueDate || null,
     start_date: p.startDate || null,
     end_date: p.endDate || null,
@@ -609,6 +628,11 @@ export type QuoteRow = {
   subtotal: number;
   tax_amount: number;
   total_amount: number;
+  discount_label?: string | null;
+  discount_amount?: number | null;
+  customer_contact_name?: string | null;
+  customer_department?: string | null;
+  customer_position?: string | null;
   memo: string;
   payment_terms?: string | null;
   created_by?: string | null;
@@ -634,6 +658,11 @@ export function quoteFromRow(row: QuoteRow): QuoteRecord {
     subtotal: num(row.subtotal),
     taxAmount: num(row.tax_amount),
     totalAmount: num(row.total_amount),
+    discountLabel: row.discount_label != null ? String(row.discount_label) : "",
+    discountAmount: num(row.discount_amount),
+    customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
+    customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
+    customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
     ...auditUserFields(row),
@@ -656,6 +685,11 @@ export function quoteToRow(companyId: string, q: QuoteRecord): QuoteRow {
     subtotal: q.subtotal,
     tax_amount: q.taxAmount,
     total_amount: q.totalAmount,
+    discount_label: q.discountLabel,
+    discount_amount: q.discountAmount,
+    customer_contact_name: q.customerContactName || null,
+    customer_department: q.customerDepartment || null,
+    customer_position: q.customerPosition || null,
     memo: q.memo,
     payment_terms: q.paymentTerms,
     created_at: q.createdAt,
@@ -769,6 +803,11 @@ export type InvoiceRow = {
   subtotal: number;
   tax_amount: number;
   total_amount: number;
+  discount_label?: string | null;
+  discount_amount?: number | null;
+  customer_contact_name?: string | null;
+  customer_department?: string | null;
+  customer_position?: string | null;
   pdf_url: string | null;
   memo: string;
   payment_terms?: string | null;
@@ -777,6 +816,7 @@ export type InvoiceRow = {
   updated_by?: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
 };
 
 export function invoiceFromRow(row: InvoiceRow): InvoiceRecord {
@@ -792,6 +832,11 @@ export function invoiceFromRow(row: InvoiceRow): InvoiceRecord {
     subtotal: num(row.subtotal),
     taxAmount: num(row.tax_amount),
     totalAmount: num(row.total_amount),
+    discountLabel: row.discount_label != null ? String(row.discount_label) : "",
+    discountAmount: num(row.discount_amount),
+    customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
+    customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
+    customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     pdfUrl: row.pdf_url,
     memo: row.memo,
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
@@ -799,6 +844,7 @@ export function invoiceFromRow(row: InvoiceRow): InvoiceRecord {
     ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
+    deletedAt: row.deleted_at ? toIso(row.deleted_at) : null,
   };
 }
 
@@ -816,12 +862,18 @@ export function invoiceToRow(companyId: string, inv: InvoiceRecord): InvoiceRow 
     subtotal: inv.subtotal,
     tax_amount: inv.taxAmount,
     total_amount: inv.totalAmount,
+    discount_label: inv.discountLabel,
+    discount_amount: inv.discountAmount,
+    customer_contact_name: inv.customerContactName || null,
+    customer_department: inv.customerDepartment || null,
+    customer_position: inv.customerPosition || null,
     pdf_url: inv.pdfUrl,
     memo: inv.memo,
     payment_terms: inv.paymentTerms,
     bank_account_id: inv.bankAccountId,
     created_at: inv.createdAt,
     updated_at: inv.updatedAt,
+    deleted_at: inv.deletedAt,
   };
 }
 
@@ -929,6 +981,8 @@ export type RecurringBillingRow = {
   subtotal: number;
   tax_amount: number;
   total_amount: number;
+  discount_label?: string | null;
+  discount_amount?: number | null;
   memo: string;
   created_at: string;
   updated_at: string;
@@ -945,6 +999,8 @@ export function recurringFromRow(row: RecurringBillingRow): RecurringBillingReco
     subtotal: num(row.subtotal),
     taxAmount: num(row.tax_amount),
     totalAmount: num(row.total_amount),
+    discountLabel: row.discount_label != null ? String(row.discount_label) : "",
+    discountAmount: num(row.discount_amount),
     memo: row.memo,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
@@ -1053,9 +1109,13 @@ export function buildRecurringItems(
 }
 
 export function computeLineTotals(
-  items: Array<{ amount: number; taxRate: number }>
+  items: Array<{ amount: number; taxRate: number }>,
+  discount?: Partial<Pick<DocumentDiscountFields, "discountLabel" | "discountAmount">>
 ) {
-  const subtotal = items.reduce((s, i) => s + i.amount, 0);
-  const taxAmount = items.reduce((s, i) => s + i.amount * i.taxRate, 0);
-  return { subtotal, taxAmount, totalAmount: subtotal + taxAmount };
+  const totals = calculateDocumentTotals(items, discount);
+  return {
+    subtotal: totals.subtotal,
+    taxAmount: totals.taxAmount,
+    totalAmount: totals.totalAmount,
+  };
 }

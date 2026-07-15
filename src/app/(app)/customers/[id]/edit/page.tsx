@@ -14,6 +14,7 @@ import {
   updateCustomer,
 } from "@/lib/services/customers";
 import type { CustomerFormValues } from "@/lib/validations/customer";
+import { CUSTOMER_SAVE_FAILED_MESSAGE } from "@/lib/db/errors";
 import { useCustomerStore } from "@/stores/customer-store";
 
 export default function EditCustomerPage() {
@@ -51,10 +52,19 @@ export default function EditCustomerPage() {
   }, [id, customers, router]);
 
   const handleSubmit = async (values: CustomerFormValues) => {
-    const updated = await updateCustomer(id, customerInputFromForm(values));
-    if (!updated) return;
-    toast.success("顧客情報を更新しました");
-    router.push(`/customers/${id}`);
+    try {
+      const updated = await updateCustomer(id, customerInputFromForm(values));
+      if (!updated) {
+        toast.error(CUSTOMER_SAVE_FAILED_MESSAGE);
+        return;
+      }
+      toast.success("顧客情報を更新しました");
+      router.push(`/customers/${id}`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : CUSTOMER_SAVE_FAILED_MESSAGE;
+      toast.error(message);
+    }
   };
 
   if (loading || !defaultValues) {

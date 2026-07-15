@@ -14,7 +14,13 @@ import { getDocumentLabels } from "@/components/documents/document-labels";
 
 type OrderDocumentLayoutProps = Omit<
   DocumentLayoutProps,
-  "kind" | "customerName" | "contactName" | "secondDate" | "bankAccounts"
+  | "kind"
+  | "customerName"
+  | "contactName"
+  | "department"
+  | "position"
+  | "secondDate"
+  | "bankAccounts"
 > & {
   recipientName?: string;
 };
@@ -22,6 +28,7 @@ type OrderDocumentLayoutProps = Omit<
 /**
  * 注文書専用レイアウト。
  * 相手業者 → 自社 への発注書として、宛名・発注者欄の向きを反転する。
+ * 先方担当者（customer_contact_*）は帳票には表示しない。
  */
 export function OrderDocumentLayout({
   documentNumber,
@@ -33,6 +40,8 @@ export function OrderDocumentLayout({
   subtotal,
   taxAmount,
   totalAmount,
+  discountLabel,
+  discountAmount,
   memo,
   memoTemplate,
   company,
@@ -108,6 +117,8 @@ export function OrderDocumentLayout({
         subtotal={subtotal}
         taxAmount={taxAmount}
         totalAmount={totalAmount}
+        discountLabel={discountLabel}
+        discountAmount={discountAmount}
         memo={memo}
         memoTemplate={memoTemplate}
         company={company}

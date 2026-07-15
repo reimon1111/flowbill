@@ -1,5 +1,14 @@
 import { z } from "zod";
 import { QUOTE_EXPIRY_TYPES } from "@/lib/quote-expiry";
+import {
+  discountFieldsSchema,
+  discountFormDefaults,
+  applyDocumentFormRefines,
+} from "@/lib/validations/document-form";
+import {
+  counterpartyContactFieldsSchema,
+  counterpartyContactFormDefaults,
+} from "@/lib/validations/counterparty-contact";
 
 const taxRateSchema = z.union([z.literal(0), z.literal(0.08), z.literal(0.1)]);
 
@@ -16,16 +25,21 @@ export const quoteItemSchema = z.object({
   sortOrder: z.number().min(0),
 });
 
-export const quoteFormSchema = z.object({
-  projectId: z.string().min(1, "案件が指定されていません"),
-  customerId: z.string().min(1, "顧客が指定されていません"),
-  issueDate: z.string().min(1, "発行日を入力してください"),
-  expiryType: z.enum(QUOTE_EXPIRY_TYPES),
-  expiryDate: z.string().min(1, "有効期限日を入力してください"),
-  paymentTerms: z.string().max(200),
-  memo: z.string().max(500),
-  items: z.array(quoteItemSchema).min(1, "明細を1件以上追加してください"),
-});
+export const quoteFormSchema = applyDocumentFormRefines(
+  z
+    .object({
+      projectId: z.string().min(1, "案件が指定されていません"),
+      customerId: z.string().min(1, "顧客が指定されていません"),
+      issueDate: z.string().min(1, "発行日を入力してください"),
+      expiryType: z.enum(QUOTE_EXPIRY_TYPES),
+      expiryDate: z.string().min(1, "有効期限日を入力してください"),
+      paymentTerms: z.string().max(200),
+      memo: z.string().max(500),
+      items: z.array(quoteItemSchema).min(1, "明細を1件以上追加してください"),
+    })
+    .merge(discountFieldsSchema)
+    .merge(counterpartyContactFieldsSchema)
+);
 
 export type QuoteFormValues = z.infer<typeof quoteFormSchema>;
 
@@ -38,5 +52,6 @@ export const quoteFormDefaults: QuoteFormValues = {
   paymentTerms: "",
   memo: "",
   items: [],
+  ...discountFormDefaults,
+  ...counterpartyContactFormDefaults,
 };
-

@@ -14,9 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { PROJECT_STATUS_OPTIONS } from "@/lib/project-utils";
 import { DEFAULT_UNIT } from "@/lib/constants/units";
 import { sumLineItemAmounts } from "@/lib/line-item-utils";
+import { DiscountSection } from "@/components/shared/discount-section";
+import { DocumentTotalsSummary } from "@/components/shared/document-totals-summary";
+import { CounterpartyContactFieldsEditor } from "@/components/shared/counterparty-contact-fields";
+import { discountFormDefaults } from "@/lib/validations/discount";
+import { counterpartyContactFormDefaults } from "@/lib/validations/counterparty-contact";
 import { formatCurrency } from "@/lib/format";
 import { formatFieldErrorMessage } from "@/lib/form-error-message";
 import {
@@ -72,6 +76,30 @@ export function ProjectForm({
 
   const subtotal = useMemo(() => sumLineItemAmounts(items), [items]);
   const amountValue = watch("amount");
+  const discountLabel = watch("discountLabel") ?? discountFormDefaults.discountLabel;
+  const discountAmount = watch("discountAmount") ?? discountFormDefaults.discountAmount;
+  const customerContactName =
+    watch("customerContactName") ??
+    counterpartyContactFormDefaults.customerContactName;
+  const customerDepartment =
+    watch("customerDepartment") ??
+    counterpartyContactFormDefaults.customerDepartment;
+  const customerPosition =
+    watch("customerPosition") ??
+    counterpartyContactFormDefaults.customerPosition;
+  const totalsItems = useMemo(() => {
+    if (items.length > 0) {
+      return items.map((item) => ({
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        taxRate: item.taxRate,
+      }));
+    }
+    if (amountValue > 0) {
+      return [{ quantity: 1, unitPrice: amountValue, taxRate: 0.1 as const }];
+    }
+    return [];
+  }, [items, amountValue]);
   const amountMismatch =
     items.length > 0 && amountValue !== subtotal;
 
@@ -119,10 +147,7 @@ export function ProjectForm({
       })}
       className="space-y-6"
     >
-      <FormSection
-        title="顧客と案件名"
-        description="案件名は一覧表示用のタイトルです。金額の内訳は下の商品明細で登録します。"
-      >
+      <FormSection title="顧客" description="請求先となる顧客を選択してください。">
         <Controller
           name="customerId"
           control={control}
@@ -135,6 +160,42 @@ export function ProjectForm({
             />
           )}
         />
+      </FormSection>
+
+      <FormSection
+        title="先方担当者"
+        description="この案件の窓口になる担当者です。見積・請求などへ引き継がれます（任意）。"
+      >
+        <CounterpartyContactFieldsEditor
+          value={{
+            customerContactName,
+            customerDepartment,
+            customerPosition,
+          }}
+          onChange={(next) => {
+            setValue("customerContactName", next.customerContactName, {
+              shouldValidate: true,
+            });
+            setValue("customerDepartment", next.customerDepartment, {
+              shouldValidate: true,
+            });
+            setValue("customerPosition", next.customerPosition, {
+              shouldValidate: true,
+            });
+          }}
+          disabled={isSubmitting}
+          errors={{
+            customerContactName: errors.customerContactName?.message,
+            customerDepartment: errors.customerDepartment?.message,
+            customerPosition: errors.customerPosition?.message,
+          }}
+        />
+      </FormSection>
+
+      <FormSection
+        title="案件の基本情報"
+        description="案件名は一覧表示用のタイトルです。金額の内訳は下の商品明細で登録します。"
+      >
         <Field label="案件名" required error={errors.projectName?.message}>
           <Input
             {...register("projectName")}
@@ -188,14 +249,39 @@ export function ProjectForm({
             }
           />
         ) : (
-          <p className="text-sm text-zinc-500">
-            テンプレから選ぶか「手入力で追加」してください。
-          </p>
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-500">
+              テンプレから選ぶか「手入力で追加」してください。明細がない場合は金額を手入力できます。
+            </p>
+            <Field
+              label="金額（税抜）"
+              error={errors.amount?.message}
+              hint="値引き後の合計は下の値引き欄で確認できます。"
+            >
+              <div className="relative min-w-0">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">
+                  ¥
+                </span>
+                <Input
+                  {...register("amount", {
+                    valueAsNumber: true,
+                    setValueAs: (v) => (v === "" ? 0 : Number(v)),
+                  })}
+                  type="number"
+                  min={0}
+                  step={1}
+                  className={cn(inputClass, "pl-8 tabular-nums")}
+                />
+              </div>
+            </Field>
+          </div>
         )}
 
-        <p className="text-right text-lg font-semibold tabular-nums text-zinc-900">
-          税抜合計：{formatCurrency(subtotal)}
-        </p>
+        {items.length > 0 ? (
+          <p className="text-right text-lg font-semibold tabular-nums text-zinc-900">
+            税抜合計：{formatCurrency(subtotal)}
+          </p>
+        ) : null}
         {amountMismatch && (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             案件合計（{formatCurrency(amountValue)}）と明細合計（
@@ -209,48 +295,33 @@ export function ProjectForm({
         )}
       </FormSection>
 
-      <FormSection title="進捗と納期">
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="ステータス" error={errors.status?.message}>
-            <select {...register("status")} className={selectClass}>
-              {PROJECT_STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field
-            label="金額（税抜）"
-            error={errors.amount?.message}
-            hint={
-              items.length > 0
-                ? "商品明細の合計が自動入力されます"
-                : "明細がない場合のみ手入力できます"
-            }
-          >
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">
-                ¥
-              </span>
-              <Input
-                {...register("amount", {
-                  valueAsNumber: true,
-                  setValueAs: (v) => (v === "" ? 0 : Number(v)),
-                })}
-                type="number"
-                min={0}
-                step={1}
-                readOnly={items.length > 0}
-                className={cn(
-                  inputClass,
-                  "pl-8 tabular-nums",
-                  items.length > 0 && "bg-zinc-50"
-                )}
-              />
-            </div>
-          </Field>
-        </div>
+      <FormSection title="値引き" description="商品明細とは別に、書類全体への値引きを設定できます。">
+        <DiscountSection
+          value={{ discountLabel, discountAmount }}
+          onChange={(next) => {
+            setValue("discountLabel", next.discountLabel, { shouldValidate: true });
+            setValue("discountAmount", next.discountAmount, { shouldValidate: true });
+          }}
+          disabled={isSubmitting}
+          amountError={errors.discountAmount?.message}
+          labelError={errors.discountLabel?.message}
+        />
+        {totalsItems.length > 0 ? (
+          <div className="rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-4">
+            <DocumentTotalsSummary
+              items={totalsItems}
+              discount={{ discountLabel, discountAmount }}
+            />
+          </div>
+        ) : null}
+      </FormSection>
+
+      <FormSection title="納期">
+        {projectId ? (
+          <p className="text-sm text-zinc-500">
+            進捗ステータスは案件詳細の「受注確定」「作業完了」などから変更できます。
+          </p>
+        ) : null}
         <Field label="納期" error={errors.dueDate?.message}>
           <Input {...register("dueDate")} type="date" className={inputClass} />
         </Field>
@@ -306,9 +377,6 @@ export function ProjectForm({
 
 const inputClass =
   "h-11 rounded-xl border-zinc-200/80 text-base shadow-none focus-visible:ring-zinc-300";
-
-const selectClass =
-  "flex h-11 w-full rounded-xl border border-zinc-200/80 bg-white px-3 text-base text-zinc-900 outline-none focus-visible:border-zinc-400 focus-visible:ring-2 focus-visible:ring-zinc-200";
 
 function Field({
   label,

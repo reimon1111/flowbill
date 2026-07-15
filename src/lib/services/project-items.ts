@@ -48,6 +48,11 @@ export async function saveProjectItems(
       endDate: "",
       assigneeName: "",
       memo: "",
+      discountLabel: "",
+      discountAmount: 0,
+      customerContactName: "",
+      customerDepartment: "",
+      customerPosition: "",
     });
   }
   return useProjectItemStore.getState().replaceForProject(projectId, input.items);
@@ -118,25 +123,44 @@ export function buildInvoiceInputItemsForProject(
 /** 注文書・納品書など：見積明細 → 案件明細の優先順で明細を解決 */
 export type CommercialItemsResolveMeta = {
   items: CommercialDocumentItemInput[];
-  source: "accepted_quote" | "sent_quote" | "project_items" | "fallback" | "empty";
+  source:
+    | "accepted_quote"
+    | "sent_quote"
+    | "draft_quote"
+    | "selected_quote"
+    | "project_items"
+    | "fallback"
+    | "empty";
   acceptedEstimate: { id: string; quoteNumber: string; itemCount: number } | null;
   sentEstimate: { id: string; quoteNumber: string; itemCount: number } | null;
   projectItems: Array<{ id: string; name: string }>;
 };
 
+export type ResolveCommercialItemsOptions = {
+  allowTitleFallback?: boolean;
+  /**
+   * 明示指定の見積（下書き含む）。
+   * null = 見積を使わず案件明細のみ。
+   * undefined = 承認 → 提出済み → 下書きの自動優先。
+   */
+  quoteId?: string | null;
+};
+
 export function resolveCommercialItemsForProjectWithMeta(
   projectId: string,
   projectName: string,
-  options?: { allowTitleFallback?: boolean }
+  options?: ResolveCommercialItemsOptions
 ): CommercialItemsResolveMeta {
   const quotes = useQuoteStore
     .getState()
     .getQuotesByProjectId(projectId)
+    .filter((q) => q.status !== "rejected")
     .slice()
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   const accepted = quotes.find((q) => q.status === "accepted") ?? null;
   const sent = quotes.find((q) => q.status === "sent") ?? null;
+  const draft = quotes.find((q) => q.status === "draft") ?? null;
   const projectItems = useProjectItemStore.getState().getByProjectId(projectId);
 
   const acceptedEstimate = accepted
@@ -158,33 +182,23 @@ export function resolveCommercialItemsForProjectWithMeta(
     name: it.name,
   }));
 
-  if (accepted) {
-    const quoteItems = useQuoteStore.getState().getQuoteItems(accepted.id);
-    if (quoteItems.length > 0) {
-      return {
-        items: itemsFromQuoteItems(quoteItems),
-        source: "accepted_quote",
-        acceptedEstimate,
-        sentEstimate,
-        projectItems: projectItemSummaries,
-      };
-    }
-  }
+  const fromQuote = (
+    quoteId: string,
+    source: CommercialItemsResolveMeta["source"]
+  ): CommercialItemsResolveMeta | null => {
+    const quoteItems = useQuoteStore.getState().getQuoteItems(quoteId);
+    if (quoteItems.length === 0) return null;
+    return {
+      items: itemsFromQuoteItems(quoteItems),
+      source,
+      acceptedEstimate,
+      sentEstimate,
+      projectItems: projectItemSummaries,
+    };
+  };
 
-  if (sent) {
-    const quoteItems = useQuoteStore.getState().getQuoteItems(sent.id);
-    if (quoteItems.length > 0) {
-      return {
-        items: itemsFromQuoteItems(quoteItems),
-        source: "sent_quote",
-        acceptedEstimate,
-        sentEstimate,
-        projectItems: projectItemSummaries,
-      };
-    }
-  }
-
-  if (projectItems.length > 0) {
+  const fromProject = (): CommercialItemsResolveMeta | null => {
+    if (projectItems.length === 0) return null;
     return {
       items: itemsFromProjectItems(projectItems),
       source: "project_items",
@@ -192,9 +206,18 @@ export function resolveCommercialItemsForProjectWithMeta(
       sentEstimate,
       projectItems: projectItemSummaries,
     };
-  }
+  };
 
-  if (options?.allowTitleFallback !== false) {
+  const fromFallback = (): CommercialItemsResolveMeta => {
+    if (options?.allowTitleFallback === false) {
+      return {
+        items: [],
+        source: "empty",
+        acceptedEstimate,
+        sentEstimate,
+        projectItems: projectItemSummaries,
+      };
+    }
     return {
       items: [
         {
@@ -216,23 +239,51 @@ export function resolveCommercialItemsForProjectWithMeta(
       sentEstimate,
       projectItems: projectItemSummaries,
     };
+  };
+
+  // 見積を使わず案件から
+  if (options?.quoteId === null) {
+    return fromProject() ?? fromFallback();
   }
 
-  return {
-    items: [],
-    source: "empty",
-    acceptedEstimate,
-    sentEstimate,
-    projectItems: projectItemSummaries,
-  };
+  // 明示指定の見積
+  if (options?.quoteId) {
+    const selected = quotes.find((q) => q.id === options.quoteId);
+    if (selected) {
+      const resolved = fromQuote(selected.id, "selected_quote");
+      if (resolved) return resolved;
+    }
+    return fromProject() ?? fromFallback();
+  }
+
+  // 自動優先: 承認 → 提出済み → 下書き → 案件
+  if (accepted) {
+    const resolved = fromQuote(accepted.id, "accepted_quote");
+    if (resolved) return resolved;
+  }
+  if (sent) {
+    const resolved = fromQuote(sent.id, "sent_quote");
+    if (resolved) return resolved;
+  }
+  if (draft) {
+    const resolved = fromQuote(draft.id, "draft_quote");
+    if (resolved) return resolved;
+  }
+
+  return fromProject() ?? fromFallback();
 }
 
 /** 注文書・納品書など：見積明細 → 案件明細 → 案件名1行の優先順で明細を解決 */
 export function resolveCommercialItemsForProject(
   projectId: string,
-  projectName: string
+  projectName: string,
+  options?: ResolveCommercialItemsOptions
 ): CommercialDocumentItemInput[] {
-  return resolveCommercialItemsForProjectWithMeta(projectId, projectName).items;
+  return resolveCommercialItemsForProjectWithMeta(
+    projectId,
+    projectName,
+    options
+  ).items;
 }
 
 export function quoteNeedsItemSync(quote: {

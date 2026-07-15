@@ -26,7 +26,9 @@ export function QuotePreview({
       issueDate={quote.issueDate}
       secondDate={quote.expiryDate}
       customerName={customer.customerName}
-      contactName={customer.contactName}
+      contactName={quote.customerContactName}
+      department={quote.customerDepartment}
+      position={quote.customerPosition}
       subject={projectName}
       constructionSite={constructionSite}
       paymentTerms={quote.paymentTerms}
@@ -34,6 +36,8 @@ export function QuotePreview({
       subtotal={quote.subtotal}
       taxAmount={quote.taxAmount}
       totalAmount={quote.totalAmount}
+      discountLabel={quote.discountLabel}
+      discountAmount={quote.discountAmount}
       memo={quote.memo}
       memoTemplate={company.quoteMemoTemplate}
       company={company}

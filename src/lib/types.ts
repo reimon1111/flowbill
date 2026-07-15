@@ -17,6 +17,11 @@ export type ProjectRecord = {
   constructionSite: string;
   status: ProjectStatus;
   amount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   dueDate: string;
   startDate: string;
   endDate: string;
@@ -58,6 +63,11 @@ export type ProjectInput = {
   constructionSite: string;
   status: ProjectStatus;
   amount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   dueDate: string;
   startDate: string;
   endDate: string;
@@ -97,6 +107,7 @@ export type ProjectActionType =
   | "mark_in_progress"
   | "mark_completed"
   | "generate_invoice"
+  | "view_invoice"
   | "mark_paid";
 
 export type ProjectHistoryEvent = {
@@ -125,6 +136,11 @@ export type QuoteRecord = {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   memo: string;
   paymentTerms: string;
   createdBy: string | null;
@@ -160,6 +176,11 @@ export type QuoteInput = {
   expiryDate: string;
   memo: string;
   paymentTerms: string;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   items: Array<{
     itemTemplateId: string | null;
     name: string;
@@ -200,6 +221,11 @@ export type InvoiceRecord = {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   pdfUrl: string | null;
   memo: string;
   paymentTerms: string;
@@ -208,6 +234,7 @@ export type InvoiceRecord = {
   updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
 };
 
 export type InvoiceItemRecord = {
@@ -228,6 +255,11 @@ export type InvoiceItemRecord = {
   updatedAt: string;
 };
 
+export type CreateInvoiceOptions = {
+  /** 同一案件への追加請求として明示的に作成する */
+  allowAdditional?: boolean;
+};
+
 export type InvoiceInput = {
   projectId: string;
   customerId: string;
@@ -237,6 +269,11 @@ export type InvoiceInput = {
   memo: string;
   paymentTerms: string;
   bankAccountId?: string | null;
+  discountLabel: string;
+  discountAmount: number;
+  customerContactName: string;
+  customerDepartment: string;
+  customerPosition: string;
   items: Array<{
     quoteItemId: string | null;
     name: string;
@@ -421,6 +458,8 @@ export type RecurringBillingRecord = {
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
+  discountLabel: string;
+  discountAmount: number;
   memo: string;
   createdAt: string;
   updatedAt: string;

@@ -1,17 +1,11 @@
 import { cn } from "@/lib/utils";
 import {
-  INVOICE_STATUS_LABELS,
-  INVOICE_STATUS_STYLES,
-  PROJECT_PAYMENT_STATUS_LABELS,
-  PROJECT_PAYMENT_STATUS_STYLES,
   PROJECT_STATUS_LABELS,
   PROJECT_STATUS_STYLES,
 } from "@/lib/constants";
-import type {
-  InvoiceStatus,
-  ProjectPaymentStatus,
-  ProjectStatus,
-} from "@/lib/types";
+import { BillingStatusBadge } from "@/components/billing/billing-status-badge";
+import type { BillingDisplayStatus } from "@/lib/billing-status-theme";
+import type { ProjectStatus } from "@/lib/types";
 
 export function ProjectStatusBadge({
   status,
@@ -36,42 +30,12 @@ export function ProjectStatusBadge({
   );
 }
 
-export function InvoiceStatusBadge({
+export function BillingProjectStatusBadge({
   status,
   className,
 }: {
-  status: InvoiceStatus;
+  status: BillingDisplayStatus;
   className?: string;
 }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
-        INVOICE_STATUS_STYLES[status],
-        className
-      )}
-    >
-      {INVOICE_STATUS_LABELS[status]}
-    </span>
-  );
-}
-
-export function ProjectPaymentStatusBadge({
-  status,
-  className,
-}: {
-  status: ProjectPaymentStatus;
-  className?: string;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
-        PROJECT_PAYMENT_STATUS_STYLES[status],
-        className
-      )}
-    >
-      {PROJECT_PAYMENT_STATUS_LABELS[status]}
-    </span>
-  );
+  return <BillingStatusBadge status={status} className={className} />;
 }

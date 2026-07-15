@@ -40,6 +40,11 @@ const sampleQuote: QuoteRecord = {
   subtotal: 185000,
   taxAmount: 18500,
   totalAmount: 203500,
+  discountLabel: "",
+  discountAmount: 0,
+  customerContactName: "山田 太郎",
+  customerDepartment: "営業部",
+  customerPosition: "",
   memo: "",
   paymentTerms: "納品後お支払い",
   createdBy: null,
@@ -97,6 +102,11 @@ const sampleInvoice: InvoiceRecord = {
   subtotal: 185000,
   taxAmount: 18500,
   totalAmount: 203500,
+  discountLabel: "",
+  discountAmount: 0,
+  customerContactName: "山田 太郎",
+  customerDepartment: "営業部",
+  customerPosition: "",
   pdfUrl: null,
   memo: "",
   paymentTerms: "請求書発行後14日以内",
@@ -105,6 +115,7 @@ const sampleInvoice: InvoiceRecord = {
   updatedBy: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+  deletedAt: null,
 };
 
 const sampleInvoiceItems: InvoiceItemRecord[] = sampleQuoteItems.map((it) => ({

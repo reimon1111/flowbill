@@ -4,6 +4,10 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { ProjectActionType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import {
+  getBillingStatusTheme,
+  type BillingDisplayStatus,
+} from "@/lib/billing-status-theme";
 
 type ProjectActionButtonProps = {
   label: string;
@@ -12,6 +16,7 @@ type ProjectActionButtonProps = {
   variant?: "primary" | "outline";
   loading?: boolean;
   className?: string;
+  billingStatus?: BillingDisplayStatus;
 };
 
 export function ProjectActionButton({
@@ -21,7 +26,12 @@ export function ProjectActionButton({
   variant = "primary",
   loading,
   className,
+  billingStatus,
 }: ProjectActionButtonProps) {
+  const billingButtonClass = billingStatus
+    ? getBillingStatusTheme(billingStatus).buttonClass
+    : null;
+
   return (
     <Button
       type="button"
@@ -30,9 +40,10 @@ export function ProjectActionButton({
       onClick={() => onAction(action)}
       className={cn(
         "h-8 rounded-lg text-xs font-medium",
-        variant === "primary"
-          ? "bg-zinc-900 text-white hover:bg-zinc-800"
-          : "border-zinc-200",
+        billingButtonClass ??
+          (variant === "primary"
+            ? "bg-zinc-900 text-white hover:bg-zinc-800"
+            : "border-zinc-200"),
         className
       )}
     >

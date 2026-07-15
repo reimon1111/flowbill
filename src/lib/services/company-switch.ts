@@ -1,7 +1,7 @@
 import { clearCompanyContext } from "@/lib/db/company-context";
 import { clearAllBusinessStores } from "@/lib/stores/clear-business-stores";
-import { loadAllDataFromSupabase, reloadInvoicesToStore, reloadProjectsToStore } from "@/lib/db/load-all";
-import { dbRefreshOverdueInvoices } from "@/lib/db/write-invoices";
+import { loadAllDataFromSupabase } from "@/lib/db/load-all";
+import { runBackgroundDataSync } from "@/lib/db/background-init";
 import { syncCustomerProjectCounts } from "@/lib/services/projects";
 import {
   fetchCompanyMembers,
@@ -42,12 +42,8 @@ export async function reloadAfterCompanyJoin() {
   useAppDataStore.getState().resetForCompanySwitch();
 
   await loadAllDataFromSupabase();
-  await dbRefreshOverdueInvoices();
-  await reloadInvoicesToStore();
-  await reloadProjectsToStore();
   syncCustomerProjectCounts();
   await hydrateCompanyMembership();
-  const { loadRecentActivityLogsToStore } = await import("@/lib/services/activity-log");
-  await loadRecentActivityLogsToStore(10);
   useAppDataStore.getState().setReady(true);
+  await runBackgroundDataSync();
 }
