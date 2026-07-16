@@ -78,6 +78,7 @@ export function CommercialDocumentPreview({
       contactName={document.customerContactName}
       department={document.customerDepartment}
       position={document.customerPosition}
+      honorific={document.customerHonorific}
       bankAccounts={bankAccounts}
       {...sharedProps}
     />

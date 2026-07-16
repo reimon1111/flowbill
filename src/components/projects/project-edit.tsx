@@ -68,6 +68,7 @@ export function EditProjectClient() {
       amount: project.amount,
       discountLabel: project.discountLabel ?? "",
       discountAmount: project.discountAmount ?? 0,
+      customerHonorific: project.customerHonorific ?? "御中",
       customerContactName: project.customerContactName ?? "",
       customerDepartment: project.customerDepartment ?? "",
       customerPosition: project.customerPosition ?? "",

@@ -19,6 +19,7 @@ export type ProjectRecord = {
   amount: number;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -65,6 +66,7 @@ export type ProjectInput = {
   amount: number;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -138,6 +140,7 @@ export type QuoteRecord = {
   totalAmount: number;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -178,6 +181,7 @@ export type QuoteInput = {
   paymentTerms: string;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -223,6 +227,7 @@ export type InvoiceRecord = {
   totalAmount: number;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -271,6 +276,7 @@ export type InvoiceInput = {
   bankAccountId?: string | null;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;

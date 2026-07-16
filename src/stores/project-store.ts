@@ -24,6 +24,7 @@ import { PROJECT_STATUS_LABELS } from "@/lib/constants";
 import { applyProjectMilestoneDates } from "@/lib/project-milestone-dates";
 import { getProjectInvoiceState } from "@/lib/invoice-state";
 import { useInvoiceStore } from "@/stores/invoice-store";
+import { pickCustomerHonorific } from "@/lib/customer-honorific";
 
 function generateId(prefix: string): string {
   return `${prefix}${Date.now().toString(36)}`;
@@ -137,6 +138,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       amount: input.amount ?? 0,
       discountLabel: input.discountLabel?.trim() ?? "",
       discountAmount: input.discountAmount ?? 0,
+      customerHonorific: pickCustomerHonorific(input),
       customerContactName: input.customerContactName?.trim() ?? "",
       customerDepartment: input.customerDepartment?.trim() ?? "",
       customerPosition: input.customerPosition?.trim() ?? "",
@@ -179,6 +181,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             amount: input.amount ?? 0,
             discountLabel: input.discountLabel?.trim() ?? "",
             discountAmount: input.discountAmount ?? 0,
+            customerHonorific: pickCustomerHonorific(input),
             customerContactName: input.customerContactName?.trim() ?? "",
             customerDepartment: input.customerDepartment?.trim() ?? "",
             customerPosition: input.customerPosition?.trim() ?? "",

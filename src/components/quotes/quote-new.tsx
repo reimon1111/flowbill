@@ -161,6 +161,7 @@ export function NewQuoteClient({ projectId }: { projectId?: string }) {
           paymentTerms: companySettings.paymentTerms ?? "",
           discountLabel: inheritedDiscount.discountLabel,
           discountAmount: inheritedDiscount.discountAmount,
+          customerHonorific: project.customerHonorific ?? "御中",
           customerContactName: inheritedContact.customerContactName,
           customerDepartment: inheritedContact.customerDepartment,
           customerPosition: inheritedContact.customerPosition,

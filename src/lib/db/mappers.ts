@@ -9,6 +9,7 @@ import {
   calculateDocumentTotals,
   type DocumentDiscountFields,
 } from "@/lib/discount-totals";
+import { normalizeCustomerHonorific } from "@/lib/customer-honorific";
 import type {
   CompanySettings,
   Customer,
@@ -392,6 +393,7 @@ export type ProjectRow = {
   amount: number;
   discount_label?: string | null;
   discount_amount?: number | null;
+  customer_honorific?: string | null;
   customer_contact_name?: string | null;
   customer_department?: string | null;
   customer_position?: string | null;
@@ -431,6 +433,7 @@ export function projectFromRow(row: ProjectRow): ProjectRecord {
     amount: num(row.amount),
     discountLabel: row.discount_label != null ? String(row.discount_label) : "",
     discountAmount: num(row.discount_amount),
+    customerHonorific: normalizeCustomerHonorific(row.customer_honorific),
     customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
@@ -464,6 +467,7 @@ export function projectToRow(
     amount: p.amount,
     discount_label: p.discountLabel,
     discount_amount: p.discountAmount,
+    customer_honorific: p.customerHonorific,
     customer_contact_name: p.customerContactName || null,
     customer_department: p.customerDepartment || null,
     customer_position: p.customerPosition || null,
@@ -630,6 +634,7 @@ export type QuoteRow = {
   total_amount: number;
   discount_label?: string | null;
   discount_amount?: number | null;
+  customer_honorific?: string | null;
   customer_contact_name?: string | null;
   customer_department?: string | null;
   customer_position?: string | null;
@@ -660,6 +665,7 @@ export function quoteFromRow(row: QuoteRow): QuoteRecord {
     totalAmount: num(row.total_amount),
     discountLabel: row.discount_label != null ? String(row.discount_label) : "",
     discountAmount: num(row.discount_amount),
+    customerHonorific: normalizeCustomerHonorific(row.customer_honorific),
     customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
@@ -687,6 +693,7 @@ export function quoteToRow(companyId: string, q: QuoteRecord): QuoteRow {
     total_amount: q.totalAmount,
     discount_label: q.discountLabel,
     discount_amount: q.discountAmount,
+    customer_honorific: q.customerHonorific,
     customer_contact_name: q.customerContactName || null,
     customer_department: q.customerDepartment || null,
     customer_position: q.customerPosition || null,
@@ -805,6 +812,7 @@ export type InvoiceRow = {
   total_amount: number;
   discount_label?: string | null;
   discount_amount?: number | null;
+  customer_honorific?: string | null;
   customer_contact_name?: string | null;
   customer_department?: string | null;
   customer_position?: string | null;
@@ -834,6 +842,7 @@ export function invoiceFromRow(row: InvoiceRow): InvoiceRecord {
     totalAmount: num(row.total_amount),
     discountLabel: row.discount_label != null ? String(row.discount_label) : "",
     discountAmount: num(row.discount_amount),
+    customerHonorific: normalizeCustomerHonorific(row.customer_honorific),
     customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
@@ -864,6 +873,7 @@ export function invoiceToRow(companyId: string, inv: InvoiceRecord): InvoiceRow 
     total_amount: inv.totalAmount,
     discount_label: inv.discountLabel,
     discount_amount: inv.discountAmount,
+    customer_honorific: inv.customerHonorific,
     customer_contact_name: inv.customerContactName || null,
     customer_department: inv.customerDepartment || null,
     customer_position: inv.customerPosition || null,

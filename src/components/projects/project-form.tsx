@@ -19,8 +19,11 @@ import { sumLineItemAmounts } from "@/lib/line-item-utils";
 import { DiscountSection } from "@/components/shared/discount-section";
 import { DocumentTotalsSummary } from "@/components/shared/document-totals-summary";
 import { CounterpartyContactFieldsEditor } from "@/components/shared/counterparty-contact-fields";
+import { CustomerHonorificSelect } from "@/components/shared/customer-honorific-select";
 import { discountFormDefaults } from "@/lib/validations/discount";
 import { counterpartyContactFormDefaults } from "@/lib/validations/counterparty-contact";
+import { DEFAULT_CUSTOMER_HONORIFIC } from "@/lib/customer-honorific";
+import type { CustomerHonorific } from "@/lib/customer-honorific";
 import { formatCurrency } from "@/lib/format";
 import { formatFieldErrorMessage } from "@/lib/form-error-message";
 import {
@@ -87,6 +90,9 @@ export function ProjectForm({
   const customerPosition =
     watch("customerPosition") ??
     counterpartyContactFormDefaults.customerPosition;
+  const customerHonorific =
+    (watch("customerHonorific") as CustomerHonorific | undefined) ??
+    DEFAULT_CUSTOMER_HONORIFIC;
   const totalsItems = useMemo(() => {
     if (items.length > 0) {
       return items.map((item) => ({
@@ -159,6 +165,14 @@ export function ProjectForm({
               error={errors.customerId?.message}
             />
           )}
+        />
+        <CustomerHonorificSelect
+          value={customerHonorific}
+          onChange={(next) =>
+            setValue("customerHonorific", next, { shouldValidate: true })
+          }
+          disabled={isSubmitting}
+          error={errors.customerHonorific?.message}
         />
       </FormSection>
 

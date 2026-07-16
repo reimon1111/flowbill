@@ -546,6 +546,7 @@ export function projectInputFromForm(values: ProjectFormValues): ProjectInput {
     memo: values.memo.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
+    customerHonorific: values.customerHonorific,
     customerContactName: values.customerContactName.trim(),
     customerDepartment: values.customerDepartment.trim(),
     customerPosition: values.customerPosition.trim(),

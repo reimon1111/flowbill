@@ -242,6 +242,8 @@ export function NewInvoiceClient() {
           memo: companySettings.invoiceMemoTemplate ?? "",
           discountLabel: inheritedDiscount.discountLabel,
           discountAmount: inheritedDiscount.discountAmount,
+          customerHonorific:
+            sourceQuote.customerHonorific ?? project.customerHonorific ?? "御中",
           customerContactName: inheritedContact.customerContactName,
           customerDepartment: inheritedContact.customerDepartment,
           customerPosition: inheritedContact.customerPosition,

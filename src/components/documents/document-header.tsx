@@ -12,6 +12,7 @@ export function DocumentHeader({
   contactName,
   department,
   position,
+  honorific,
 }: {
   kind: DocumentKind;
   documentNumber: string;
@@ -21,6 +22,7 @@ export function DocumentHeader({
   contactName?: string;
   department?: string;
   position?: string;
+  honorific?: string | null;
 }) {
   const labels = getDocumentLabels(kind);
 
@@ -37,6 +39,7 @@ export function DocumentHeader({
           contactName={contactName}
           department={department}
           position={position}
+          honorific={honorific}
         />
 
         <div className="document-meta shrink-0 text-right text-xs leading-relaxed text-zinc-800">

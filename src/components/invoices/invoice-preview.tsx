@@ -34,6 +34,7 @@ export function InvoicePreview({
       contactName={invoice.customerContactName}
       department={invoice.customerDepartment}
       position={invoice.customerPosition}
+      honorific={invoice.customerHonorific}
       subject={projectName}
       constructionSite={constructionSite}
       paymentTerms={invoice.paymentTerms}

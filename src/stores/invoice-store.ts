@@ -24,6 +24,11 @@ import {
   resolveProjectNameFromStore,
   UNKNOWN_CUSTOMER_LABEL,
 } from "@/lib/project-display";
+import { pickCustomerHonorific } from "@/lib/customer-honorific";
+import {
+  calculateDocumentTotals,
+  pickDocumentDiscount,
+} from "@/lib/discount-totals";
 
 function id(prefix: string) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -39,11 +44,6 @@ function syncProjectFromInvoices(projectId: string, invoices: InvoiceRecord[]) {
     updatedAt: new Date().toISOString(),
   });
 }
-
-import {
-  calculateDocumentTotals,
-  pickDocumentDiscount,
-} from "@/lib/discount-totals";
 
 function computeTotals(
   items: Array<Pick<InvoiceItemRecord, "amount" | "taxRate">>,
@@ -202,6 +202,7 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       totalAmount: totals.totalAmount,
       discountLabel: input.discountLabel?.trim() ?? "",
       discountAmount: input.discountAmount ?? 0,
+      customerHonorific: pickCustomerHonorific(input),
       customerContactName: input.customerContactName?.trim() ?? "",
       customerDepartment: input.customerDepartment?.trim() ?? "",
       customerPosition: input.customerPosition?.trim() ?? "",
@@ -280,6 +281,7 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       totalAmount: totals.totalAmount,
       discountLabel: input.discountLabel?.trim() ?? "",
       discountAmount: input.discountAmount ?? 0,
+      customerHonorific: pickCustomerHonorific(input),
       customerContactName: input.customerContactName?.trim() ?? "",
       customerDepartment: input.customerDepartment?.trim() ?? "",
       customerPosition: input.customerPosition?.trim() ?? "",

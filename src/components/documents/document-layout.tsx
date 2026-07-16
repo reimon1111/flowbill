@@ -26,6 +26,8 @@ export type DocumentLayoutProps = {
   department?: string;
   /** 先方役職 */
   position?: string;
+  /** 顧客敬称（担当者未入力時のみ会社名横に表示） */
+  honorific?: string | null;
   subject: string;
   constructionSite?: string;
   paymentTerms?: string;
@@ -50,6 +52,7 @@ export function DocumentLayout({
   contactName,
   department,
   position,
+  honorific,
   subject,
   constructionSite = "",
   paymentTerms = "",
@@ -81,6 +84,7 @@ export function DocumentLayout({
         contactName={contactName}
         department={department}
         position={position}
+        honorific={honorific}
       />
 
       <div className="document-intro mt-3 flex flex-col gap-4 overflow-visible sm:flex-row sm:items-start sm:justify-between sm:gap-6">

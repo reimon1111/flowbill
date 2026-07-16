@@ -50,6 +50,7 @@ export async function saveProjectItems(
       memo: "",
       discountLabel: "",
       discountAmount: 0,
+      customerHonorific: "御中",
       customerContactName: "",
       customerDepartment: "",
       customerPosition: "",

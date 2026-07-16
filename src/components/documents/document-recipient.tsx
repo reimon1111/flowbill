@@ -1,19 +1,23 @@
 import { formatDocumentRecipient } from "@/lib/format-contact";
+import type { CustomerHonorific } from "@/lib/customer-honorific";
 
 export function DocumentRecipient({
   customerName,
   contactName,
   department,
   position,
+  honorific,
 }: {
   customerName: string;
   contactName?: string;
   department?: string;
   position?: string;
+  honorific?: CustomerHonorific | string | null;
 }) {
   const recipient = formatDocumentRecipient(customerName, contactName, {
     department,
     position,
+    honorific,
   });
 
   return (

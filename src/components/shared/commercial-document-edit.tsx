@@ -135,6 +135,10 @@ function resolveEditPayload(
             memo: doc.memo,
             discountLabel: doc.discountLabel ?? "",
             discountAmount: doc.discountAmount ?? 0,
+            customerHonorific:
+              "customerHonorific" in doc && doc.customerHonorific
+                ? doc.customerHonorific
+                : "御中",
             customerContactName: doc.customerContactName ?? "",
             customerDepartment: doc.customerDepartment ?? "",
             customerPosition: doc.customerPosition ?? "",
@@ -199,7 +203,7 @@ export function CommercialDocumentEditClient({
     const input =
       kind === "order"
         ? orderInputFromForm(v as OrderDocumentFormValues)
-        : commercialDocumentInputFromForm(v);
+        : commercialDocumentInputFromForm(v as CommercialDocumentFormValues);
     const updated =
       kind === "order"
         ? await updateOrder(documentId, input)

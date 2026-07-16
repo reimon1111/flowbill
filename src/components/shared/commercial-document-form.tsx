@@ -19,8 +19,11 @@ import { DEFAULT_UNIT } from "@/lib/constants/units";
 import { DiscountSection } from "@/components/shared/discount-section";
 import { DocumentTotalsSummary } from "@/components/shared/document-totals-summary";
 import { CounterpartyContactFieldsEditor } from "@/components/shared/counterparty-contact-fields";
+import { CustomerHonorificSelect } from "@/components/shared/customer-honorific-select";
 import { discountFormDefaults } from "@/lib/validations/discount";
 import { counterpartyContactFormDefaults } from "@/lib/validations/counterparty-contact";
+import { DEFAULT_CUSTOMER_HONORIFIC } from "@/lib/customer-honorific";
+import type { CustomerHonorific } from "@/lib/customer-honorific";
 import { formatContactWithSama } from "@/lib/format-contact";
 import { formatFieldErrorMessage } from "@/lib/form-error-message";
 import {
@@ -103,6 +106,10 @@ export function CommercialDocumentForm({
   const customerPosition =
     useWatch({ control: form.control, name: "customerPosition" }) ??
     counterpartyContactFormDefaults.customerPosition;
+  const customerHonorific =
+    ((useWatch({ control: form.control, name: "customerHonorific" }) as
+      | CustomerHonorific
+      | undefined) ?? DEFAULT_CUSTOMER_HONORIFIC);
   const totalsItems = useMemo(
     () =>
       items.map((item) => ({
@@ -214,6 +221,23 @@ export function CommercialDocumentForm({
         ) : null}
 
         <FormSection title="先方担当者" description="帳票の宛名に表示されます（任意）。">
+          {!isOrder ? (
+            <CustomerHonorificSelect
+              value={customerHonorific}
+              onChange={(next) =>
+                form.setValue("customerHonorific", next, {
+                  shouldValidate: true,
+                })
+              }
+              disabled={form.formState.isSubmitting}
+              error={
+                "customerHonorific" in form.formState.errors
+                  ? form.formState.errors.customerHonorific?.message
+                  : undefined
+              }
+              className="max-w-xs"
+            />
+          ) : null}
           <CounterpartyContactFieldsEditor
             value={{
               customerContactName,

@@ -18,6 +18,7 @@ import {
   resolveProjectNameFromStore,
   UNKNOWN_CUSTOMER_LABEL,
 } from "@/lib/project-display";
+import { pickCustomerHonorific } from "@/lib/customer-honorific";
 
 function id(prefix: string) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -161,6 +162,7 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       totalAmount: totals.totalAmount,
       discountLabel: input.discountLabel?.trim() ?? "",
       discountAmount: input.discountAmount ?? 0,
+      customerHonorific: pickCustomerHonorific(input),
       customerContactName: input.customerContactName?.trim() ?? "",
       customerDepartment: input.customerDepartment?.trim() ?? "",
       customerPosition: input.customerPosition?.trim() ?? "",
@@ -222,6 +224,7 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       totalAmount: totals.totalAmount,
       discountLabel: input.discountLabel?.trim() ?? "",
       discountAmount: input.discountAmount ?? 0,
+      customerHonorific: pickCustomerHonorific(input),
       customerContactName: input.customerContactName?.trim() ?? "",
       customerDepartment: input.customerDepartment?.trim() ?? "",
       customerPosition: input.customerPosition?.trim() ?? "",

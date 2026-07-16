@@ -10,6 +10,10 @@ import {
   counterpartyContactFieldsSchema,
   counterpartyContactFormDefaults,
 } from "@/lib/validations/counterparty-contact";
+import {
+  customerHonorificFieldSchema,
+  customerHonorificFormDefaults,
+} from "@/lib/validations/customer-honorific";
 
 const statusValues = PROJECT_STATUS_OPTIONS.map((o) => o.value) as [
   (typeof PROJECT_STATUS_OPTIONS)[number]["value"],
@@ -37,6 +41,7 @@ export const projectFormSchema = applyDocumentFormRefines(
       items: z.array(projectItemSchema),
     })
     .merge(discountFieldsSchema)
+    .merge(customerHonorificFieldSchema)
     .merge(counterpartyContactFieldsSchema)
     .refine(
       (data) => {
@@ -63,5 +68,6 @@ export const projectFormDefaults: ProjectFormValues = {
   memo: "",
   items: [],
   ...discountFormDefaults,
+  ...customerHonorificFormDefaults,
   ...counterpartyContactFormDefaults,
 };

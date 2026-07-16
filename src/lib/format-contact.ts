@@ -1,3 +1,9 @@
+import {
+  DEFAULT_CUSTOMER_HONORIFIC,
+  normalizeCustomerHonorific,
+  type CustomerHonorific,
+} from "@/lib/customer-honorific";
+
 /** 見積書など帳票用：担当者名の敬称 */
 export function formatContactWithSama(name: string): string {
   const trimmed = name.trim();
@@ -7,7 +13,7 @@ export function formatContactWithSama(name: string): string {
 }
 
 export type DocumentRecipientLines = {
-  /** 会社名行（常に御中付き） */
+  /** 会社名行（担当者なし時は敬称付き、あり時は会社名のみ） */
   companyLine: string;
   /** 部署・役職など（空配列可） */
   orgLines: string[];
@@ -20,19 +26,21 @@ export type DocumentRecipientLines = {
 type FormatDocumentRecipientOptions = {
   department?: string;
   position?: string;
+  /** 顧客宛名の敬称（担当者未入力時のみ会社名横に表示） */
+  honorific?: CustomerHonorific | string | null;
 };
 
-function withOnchu(company: string): string {
+function withHonorific(company: string, honorific: CustomerHonorific): string {
   if (!company) return "";
-  return company.endsWith("御中") ? company : `${company} 御中`;
+  if (company.endsWith("御中") || company.endsWith("様")) return company;
+  return `${company}　${honorific}`;
 }
 
 /**
  * 帳票の宛先表示（見積・納品・請求・領収）。
  *
- * - 担当者なし: 「会社名 御中」
- * - 担当者あり: 「会社名 御中」→ 部署 → 役職 → 「担当者名 様」
- *   （会社名の御中は消さない）
+ * - 担当者なし: 「会社名　{敬称}」（敬称は案件/書類の customerHonorific）
+ * - 担当者あり: 「会社名」のみ（敬称なし）→ 部署 → 役職 → 「担当者名 様」
  */
 export function formatDocumentRecipient(
   customerName: string,
@@ -43,15 +51,16 @@ export function formatDocumentRecipient(
   const contact = contactName?.trim() ?? "";
   const department = options?.department?.trim() ?? "";
   const position = options?.position?.trim() ?? "";
-  const primaryLine = withOnchu(company);
-
+  const honorific = normalizeCustomerHonorific(
+    options?.honorific ?? DEFAULT_CUSTOMER_HONORIFIC
+  );
   const orgLines = [department, position].filter(Boolean);
 
-  // 担当者未入力でも部署・役職だけある場合は表示する
   if (!contact) {
+    const companyLine = withHonorific(company, honorific);
     return {
-      companyLine: primaryLine,
-      primaryLine,
+      companyLine,
+      primaryLine: companyLine,
       orgLines,
     };
   }
@@ -61,8 +70,8 @@ export function formatDocumentRecipient(
     : contact;
 
   return {
-    companyLine: primaryLine,
-    primaryLine,
+    companyLine: company,
+    primaryLine: company,
     orgLines,
     contactLine: formatContactWithSama(name),
   };

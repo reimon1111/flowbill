@@ -40,6 +40,8 @@ export type CommercialDocumentInput = {
   memo: string;
   discountLabel: string;
   discountAmount: number;
+  /** 納品・領収で使用。注文書では未使用 */
+  customerHonorific?: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -100,6 +102,7 @@ export type DeliveryNoteRecord = {
   totalAmount: number;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -138,6 +141,7 @@ export type ReceiptRecord = {
   totalAmount: number;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -190,6 +194,8 @@ export type CommercialDocView = {
   totalAmount: number;
   discountLabel: string;
   discountAmount: number;
+  /** 納品・領収で使用。注文書プレビューでは未使用 */
+  customerHonorific?: import("@/lib/customer-honorific").CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -211,7 +217,9 @@ export function toCommercialDocView(
     | "customerDepartment"
     | "customerPosition"
     | "memo"
-  >
+  > & {
+    customerHonorific?: import("@/lib/customer-honorific").CustomerHonorific;
+  }
 ): CommercialDocView {
   return {
     documentNumber,
@@ -222,6 +230,7 @@ export function toCommercialDocView(
     totalAmount: record.totalAmount,
     discountLabel: record.discountLabel ?? "",
     discountAmount: record.discountAmount ?? 0,
+    customerHonorific: record.customerHonorific,
     customerContactName: record.customerContactName ?? "",
     customerDepartment: record.customerDepartment ?? "",
     customerPosition: record.customerPosition ?? "",

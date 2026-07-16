@@ -35,6 +35,7 @@ import {
 import { normalizeUnit } from "@/lib/constants/units";
 import { resolveInheritedDiscount } from "@/lib/discount-totals";
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
+import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import { buildInvoiceInputItemsForProject } from "@/lib/services/project-items";
 import { syncQuoteItemsFromProject } from "@/lib/services/quotes";
 import {
@@ -431,6 +432,7 @@ export function invoiceInputFromForm(values: InvoiceFormValues): InvoiceInput {
     memo: values.memo.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
+    customerHonorific: values.customerHonorific,
     customerContactName: values.customerContactName.trim(),
     customerDepartment: values.customerDepartment.trim(),
     customerPosition: values.customerPosition.trim(),
@@ -534,6 +536,7 @@ export async function createInvoiceFromQuote(
     memo: settings.invoiceMemoTemplate ?? "",
     discountLabel: inheritedDiscount.discountLabel,
     discountAmount: inheritedDiscount.discountAmount,
+    customerHonorific: pickCustomerHonorific(quote),
     ...pickCounterpartyContact(
       (quote.customerContactName?.trim() || quote.customerDepartment?.trim() || quote.customerPosition?.trim())
         ? quote

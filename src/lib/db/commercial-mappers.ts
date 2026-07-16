@@ -7,6 +7,7 @@ import type {
   ReceiptItemRecord,
   ReceiptRecord,
 } from "@/lib/commercial-document";
+import { normalizeCustomerHonorific } from "@/lib/customer-honorific";
 
 function toIso(v: string | null | undefined): string {
   if (!v) return new Date().toISOString();
@@ -94,6 +95,7 @@ type CommercialHeaderRow = {
   total_amount: number;
   discount_label?: string | null;
   discount_amount?: number | null;
+  customer_honorific?: string | null;
   customer_contact_name?: string | null;
   customer_department?: string | null;
   customer_position?: string | null;
@@ -208,6 +210,7 @@ export function deliveryNoteFromRow(row: DeliveryNoteRow): DeliveryNoteRecord {
     totalAmount: num(row.total_amount),
     discountLabel: row.discount_label != null ? String(row.discount_label) : "",
     discountAmount: num(row.discount_amount),
+    customerHonorific: normalizeCustomerHonorific(row.customer_honorific),
     customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
@@ -240,6 +243,7 @@ export function receiptFromRow(row: ReceiptRow): ReceiptRecord {
     totalAmount: num(row.total_amount),
     discountLabel: row.discount_label != null ? String(row.discount_label) : "",
     discountAmount: num(row.discount_amount),
+    customerHonorific: normalizeCustomerHonorific(row.customer_honorific),
     customerContactName: row.customer_contact_name != null ? String(row.customer_contact_name) : "",
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
@@ -324,6 +328,7 @@ export function deliveryNoteToRow(
     total_amount: note.totalAmount,
     discount_label: note.discountLabel,
     discount_amount: note.discountAmount,
+    customer_honorific: note.customerHonorific,
     customer_contact_name: note.customerContactName || null,
     customer_department: note.customerDepartment || null,
     customer_position: note.customerPosition || null,
@@ -373,6 +378,7 @@ export function receiptToRow(companyId: string, receipt: ReceiptRecord): Receipt
     total_amount: receipt.totalAmount,
     discount_label: receipt.discountLabel,
     discount_amount: receipt.discountAmount,
+    customer_honorific: receipt.customerHonorific,
     customer_contact_name: receipt.customerContactName || null,
     customer_department: receipt.customerDepartment || null,
     customer_position: receipt.customerPosition || null,

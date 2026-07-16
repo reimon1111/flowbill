@@ -29,6 +29,7 @@ import {
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 import { normalizeUnit } from "@/lib/constants/units";
+import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import { buildQuoteInputItemsForProject, quoteNeedsItemSync } from "@/lib/services/project-items";
 
 export const QUOTE_DELETE_BLOCKED_MESSAGE =
@@ -119,7 +120,16 @@ function buildQuoteInputFromProject(
   quote: QuoteRecord,
   project: Pick<
     ProjectRecord,
-    "id" | "customerId" | "amount" | "projectName" | "discountLabel" | "discountAmount" | "customerContactName" | "customerDepartment" | "customerPosition"
+    | "id"
+    | "customerId"
+    | "amount"
+    | "projectName"
+    | "discountLabel"
+    | "discountAmount"
+    | "customerHonorific"
+    | "customerContactName"
+    | "customerDepartment"
+    | "customerPosition"
   >
 ): QuoteInput {
   return {
@@ -132,6 +142,7 @@ function buildQuoteInputFromProject(
     memo: quote.memo,
     discountLabel: project.discountLabel ?? "",
     discountAmount: project.discountAmount ?? 0,
+    customerHonorific: pickCustomerHonorific(project),
     customerContactName: project.customerContactName ?? "",
     customerDepartment: project.customerDepartment ?? "",
     customerPosition: project.customerPosition ?? "",
@@ -147,7 +158,16 @@ export async function syncQuoteItemsFromProject(
   quote: QuoteRecord,
   project: Pick<
     ProjectRecord,
-    "id" | "customerId" | "amount" | "projectName" | "discountLabel" | "discountAmount" | "customerContactName" | "customerDepartment" | "customerPosition"
+    | "id"
+    | "customerId"
+    | "amount"
+    | "projectName"
+    | "discountLabel"
+    | "discountAmount"
+    | "customerHonorific"
+    | "customerContactName"
+    | "customerDepartment"
+    | "customerPosition"
   >
 ): Promise<QuoteRecord> {
   const updated = await updateQuote(quote.id, buildQuoteInputFromProject(quote, project));
@@ -158,7 +178,16 @@ export async function syncQuoteItemsFromProject(
 export async function ensureDraftQuoteForProject(
   project: Pick<
     ProjectRecord,
-    "id" | "customerId" | "amount" | "projectName" | "discountLabel" | "discountAmount" | "customerContactName" | "customerDepartment" | "customerPosition"
+    | "id"
+    | "customerId"
+    | "amount"
+    | "projectName"
+    | "discountLabel"
+    | "discountAmount"
+    | "customerHonorific"
+    | "customerContactName"
+    | "customerDepartment"
+    | "customerPosition"
   >
 ): Promise<QuoteRecord | null> {
   const existing = useQuoteStore
@@ -191,6 +220,7 @@ export async function ensureDraftQuoteForProject(
     memo: useCompanySettingsStore.getState().settings.quoteMemoTemplate ?? "",
     discountLabel: project.discountLabel ?? "",
     discountAmount: project.discountAmount ?? 0,
+    customerHonorific: pickCustomerHonorific(project),
     customerContactName: project.customerContactName ?? "",
     customerDepartment: project.customerDepartment ?? "",
     customerPosition: project.customerPosition ?? "",
@@ -231,7 +261,17 @@ export async function getQuotesByProjectId(projectId: string): Promise<QuoteReco
 export async function syncDraftQuoteFromProject(
   project: Pick<
     ProjectRecord,
-    "id" | "customerId" | "amount" | "projectName" | "status" | "discountLabel" | "discountAmount" | "customerContactName" | "customerDepartment" | "customerPosition"
+    | "id"
+    | "customerId"
+    | "amount"
+    | "projectName"
+    | "status"
+    | "discountLabel"
+    | "discountAmount"
+    | "customerHonorific"
+    | "customerContactName"
+    | "customerDepartment"
+    | "customerPosition"
   >
 ): Promise<void> {
   if (project.status !== "estimate") return;
@@ -341,6 +381,7 @@ export function quoteInputFromForm(values: QuoteFormValues): QuoteInput {
     memo: values.memo.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
+    customerHonorific: values.customerHonorific,
     customerContactName: values.customerContactName.trim(),
     customerDepartment: values.customerDepartment.trim(),
     customerPosition: values.customerPosition.trim(),

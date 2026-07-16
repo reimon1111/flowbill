@@ -8,6 +8,10 @@ import {
   counterpartyContactFieldsSchema,
   counterpartyContactFormDefaults,
 } from "@/lib/validations/counterparty-contact";
+import {
+  customerHonorificFieldSchema,
+  customerHonorificFormDefaults,
+} from "@/lib/validations/customer-honorific";
 
 const taxRateSchema = z.union([z.literal(0), z.literal(0.08), z.literal(0.1)]);
 
@@ -38,6 +42,7 @@ export const invoiceFormSchema = applyDocumentFormRefines(
       items: z.array(invoiceItemSchema).min(1, "明細を1件以上追加してください"),
     })
     .merge(discountFieldsSchema)
+    .merge(customerHonorificFieldSchema)
     .merge(counterpartyContactFieldsSchema)
 );
 
@@ -54,5 +59,6 @@ export const invoiceFormDefaults: InvoiceFormValues = {
   memo: "",
   items: [],
   ...discountFormDefaults,
+  ...customerHonorificFormDefaults,
   ...counterpartyContactFormDefaults,
 };

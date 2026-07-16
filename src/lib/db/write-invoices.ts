@@ -8,6 +8,7 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { resolveCompanyId } from "@/lib/db/company-context";
 import { getAuthUserId, withCreateAudit, withUpdateAudit } from "@/lib/db/auth-user";
 import { generateId } from "@/lib/db/ids";
+import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import {
   buildInvoiceItems,
   computeLineTotals,
@@ -107,6 +108,7 @@ export async function dbInsertInvoice(
     totalAmount: totals.totalAmount,
     discountLabel: input.discountLabel?.trim() ?? "",
     discountAmount: input.discountAmount ?? 0,
+    customerHonorific: pickCustomerHonorific(input),
     customerContactName: input.customerContactName?.trim() ?? "",
     customerDepartment: input.customerDepartment?.trim() ?? "",
     customerPosition: input.customerPosition?.trim() ?? "",
@@ -223,6 +225,7 @@ export async function dbUpdateInvoice(
     totalAmount: totals.totalAmount,
     discountLabel: input.discountLabel?.trim() ?? "",
     discountAmount: input.discountAmount ?? 0,
+    customerHonorific: pickCustomerHonorific(input),
     customerContactName: input.customerContactName?.trim() ?? "",
     customerDepartment: input.customerDepartment?.trim() ?? "",
     customerPosition: input.customerPosition?.trim() ?? "",

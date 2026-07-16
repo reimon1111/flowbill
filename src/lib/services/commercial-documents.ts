@@ -1,4 +1,5 @@
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
+import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import {
   itemsFromInvoiceItems,
 } from "@/lib/build-commercial-items";
@@ -161,6 +162,7 @@ export async function createDeliveryNoteFromProject(projectId: string) {
     memo: settings.deliveryNoteMemoTemplate ?? "",
     discountLabel: order?.discountLabel ?? project.discountLabel ?? "",
     discountAmount: order?.discountAmount ?? project.discountAmount ?? 0,
+    customerHonorific: pickCustomerHonorific(project),
     ...pickCounterpartyContact(
       (order?.customerContactName?.trim() || order?.customerDepartment?.trim() || order?.customerPosition?.trim())
         ? order
@@ -194,6 +196,7 @@ export async function createReceiptFromInvoice(invoiceId: string) {
     memo: settings.receiptMemoTemplate ?? "",
     discountLabel: invoice.discountLabel ?? "",
     discountAmount: invoice.discountAmount ?? 0,
+    customerHonorific: pickCustomerHonorific(invoice),
     ...pickCounterpartyContact(invoice),
     items: itemsFromInvoiceItems(invoiceItems),
   };
@@ -242,7 +245,7 @@ export function getReceiptItems(receiptId: string): ReceiptItemRecord[] {
 
 export function commercialDocumentInputFromForm(
   values: CommercialDocumentFormValues
-): OrderInput {
+): DeliveryNoteInput {
   return {
     projectId: values.projectId,
     customerId: values.customerId,
@@ -251,6 +254,7 @@ export function commercialDocumentInputFromForm(
     memo: values.memo.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
+    customerHonorific: values.customerHonorific,
     customerContactName: values.customerContactName.trim(),
     customerDepartment: values.customerDepartment.trim(),
     customerPosition: values.customerPosition.trim(),
@@ -271,8 +275,29 @@ export function commercialDocumentInputFromForm(
 
 export function orderInputFromForm(values: OrderDocumentFormValues): OrderInput {
   return {
-    ...commercialDocumentInputFromForm(values),
+    projectId: values.projectId,
+    customerId: values.customerId,
+    issueDate: values.issueDate,
+    paymentTerms: values.paymentTerms.trim(),
+    memo: values.memo.trim(),
+    discountLabel: values.discountLabel.trim(),
+    discountAmount: values.discountAmount ?? 0,
+    customerContactName: values.customerContactName.trim(),
+    customerDepartment: values.customerDepartment.trim(),
+    customerPosition: values.customerPosition.trim(),
     recipientName: values.recipientName.trim(),
+    items: values.items.map((it, idx) => ({
+      itemTemplateId: it.itemTemplateId,
+      name: it.name.trim(),
+      description: it.description.trim(),
+      width: it.width?.trim() ?? "",
+      height: it.height?.trim() ?? "",
+      quantity: it.quantity,
+      unit: normalizeUnit(it.unit),
+      unitPrice: it.unitPrice,
+      taxRate: it.taxRate,
+      sortOrder: it.sortOrder ?? idx,
+    })),
   };
 }
 

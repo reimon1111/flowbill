@@ -84,6 +84,8 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       "oi_"
     );
     const header = buildCommercialHeader(input, input.items);
+    const { customerHonorific: _honorific, ...orderHeader } = header;
+    void _honorific;
     const order: OrderRecord = {
       id: orderId,
       quoteId: input.quoteId ?? "",
@@ -99,7 +101,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       updatedBy: null,
       createdAt: now,
       updatedAt: now,
-      ...header,
+      ...orderHeader,
     };
     set((s) => ({
       orders: [order, ...s.orders],
@@ -120,9 +122,11 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       "oi_"
     );
     const header = buildCommercialHeader(input, input.items);
+    const { customerHonorific: _honorific, ...orderHeader } = header;
+    void _honorific;
     const updated: OrderRecord = {
       ...existing,
-      ...header,
+      ...orderHeader,
       quoteId: existing.quoteId,
       recipientName: input.recipientName ?? existing.recipientName ?? "",
       updatedAt: now,

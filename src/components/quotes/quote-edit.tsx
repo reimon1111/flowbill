@@ -75,6 +75,7 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
         memo: q.memo,
         discountLabel: q.discountLabel ?? "",
         discountAmount: q.discountAmount ?? 0,
+        customerHonorific: q.customerHonorific ?? "御中",
         customerContactName: q.customerContactName ?? "",
         customerDepartment: q.customerDepartment ?? "",
         customerPosition: q.customerPosition ?? "",

@@ -12,6 +12,10 @@ import { normalizeUnit } from "@/lib/constants/units";
 import { generateId } from "@/lib/db/ids";
 import { pickDocumentDiscount } from "@/lib/discount-totals";
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
+import {
+  pickCustomerHonorific,
+  type CustomerHonorific,
+} from "@/lib/customer-honorific";
 
 export function nextCommercialNumber(
   prefix: string,
@@ -75,6 +79,7 @@ export type CommercialHeaderFields = {
   totalAmount: number;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -91,6 +96,7 @@ export function buildCommercialHeader(
     memo: string;
     discountLabel?: string;
     discountAmount?: number;
+    customerHonorific?: string | null;
     customerContactName?: string;
     customerDepartment?: string;
     customerPosition?: string;
@@ -102,6 +108,7 @@ export function buildCommercialHeader(
   totalAmount: number;
   discountLabel: string;
   discountAmount: number;
+  customerHonorific: CustomerHonorific;
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
@@ -117,6 +124,7 @@ export function buildCommercialHeader(
     memo: input.memo,
     discountLabel: discount.discountLabel,
     discountAmount: discount.discountAmount,
+    customerHonorific: pickCustomerHonorific(input),
     customerContactName: contact.customerContactName,
     customerDepartment: contact.customerDepartment,
     customerPosition: contact.customerPosition,

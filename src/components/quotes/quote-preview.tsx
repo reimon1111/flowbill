@@ -29,6 +29,7 @@ export function QuotePreview({
       contactName={quote.customerContactName}
       department={quote.customerDepartment}
       position={quote.customerPosition}
+      honorific={quote.customerHonorific}
       subject={projectName}
       constructionSite={constructionSite}
       paymentTerms={quote.paymentTerms}
