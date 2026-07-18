@@ -1,5 +1,8 @@
 import { formatCurrency } from "@/lib/format";
-import { discountDisplayLabel } from "@/lib/discount-totals";
+import {
+  AFTER_DISCOUNT_SUBTOTAL_LABEL,
+  discountDisplayLabel,
+} from "@/lib/discount-totals";
 import { cn } from "@/lib/utils";
 
 export type PrintableDocumentTotalsProps = {
@@ -13,7 +16,9 @@ export type PrintableDocumentTotalsProps = {
 
 /**
  * 帳票・PDF用の金額集計（全書類共通）。
- * 表示順: 小計 → 値引き（0円超のみ） → 消費税 → 合計
+ *
+ * 値引きなし: 小計 → 消費税 → 合計
+ * 値引きあり: 小計 → 値引き → 値引後小計（税抜） → 消費税 → 合計
  */
 export function PrintableDocumentTotals({
   subtotal,
@@ -23,12 +28,15 @@ export function PrintableDocumentTotals({
   discountAmount,
   className,
 }: PrintableDocumentTotalsProps) {
+  const roundedSubtotal = Math.round(subtotal);
   const discount = Math.max(0, Math.round(discountAmount ?? 0));
+  const showDiscount = discount > 0;
+  const afterDiscountSubtotal = roundedSubtotal - discount;
 
   return (
     <table
       className={cn(
-        "document-footer-totals ml-auto w-full max-w-[220px] border-collapse border border-zinc-300",
+        "document-footer-totals ml-auto w-full max-w-[260px] border-collapse border border-zinc-300",
         className
       )}
     >
@@ -36,16 +44,26 @@ export function PrintableDocumentTotals({
         <tr className="document-footer-totals-row">
           <td className="px-2 py-1">小計</td>
           <td className="px-2 py-1 text-right tabular-nums">
-            {formatCurrency(Math.round(subtotal))}
+            {formatCurrency(roundedSubtotal)}
           </td>
         </tr>
-        {discount > 0 ? (
-          <tr className="document-footer-totals-row border-t border-zinc-200">
-            <td className="px-2 py-1">{discountDisplayLabel(discountLabel)}</td>
-            <td className="px-2 py-1 text-right tabular-nums">
-              -{formatCurrency(discount)}
-            </td>
-          </tr>
+        {showDiscount ? (
+          <>
+            <tr className="document-footer-totals-row border-t border-zinc-200">
+              <td className="px-2 py-1">
+                {discountDisplayLabel(discountLabel)}
+              </td>
+              <td className="px-2 py-1 text-right tabular-nums">
+                -{formatCurrency(discount)}
+              </td>
+            </tr>
+            <tr className="document-footer-totals-row border-t border-zinc-200">
+              <td className="px-2 py-1">{AFTER_DISCOUNT_SUBTOTAL_LABEL}</td>
+              <td className="px-2 py-1 text-right tabular-nums">
+                {formatCurrency(afterDiscountSubtotal)}
+              </td>
+            </tr>
+          </>
         ) : null}
         <tr className="document-footer-totals-row border-t border-zinc-200">
           <td className="px-2 py-1">消費税</td>

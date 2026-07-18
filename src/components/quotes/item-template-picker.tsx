@@ -1,12 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Plus, Search, Star } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import type { ItemTemplate, ItemTemplateCategory } from "@/lib/types";
-import { ITEM_TEMPLATE_CATEGORIES } from "@/lib/types";
+import { useMemo } from "react";
+import { Plus, Star } from "lucide-react";
+import type { ItemTemplate } from "@/lib/types";
 import { formatCurrency, formatTaxRate } from "@/lib/format";
 
+/** 商品明細テンプレから追加（一覧のみ。検索・カテゴリ UI なし） */
 export function ItemTemplatePicker({
   templates,
   onPick,
@@ -14,62 +13,24 @@ export function ItemTemplatePicker({
   templates: ItemTemplate[];
   onPick: (template: ItemTemplate) => void;
 }) {
-  const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<ItemTemplateCategory | "all">("all");
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return templates
-      .filter((t) => {
-        if (category !== "all" && t.category !== category) return false;
-        if (!q) return true;
-        return (
-          t.name.toLowerCase().includes(q) ||
-          t.description.toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => {
+  const sorted = useMemo(
+    () =>
+      [...templates].sort((a, b) => {
         if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
         return a.name.localeCompare(b.name, "ja");
-      });
-  }, [templates, search, category]);
+      }),
+    [templates]
+  );
 
   return (
     <div className="rounded-xl border border-zinc-200/80 bg-white p-4 shadow-sm shadow-zinc-900/[0.02]">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold text-zinc-900">テンプレから追加</p>
-        <span className="text-xs text-zinc-400">{templates.length}件</span>
+        <span className="text-xs text-zinc-400">{sorted.length}件</span>
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="項目名・説明で検索..."
-            className="h-10 rounded-xl border-zinc-200/80 bg-white pl-10 text-sm"
-          />
-        </div>
-        <select
-          value={category}
-          onChange={(e) => {
-            const v = e.target.value;
-            setCategory(v === "all" ? "all" : (v as ItemTemplateCategory));
-          }}
-          className="h-10 rounded-xl border border-zinc-200/80 bg-white px-3 text-sm text-zinc-700"
-        >
-          <option value="all">すべて</option>
-          {ITEM_TEMPLATE_CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-        {filtered.map((t) => (
+      <div className="mt-3 max-h-72 space-y-2 overflow-y-auto overflow-x-hidden pr-1">
+        {sorted.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -78,14 +39,11 @@ export function ItemTemplatePicker({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium text-zinc-900">{t.name}</p>
                   {t.isFavorite && (
                     <Star className="size-4 fill-amber-400 text-amber-400" />
                   )}
-                  <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
-                    {t.category}
-                  </span>
                 </div>
                 {t.description && (
                   <p className="mt-1 line-clamp-1 text-sm text-zinc-500">
@@ -109,13 +67,12 @@ export function ItemTemplatePicker({
           </button>
         ))}
 
-        {filtered.length === 0 && (
+        {sorted.length === 0 && (
           <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50/30 px-4 py-10 text-center text-sm text-zinc-500">
-            該当するテンプレがありません
+            テンプレがありません
           </div>
         )}
       </div>
     </div>
   );
 }
-

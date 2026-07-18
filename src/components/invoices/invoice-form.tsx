@@ -36,7 +36,7 @@ function toFormItems(items: InvoiceItemDraft[]): InvoiceFormValues["items"] {
     width: it.width ?? "",
     height: it.height ?? "",
     quantity: it.quantity,
-    unit: it.unit || "一式",
+    unit: it.unit || "式",
     unitPrice: it.unitPrice,
     taxRate: it.taxRate,
     sortOrder: it.sortOrder ?? idx,

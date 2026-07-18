@@ -92,7 +92,7 @@ export function buildQuoteInputItemsForProject(
     width: "",
     height: "",
     quantity: 1,
-    unit: "一式",
+    unit: "式",
     unitPrice: line.unitPrice,
     taxRate: 0.1 as const,
     sortOrder: idx,

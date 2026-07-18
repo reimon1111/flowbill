@@ -2,6 +2,7 @@
 
 import { formatCurrency } from "@/lib/format";
 import {
+  AFTER_DISCOUNT_SUBTOTAL_LABEL,
   calculateDocumentTotals,
   discountDisplayLabel,
   type DocumentDiscountFields,
@@ -61,11 +62,17 @@ export function DocumentTotalsSummary({
     <div className={cn("space-y-2 text-sm", className)}>
       <Row label="小計" value={formatCurrency(Math.round(totals.subtotal))} />
       {showDiscount ? (
-        <Row
-          label={discountDisplayLabel(totals.discountLabel)}
-          value={`-${formatCurrency(Math.round(totals.discountAmount))}`}
-          negative
-        />
+        <>
+          <Row
+            label={discountDisplayLabel(totals.discountLabel)}
+            value={`-${formatCurrency(Math.round(totals.discountAmount))}`}
+            negative
+          />
+          <Row
+            label={AFTER_DISCOUNT_SUBTOTAL_LABEL}
+            value={formatCurrency(Math.round(totals.taxableAmount))}
+          />
+        </>
       ) : null}
       <Row
         label="消費税"

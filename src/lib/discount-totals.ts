@@ -28,6 +28,9 @@ export type DocumentTotals = {
 
 export const DISCOUNT_LABEL_FALLBACK = "値引き";
 
+/** 帳票集計欄: 値引き後の税抜小計 */
+export const AFTER_DISCOUNT_SUBTOTAL_LABEL = "値引後小計（税抜）";
+
 export const DISCOUNT_AMOUNT_MIN_MESSAGE =
   "値引き額は0円以上で入力してください。";
 export const DISCOUNT_EXCEEDS_SUBTOTAL_MESSAGE =

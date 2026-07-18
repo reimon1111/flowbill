@@ -44,7 +44,7 @@ export function EditRecurringClient({ recurringId }: { recurringId: string }) {
     width: "",
     height: "",
     quantity: it.quantity,
-    unit: "一式",
+    unit: "式",
     unitPrice: it.unitPrice,
     taxRate: it.taxRate,
     sortOrder: it.sortOrder,

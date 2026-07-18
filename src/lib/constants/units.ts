@@ -1,11 +1,10 @@
 export const UNIT_OPTIONS = [
-  "一式",
+  "式",
   "本",
   "m",
   "m2",
   "㎡",
   "ケ",
-  "式",
   "枚",
   "連",
   "台",
@@ -13,9 +12,12 @@ export const UNIT_OPTIONS = [
   "ヶ月",
 ] as const;
 
-export const DEFAULT_UNIT = "一式";
+export const DEFAULT_UNIT = "式";
 
+/** 旧表記「一式」は「式」に正規化する */
 export function normalizeUnit(unit?: string | null): string {
   const trimmed = unit?.trim();
-  return trimmed ? trimmed : DEFAULT_UNIT;
+  if (!trimmed) return DEFAULT_UNIT;
+  if (trimmed === "一式") return DEFAULT_UNIT;
+  return trimmed;
 }
