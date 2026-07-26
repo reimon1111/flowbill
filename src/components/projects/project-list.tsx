@@ -48,6 +48,7 @@ import { getOrderCreationToastMessage } from "@/lib/order-creation-error";
 import { useProjectStore } from "@/stores/project-store";
 import { useInvoiceStore } from "@/stores/invoice-store";
 import { useCustomerStore } from "@/stores/customer-store";
+import { useQuoteStore } from "@/stores/quote-store";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 import { VIEWER_WRITE_DENIED_MESSAGE } from "@/lib/guards/write-access";
 import { getProjectBillingViewHref } from "@/lib/billing-status-theme";
@@ -60,6 +61,7 @@ export function ProjectList() {
   useProjectStore((s) => s.projects);
   useInvoiceStore((s) => s.invoices);
   useCustomerStore((s) => s.customers);
+  const quotes = useQuoteStore((s) => s.quotes);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -96,6 +98,17 @@ export function ProjectList() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const quoteProjectIds = q
+      ? new Set(
+          quotes
+            .filter(
+              (quote) =>
+                quote.quoteNumber.toLowerCase().includes(q) ||
+                (quote.memo?.toLowerCase().includes(q) ?? false)
+            )
+            .map((quote) => quote.projectId)
+        )
+      : null;
     const items = listItems.filter((p) => {
       if (showArchived ? !p.archived : p.archived) return false;
       if (status !== "all" && p.status !== status) return false;
@@ -130,12 +143,14 @@ export function ProjectList() {
       if (!q) return true;
       return (
         p.projectName.toLowerCase().includes(q) ||
-        p.customerName.toLowerCase().includes(q)
+        p.customerName.toLowerCase().includes(q) ||
+        (quoteProjectIds?.has(p.id) ?? false)
       );
     });
     return sortProjects(items, sort);
   }, [
     listItems,
+    quotes,
     search,
     status,
     yearFilter,
@@ -310,7 +325,7 @@ export function ProjectList() {
       <ListToolbar
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="案件名・顧客名で検索..."
+        searchPlaceholder="案件名・顧客名・見積番号で検索..."
         yearFilter={yearFilter}
         yearOptions={yearOptions}
         onYearFilterChange={setYearFilter}

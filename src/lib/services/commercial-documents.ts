@@ -1,5 +1,6 @@
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
+import { composeInitialDocumentMemo } from "@/lib/document-memo";
 import {
   itemsFromInvoiceItems,
 } from "@/lib/build-commercial-items";
@@ -91,12 +92,10 @@ export async function createOrderFromProject(
 
   const quote = resolveQuoteForOrder(projectId, options?.quoteId);
   const settings = useCompanySettingsStore.getState().settings;
-  const templateMemo = settings.orderMemoTemplate ?? "";
-  const sourceMemo = quote?.memo?.trim()
-    ? quote.memo
-    : project.memo?.trim()
-      ? project.memo
-      : templateMemo;
+  const sourceMemo = composeInitialDocumentMemo(
+    project.documentMemo,
+    settings.orderMemoTemplate
+  );
 
   const input: OrderInput = {
     projectId: project.id,
@@ -159,7 +158,10 @@ export async function createDeliveryNoteFromProject(projectId: string) {
     orderId: order?.id ?? "",
     issueDate: todayISO(),
     paymentTerms: defaultPaymentTerms(),
-    memo: settings.deliveryNoteMemoTemplate ?? "",
+    memo: composeInitialDocumentMemo(
+      project.documentMemo,
+      settings.deliveryNoteMemoTemplate
+    ),
     discountLabel: order?.discountLabel ?? project.discountLabel ?? "",
     discountAmount: order?.discountAmount ?? project.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(project),
@@ -186,6 +188,7 @@ export async function createReceiptFromInvoice(invoiceId: string) {
 
   const invoiceItems = useInvoiceStore.getState().getInvoiceItems(invoiceId);
   const settings = useCompanySettingsStore.getState().settings;
+  const project = useProjectStore.getState().getProjectById(invoice.projectId);
 
   const input: ReceiptInput = {
     projectId: invoice.projectId,
@@ -193,7 +196,10 @@ export async function createReceiptFromInvoice(invoiceId: string) {
     invoiceId: invoice.id,
     issueDate: todayISO(),
     paymentTerms: invoice.paymentTerms || defaultPaymentTerms(),
-    memo: settings.receiptMemoTemplate ?? "",
+    memo: composeInitialDocumentMemo(
+      project?.documentMemo,
+      settings.receiptMemoTemplate
+    ),
     discountLabel: invoice.discountLabel ?? "",
     discountAmount: invoice.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(invoice),

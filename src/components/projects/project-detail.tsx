@@ -177,6 +177,17 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         )[0],
     [quotes, liveProject.id]
   );
+  const projectQuotes = useMemo(
+    () =>
+      quotes
+        .filter((q) => q.projectId === liveProject.id)
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        ),
+    [quotes, liveProject.id]
+  );
   const latestInvoice = useMemo(
     () =>
       invoicesList
@@ -670,15 +681,15 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         </TabsContent>
 
         <TabsContent value="quote">
-          {!latestQuote ? (
+          {projectQuotes.length === 0 ? (
             <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-8">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-zinc-900">
                     まだ見積が作成されていません
                   </h3>
                   <p className="mt-2 text-sm text-zinc-500">
-                    顧客・案件情報は自動反映されます。テンプレを選ぶだけで30秒で作成できます。
+                    顧客・案件情報は自動反映されます。テンプレを選ぶか手入力で作成できます。
                   </p>
                 </div>
                 {canWrite ? (
@@ -686,7 +697,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                     href={`/quotes/new?projectId=${project.id}`}
                     className={cn(
                       buttonVariants(),
-                      "h-9 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+                      "h-9 shrink-0 gap-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
                     )}
                   >
                     見積を作成
@@ -695,52 +706,14 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.02] sm:p-8">
-              <div className="flex items-start justify-between gap-4">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-zinc-500">見積</p>
-                  <h3 className="mt-1 text-lg font-semibold text-zinc-900">
-                    {latestQuote.quoteNumber}
-                  </h3>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <QuoteStatusBadge status={latestQuote.status} />
-                    <span className="text-sm text-zinc-500">
-                      発行 {formatDate(latestQuote.issueDate)} / 期限{" "}
-                      {formatDate(latestQuote.expiryDate)}
-                    </span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">
-                    合計
-                  </p>
-                  <p className="mt-1 text-xl font-semibold tabular-nums text-zinc-900">
-                    {formatCurrency(Math.round(latestQuote.totalAmount))}
+                  <h3 className="text-lg font-semibold text-zinc-900">見積一覧</h3>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    この案件に紐づく見積書 {projectQuotes.length}件
                   </p>
                 </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-2">
-                <Link
-                  href={`/quotes/${latestQuote.id}`}
-                  className={cn(
-                    buttonVariants({ variant: "outline" }),
-                    "h-9 rounded-xl"
-                  )}
-                >
-                  詳細を見る
-                </Link>
-                {canWrite ? (
-                  <Link
-                    href={`/quotes/${latestQuote.id}/edit`}
-                    className={cn(
-                      buttonVariants({ variant: "outline" }),
-                      "h-9 rounded-xl"
-                    )}
-                  >
-                    編集
-                  </Link>
-                ) : null}
                 {canWrite ? (
                   <Link
                     href={`/quotes/new?projectId=${project.id}`}
@@ -753,6 +726,70 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                   </Link>
                 ) : null}
               </div>
+
+              <ul className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.02]">
+                {projectQuotes.map((q) => (
+                  <li
+                    key={q.id}
+                    className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+                  >
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/quotes/${q.id}`}
+                          className="font-semibold text-zinc-900 hover:underline"
+                        >
+                          {q.quoteNumber}
+                        </Link>
+                        <QuoteStatusBadge status={q.status} />
+                      </div>
+                      <p className="text-sm text-zinc-500">
+                        発行 {formatDate(q.issueDate)}
+                        {q.expiryDate ? ` / 期限 ${formatDate(q.expiryDate)}` : ""}
+                      </p>
+                      <p className="text-xs text-zinc-400">
+                        更新 {formatDate(q.updatedAt.slice(0, 10))}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      <p className="mr-2 text-base font-semibold tabular-nums text-zinc-900 sm:mr-4">
+                        {formatCurrency(Math.round(q.totalAmount))}
+                      </p>
+                      <Link
+                        href={`/quotes/${q.id}`}
+                        className={cn(
+                          buttonVariants({ variant: "outline" }),
+                          "h-9 rounded-xl"
+                        )}
+                      >
+                        開く
+                      </Link>
+                      {canWrite ? (
+                        <Link
+                          href={`/quotes/${q.id}/edit`}
+                          className={cn(
+                            buttonVariants({ variant: "outline" }),
+                            "h-9 rounded-xl"
+                          )}
+                        >
+                          編集
+                        </Link>
+                      ) : null}
+                      {canWrite ? (
+                        <Link
+                          href={`/quotes/new?projectId=${project.id}`}
+                          className={cn(
+                            buttonVariants({ variant: "outline" }),
+                            "h-9 rounded-xl"
+                          )}
+                        >
+                          追加見積
+                        </Link>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </TabsContent>

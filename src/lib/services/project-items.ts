@@ -48,6 +48,7 @@ export async function saveProjectItems(
       endDate: "",
       assigneeName: "",
       memo: "",
+      documentMemo: "",
       discountLabel: "",
       discountAmount: 0,
       customerHonorific: "御中",

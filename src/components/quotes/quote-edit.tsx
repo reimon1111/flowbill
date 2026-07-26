@@ -7,7 +7,12 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { QuoteForm } from "@/components/quotes/quote-form";
-import { getQuoteById, getQuoteItems, quoteInputFromForm, updateQuote } from "@/lib/services/quotes";
+import {
+  getQuoteById,
+  getQuoteItems,
+  quoteInputFromForm,
+  updateQuote,
+} from "@/lib/services/quotes";
 import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useItemTemplateStore } from "@/stores/item-template-store";
@@ -15,18 +20,30 @@ import type { QuoteFormValues } from "@/lib/validations/quote";
 import { useQuoteStore } from "@/stores/quote-store";
 import type { QuoteExpiryType } from "@/lib/quote-expiry";
 import type { QuoteItemDraft } from "@/components/quotes/quote-items-editor";
-
 import { resolveRouteId } from "@/lib/route-params";
 import { PageContentLoader } from "@/components/shared/page-content-loader";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { resolveCompanyId } from "@/lib/db/company-context";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  QUOTE_SAVE_FAILED_DESCRIPTION,
+  QUOTE_SAVE_FAILED_TITLE,
+  QUOTE_SAVE_PERMISSION_DENIED,
+  isQuoteWritePermissionError,
+  logQuoteSaveError,
+  quoteSaveErrorToastDescription,
+} from "@/lib/quote-save-error";
 
 export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) {
   const router = useRouter();
   const params = useParams();
   const quoteId = quoteIdProp || resolveRouteId(params.id);
+  const canWrite = useCanWriteBusinessData();
   useQuoteStore((s) => s.quotes);
   useQuoteStore((s) => s.quoteItems);
   const itemTemplates = useItemTemplateStore((s) => s.itemTemplates);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [defaultExpiryType, setDefaultExpiryType] = useState<QuoteExpiryType>("1_month");
   const [values, setValues] = useState<QuoteFormValues>();
   const [items, setItems] = useState<QuoteItemDraft[]>([]);
@@ -102,10 +119,57 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
   }, [quoteId, router]);
 
   const handleSave = async (v: QuoteFormValues) => {
-    const updated = await updateQuote(quoteId, quoteInputFromForm(v));
-    if (!updated) return;
-    toast.success("見積を更新しました", { description: updated.quoteNumber });
-    router.push(`/quotes/${quoteId}`);
+    if (!quoteId || saving) return;
+
+    if (!canWrite) {
+      toast.error(QUOTE_SAVE_PERMISSION_DENIED);
+      return;
+    }
+
+    setSaving(true);
+    let companyId: string | null = null;
+    try {
+      if (isSupabaseConfigured()) {
+        try {
+          companyId = await resolveCompanyId();
+        } catch {
+          companyId = null;
+        }
+      }
+
+      const updated = await updateQuote(quoteId, quoteInputFromForm(v));
+      if (!updated) {
+        logQuoteSaveError("[quote-edit] updateQuote returned null", null, {
+          quoteId,
+          projectId: v.projectId,
+          companyId,
+        });
+        toast.error(QUOTE_SAVE_FAILED_TITLE, {
+          description: QUOTE_SAVE_FAILED_DESCRIPTION,
+        });
+        return;
+      }
+
+      toast.success("見積書を保存しました", {
+        description: updated.quoteNumber,
+      });
+      router.push(`/quotes/${quoteId}`);
+    } catch (error) {
+      logQuoteSaveError("[quote-edit] updateQuote failed", error, {
+        quoteId,
+        projectId: v.projectId,
+        companyId,
+      });
+      if (isQuoteWritePermissionError(error)) {
+        toast.error(QUOTE_SAVE_PERMISSION_DENIED);
+      } else {
+        toast.error(QUOTE_SAVE_FAILED_TITLE, {
+          description: quoteSaveErrorToastDescription(error),
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading || !values || !customer) {
@@ -127,6 +191,12 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
         description={`${quoteNumber} / ${projectName}`}
       />
 
+      {!canWrite ? (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {QUOTE_SAVE_PERMISSION_DENIED}
+        </p>
+      ) : null}
+
       <QuoteForm
         projectId={projectId}
         customer={customer}
@@ -138,8 +208,9 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
         defaultExpiryType={defaultExpiryType}
         onSubmit={handleSave}
         submitLabel="変更を保存"
+        canWrite={canWrite}
+        externalSubmitting={saving}
       />
     </div>
   );
 }
-

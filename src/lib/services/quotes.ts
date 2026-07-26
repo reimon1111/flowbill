@@ -30,6 +30,7 @@ import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 import { normalizeUnit } from "@/lib/constants/units";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
+import { composeInitialDocumentMemo } from "@/lib/document-memo";
 import { buildQuoteInputItemsForProject, quoteNeedsItemSync } from "@/lib/services/project-items";
 
 export const QUOTE_DELETE_BLOCKED_MESSAGE =
@@ -188,6 +189,7 @@ export async function ensureDraftQuoteForProject(
     | "customerContactName"
     | "customerDepartment"
     | "customerPosition"
+    | "documentMemo"
   >
 ): Promise<QuoteRecord | null> {
   const existing = useQuoteStore
@@ -217,7 +219,10 @@ export async function ensureDraftQuoteForProject(
     expiryDate: calculateQuoteExpiryDate(issueDate, expiryType),
     paymentTerms:
       useCompanySettingsStore.getState().settings.paymentTerms ?? "",
-    memo: useCompanySettingsStore.getState().settings.quoteMemoTemplate ?? "",
+    memo: composeInitialDocumentMemo(
+      project.documentMemo,
+      useCompanySettingsStore.getState().settings.quoteMemoTemplate
+    ),
     discountLabel: project.discountLabel ?? "",
     discountAmount: project.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(project),
@@ -272,6 +277,7 @@ export async function syncDraftQuoteFromProject(
     | "customerContactName"
     | "customerDepartment"
     | "customerPosition"
+    | "documentMemo"
   >
 ): Promise<void> {
   if (project.status !== "estimate") return;

@@ -11,7 +11,9 @@ import { useInvoiceStore } from "@/stores/invoice-store";
 import type { CustomerInvoiceSummary, CustomerProjectSummary } from "@/lib/types";
 import { getInvoicePaymentStatus } from "@/lib/invoice-state";
 import { useProjectItemStore } from "@/stores/project-item-store";
+import { useQuoteStore } from "@/stores/quote-store";
 import { getProjectTotalWithTax } from "@/lib/project-amount-display";
+import { getProjectQuoteSummary } from "@/lib/project-quotes";
 
 export default function CustomerDetailPage() {
   const params = useParams();
@@ -22,12 +24,15 @@ export default function CustomerDetailPage() {
   const customer = useCustomerStore((s) => s.getCustomerById(id));
   const projectsRaw = useProjectStore((s) => s.projects);
   const projectItemsRaw = useProjectItemStore((s) => s.projectItems);
+  const quotesRaw = useQuoteStore((s) => s.quotes);
   const invoicesRaw = useInvoiceStore((s) => s.invoices);
 
   const projects = useMemo((): CustomerProjectSummary[] => {
     void projectsRaw;
     void projectItemsRaw;
+    void quotesRaw;
     const projectItems = useProjectItemStore.getState().projectItems;
+    const quotes = useQuoteStore.getState().quotes;
     return useProjectStore
       .getState()
       .getListItems()
@@ -37,8 +42,9 @@ export default function CustomerDetailPage() {
         projectName: p.projectName,
         status: p.status,
         amount: getProjectTotalWithTax(p.id, p.amount, projectItems, p),
+        quoteCount: getProjectQuoteSummary(p.id, quotes).quoteCount,
       }));
-  }, [id, projectsRaw, projectItemsRaw]);
+  }, [id, projectsRaw, projectItemsRaw, quotesRaw]);
 
   const invoices = useMemo((): CustomerInvoiceSummary[] => {
     void invoicesRaw;

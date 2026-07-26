@@ -13,8 +13,10 @@ import {
   buildInvoiceItems,
   computeLineTotals,
   invoiceFromRow,
+  invoiceItemFromRow,
   invoiceItemToRow,
   invoiceToRow,
+  type InvoiceItemRow,
   type InvoiceRow,
 } from "@/lib/db/mappers";
 import { dbInsertHistory, dbUpsertProject } from "@/lib/db/write-projects";
@@ -33,6 +35,8 @@ import {
   activityDescriptionInvoicePaid,
   activityDescriptionUpdated,
 } from "@/lib/activity-log-messages";
+import { UPDATE_INVOICE_WITH_ITEMS_RPC_HINT } from "@/lib/db/errors";
+import { callUpdateWithItemsRpc } from "@/lib/db/update-with-items-rpc";
 
 async function nextInvoiceNumber(issueDate: string, companyId: string): Promise<string> {
   const y = issueDate.slice(0, 4);
@@ -191,6 +195,10 @@ export async function dbUpdateInvoice(
   invoiceId: string,
   input: InvoiceInput
 ): Promise<{ invoice: InvoiceRecord; items: InvoiceItemRecord[] } | null> {
+  if (!input.items || input.items.length < 1) {
+    throw new Error("請求明細は1件以上必要です");
+  }
+
   const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
   const { data, error: fetchError } = await supabase
@@ -239,38 +247,62 @@ export async function dbUpdateInvoice(
     status: resolveStoredInvoiceStatus(draft),
   };
 
-  const userId = await getAuthUserId();
-  const { error: updateError } = await supabase
-    .from("invoices")
-    .update(withUpdateAudit(invoiceToRow(companyId, invoice), userId))
-    .eq("id", invoiceId)
-    .eq("company_id", companyId);
-  if (updateError) throw updateError;
+  const invoicePayload = {
+    project_id: invoice.projectId,
+    customer_id: invoice.customerId,
+    quote_id: invoice.quoteId,
+    issue_date: invoice.issueDate,
+    due_date: invoice.dueDate,
+    status: invoice.status,
+    subtotal: invoice.subtotal,
+    tax_amount: invoice.taxAmount,
+    total_amount: invoice.totalAmount,
+    discount_label: invoice.discountLabel,
+    discount_amount: invoice.discountAmount,
+    customer_honorific: invoice.customerHonorific,
+    customer_contact_name: invoice.customerContactName,
+    customer_department: invoice.customerDepartment,
+    customer_position: invoice.customerPosition,
+    memo: invoice.memo,
+    payment_terms: invoice.paymentTerms,
+    bank_account_id: invoice.bankAccountId,
+    updated_at: invoice.updatedAt,
+  };
 
-  await supabase
-    .from("invoice_items")
-    .delete()
-    .eq("invoice_id", invoiceId)
-    .eq("company_id", companyId);
-  await insertRowsWithConstructionFallback(
-    async (rows) => {
-      const { error } = await supabase.from("invoice_items").insert(rows);
-      return { error };
-    },
-    items.map((i) => invoiceItemToRow(companyId, i))
-  );
+  const rpcResult = await callUpdateWithItemsRpc({
+    rpcName: "update_invoice_with_items",
+    sqlFile: "supabase/add-update-documents-with-items-rpcs.sql",
+    hint: UPDATE_INVOICE_WITH_ITEMS_RPC_HINT,
+    parentIdParam: "p_invoice_id",
+    parentId: invoiceId,
+    parentPayload: invoicePayload,
+    parentPayloadKey: "p_invoice",
+    itemsPayload: items.map((i) => invoiceItemToRow(companyId, i)),
+    companyId,
+    notFoundMessageIncludes: "invoice not found",
+  });
+  if (!rpcResult) return null;
+
+  const savedInvoiceRow = rpcResult.invoice as InvoiceRow | undefined;
+  if (!savedInvoiceRow) {
+    throw new Error("請求書の更新結果を取得できませんでした");
+  }
+  const savedInvoice = invoiceFromRow(savedInvoiceRow);
+  const savedItems = Array.isArray(rpcResult.items)
+    ? (rpcResult.items as InvoiceItemRow[]).map((row) => invoiceItemFromRow(row))
+    : items;
 
   recordActivityLog({
     action: "updated",
     targetType: "invoice",
-    targetId: invoice.id,
-    targetLabel: invoice.invoiceNumber,
-    description: activityDescriptionUpdated("invoice", invoice.invoiceNumber),
+    targetId: savedInvoice.id,
+    targetLabel: savedInvoice.invoiceNumber,
+    description: activityDescriptionUpdated("invoice", savedInvoice.invoiceNumber),
   });
 
   await syncProjectInvoiceFields(input.projectId, companyId, now);
 
-  return { invoice, items };
+  return { invoice: savedInvoice, items: savedItems };
 }
 
 export async function dbDeleteInvoice(invoiceId: string): Promise<boolean> {

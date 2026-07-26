@@ -24,6 +24,7 @@ import { DEFAULT_UNIT } from "@/lib/constants/units";
 import { quoteItemsFromProjectTitle } from "@/lib/project-title";
 import { resolveInheritedDiscount } from "@/lib/discount-totals";
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
+import { composeInitialDocumentMemo } from "@/lib/document-memo";
 
 function previewQuoteNumber(issueDate: string) {
   const quotes = useQuoteStore.getState().getQuotes();
@@ -121,7 +122,7 @@ export function NewQuoteClient({ projectId }: { projectId?: string }) {
     const quote = await createQuote(quoteInputFromForm(values));
     await updateQuoteStatus(quote.id, "sent");
     toast.success("見積を提出済みにしました", {
-      description: "案件ステータスも更新しました",
+      description: "案件ステータスは変更していません",
     });
     router.push(`/quotes/${quote.id}`);
   };
@@ -157,7 +158,10 @@ export function NewQuoteClient({ projectId }: { projectId?: string }) {
           issueDate,
           expiryType: defaultExpiryType,
           expiryDate,
-          memo: companySettings.quoteMemoTemplate ?? "",
+          memo: composeInitialDocumentMemo(
+            project.documentMemo,
+            companySettings.quoteMemoTemplate
+          ),
           paymentTerms: companySettings.paymentTerms ?? "",
           discountLabel: inheritedDiscount.discountLabel,
           discountAmount: inheritedDiscount.discountAmount,

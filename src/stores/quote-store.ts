@@ -263,26 +263,15 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       quotes: s.quotes.map((q) => (q.id === quoteId ? updated : q)),
     }));
 
-    // accepted/rejected は、テンプレ側のUIだけで完結させず、
-    // STEP4の体験として案件側にも反映される
-    if (status === "accepted") {
-      useProjectStore.getState().changeStatus(updated.projectId, "ordered");
-    }
-    if (status === "sent") {
-      useProjectStore.getState().changeStatus(updated.projectId, "estimate");
-    }
-    if (status === "rejected") {
-      useProjectStore.getState().changeStatus(updated.projectId, "lost");
-    }
-
-    // 履歴を追加
+    // 見積ステータス変更では案件ステータスを自動変更しない。
+    // 受注確定は confirmOrderForProject / confirmOrderWithQuote の明示操作のみ。
     const historyTitle =
       status === "sent"
         ? "見積を提出済みにしました"
         : status === "accepted"
-          ? "見積が承認され、案件を受注に変更しました"
+          ? "見積を承認しました"
           : status === "rejected"
-            ? "見積が否認されました"
+            ? "見積を否認しました"
             : "見積を下書きに戻しました";
 
     useProjectStore.getState().addHistory({

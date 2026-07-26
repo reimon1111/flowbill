@@ -402,6 +402,7 @@ export type ProjectRow = {
   end_date?: string | null;
   assignee_name?: string | null;
   memo: string;
+  document_memo?: string | null;
   invoice_status: string;
   payment_status: string;
   archived?: boolean | null;
@@ -442,6 +443,7 @@ export function projectFromRow(row: ProjectRow): ProjectRecord {
     endDate: toDateStr(row.end_date),
     assigneeName: row.assignee_name ?? "",
     memo: row.memo,
+    documentMemo: row.document_memo != null ? String(row.document_memo) : "",
     invoiceStatus: normalizedInvoiceStatus,
     paymentStatus: normalizedPaymentStatus,
     archived: row.archived ?? false,
@@ -476,6 +478,7 @@ export function projectToRow(
     end_date: p.endDate || null,
     assignee_name: p.assigneeName ?? "",
     memo: p.memo,
+    document_memo: p.documentMemo ?? "",
     invoice_status: p.invoiceStatus,
     payment_status: p.paymentStatus,
     archived: p.archived,

@@ -28,6 +28,22 @@ export const CONSTRUCTION_ITEM_FIELDS_MIGRATION_HINT = buildMigrationBanner(
   "明細の W/H 列が未適用です。supabase/add-construction-item-fields.sql を実行してください。"
 );
 
+export const UPDATE_QUOTE_WITH_ITEMS_RPC_HINT = buildMigrationBanner(
+  "見積の安全な更新処理（update_quote_with_items）が未適用です。supabase/add-update-quote-with-items-rpc.sql を実行してください。"
+);
+
+export const UPDATE_DOCUMENTS_WITH_ITEMS_RPC_HINT = buildMigrationBanner(
+  "請求・帳票・定期の安全な更新処理が未適用です。supabase/add-update-documents-with-items-rpcs.sql を実行してください。"
+);
+
+export const UPDATE_INVOICE_WITH_ITEMS_RPC_HINT = UPDATE_DOCUMENTS_WITH_ITEMS_RPC_HINT;
+export const UPDATE_ORDER_WITH_ITEMS_RPC_HINT = UPDATE_DOCUMENTS_WITH_ITEMS_RPC_HINT;
+export const UPDATE_DELIVERY_NOTE_WITH_ITEMS_RPC_HINT =
+  UPDATE_DOCUMENTS_WITH_ITEMS_RPC_HINT;
+export const UPDATE_RECEIPT_WITH_ITEMS_RPC_HINT = UPDATE_DOCUMENTS_WITH_ITEMS_RPC_HINT;
+export const UPDATE_RECURRING_WITH_ITEMS_RPC_HINT =
+  UPDATE_DOCUMENTS_WITH_ITEMS_RPC_HINT;
+
 const ERROR_HINTS: Record<string, string> = {
   PGRST205: buildMigrationBanner(
     "必要なテーブルが見つかりません。新規環境は supabase/schema-full.sql、既存環境は README の追加 SQL を実行してください。"
@@ -80,6 +96,11 @@ function migrationHintFromMessage(text: string): string | null {
   if (lower.includes("projects") && lower.includes("archived")) {
     return PROJECT_ARCHIVED_MIGRATION_HINT;
   }
+  if (lower.includes("document_memo")) {
+    return buildMigrationBanner(
+      "案件備考列（projects.document_memo）が未適用です。supabase/add-project-document-memo.sql を実行してください。"
+    );
+  }
   if (lower.includes("archived") && lower.includes("column")) {
     return PROJECT_ARCHIVED_MIGRATION_HINT;
   }
@@ -131,6 +152,32 @@ export function isMissingProjectItemsTable(error: unknown): boolean {
   return text.toLowerCase().includes("project_items");
 }
 
+/** 指定名の RPC 関数が未作成か（PGRST202 / does not exist 系） */
+export function isMissingRpcFunction(
+  error: unknown,
+  functionName: string
+): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const name = functionName.toLowerCase();
+  if (!text.includes(name)) return false;
+  if (shape.code === "PGRST202") return true;
+  return (
+    text.includes("could not find") ||
+    text.includes("does not exist") ||
+    text.includes("schema cache") ||
+    text.includes("function")
+  );
+}
+
+/** update_quote_with_items RPC 未作成か */
+export function isMissingUpdateQuoteWithItemsRpc(error: unknown): boolean {
+  return isMissingRpcFunction(error, "update_quote_with_items");
+}
+
 /** quotes.expiry_type 列未作成か */
 export function isMissingQuoteExpiryTypeColumn(error: unknown): boolean {
   const shape = readSupabaseErrorShape(error);
@@ -179,6 +226,22 @@ export function isMissingCompanyDocumentSettingsColumns(error: unknown): boolean
   if (!cols.some((c) => text.includes(c))) return false;
   return (
     text.includes("companies") ||
+    text.includes("column") ||
+    shape.code === "PGRST204" ||
+    shape.code === "42703"
+  );
+}
+
+/** projects.document_memo 列未作成か */
+export function isMissingProjectDocumentMemoColumn(error: unknown): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (!text.includes("document_memo")) return false;
+  return (
+    text.includes("projects") ||
     text.includes("column") ||
     shape.code === "PGRST204" ||
     shape.code === "42703"

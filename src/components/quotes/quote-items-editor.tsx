@@ -1,6 +1,9 @@
 "use client";
 
-import { ConstructionLineItemsEditor } from "@/components/shared/construction-line-items-editor";
+import {
+  ConstructionLineItemsEditor,
+  type ConstructionLineItemFieldErrors,
+} from "@/components/shared/construction-line-items-editor";
 
 export type QuoteItemDraft = {
   itemTemplateId: string | null;
@@ -19,16 +22,19 @@ export function QuoteItemsEditor({
   items,
   onChange,
   onRemove,
+  fieldErrors,
 }: {
   items: QuoteItemDraft[];
   onChange: (items: QuoteItemDraft[]) => void;
   onRemove: (index: number) => void;
+  fieldErrors?: Array<ConstructionLineItemFieldErrors | undefined>;
 }) {
   return (
     <ConstructionLineItemsEditor
       items={items}
       onChange={onChange}
       onRemove={onRemove}
+      fieldErrors={fieldErrors}
     />
   );
 }

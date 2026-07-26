@@ -18,6 +18,7 @@ import {
   updateQuoteStatus,
 } from "@/lib/services/quotes";
 import { createOrderFromQuote } from "@/lib/services/commercial-documents";
+import { confirmOrderWithQuote } from "@/lib/services/projects";
 import { isQuoteConfirmedForOrder } from "@/lib/order-create-source";
 import { CreateOrderUnconfirmedDialog } from "@/components/orders/create-order-dialogs";
 import { getOrderCreationToastMessage } from "@/lib/order-creation-error";
@@ -34,6 +35,7 @@ import { useIsMobile } from "@/hooks/use-is-mobile";
 import { DocumentPreviewCollapsible } from "@/components/shared/document-preview-collapsible";
 import { useDocumentExport } from "@/hooks/use-document-export";
 import { LinePdfExportGuide } from "@/components/shared/line-pdf-export-guide";
+import { useProjectStore } from "@/stores/project-store";
 
 export function QuoteDetail({
   quote,
@@ -56,13 +58,23 @@ export function QuoteDetail({
   const [deleting, setDeleting] = useState(false);
   const [statusChanging, setStatusChanging] = useState(false);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [confirmingOrder, setConfirmingOrder] = useState(false);
   const [orderConfirmOpen, setOrderConfirmOpen] = useState(false);
+  const project = useProjectStore((s) => s.getProjectById(quote.projectId));
   const { previewOpen, setPreviewOpen, lineGuideOpen, setLineGuideOpen, onExport } =
     useDocumentExport();
   const deleteBlockReason = getQuoteDeletionBlockReason(quote.id);
   const deletable = canDeleteQuote(quote.id);
   const canCreateOrderFromQuote =
     canWrite && quote.status !== "rejected";
+  const canConfirmOrderWithQuote =
+    canWrite &&
+    quote.status !== "rejected" &&
+    project != null &&
+    project.status !== "ordered" &&
+    project.status !== "in_progress" &&
+    project.status !== "completed" &&
+    project.status !== "lost";
   const exportLabel = isMobile ? "PDFを保存" : "印刷 / PDF保存";
 
   const changeStatus = async (status: QuoteStatus) => {
@@ -74,19 +86,42 @@ export function QuoteDetail({
 
     if (status === "sent") {
       toast.success("見積を提出済みにしました", {
-        description: "案件ステータスは「見積中」のままです",
+        description: "案件ステータスは変更していません",
       });
     } else if (status === "accepted") {
-      toast.success("見積を承認しました");
+      toast.success("見積を承認しました", {
+        description:
+          "案件を受注にする場合は「この見積書で受注確定」を押してください",
+      });
     } else if (status === "rejected") {
       toast.success("見積を否認しました", {
-        description: "案件ステータスを「失注」に更新しました",
+        description: "案件ステータスは変更していません",
       });
     } else {
       toast.success("見積ステータスを更新しました");
     }
     } finally {
       setStatusChanging(false);
+    }
+  };
+
+  const handleConfirmOrderWithQuote = async () => {
+    if (confirmingOrder) return;
+    try {
+      setConfirmingOrder(true);
+      const result = await confirmOrderWithQuote(quote.id);
+      toast.success("この見積書で受注確定しました", {
+        description: result.orderCreated
+          ? `注文書 ${result.order?.orderNumber ?? ""} を作成しました`
+          : "案件を受注に更新しました",
+      });
+      if (result.order?.id) {
+        router.push(`/orders/${result.order.id}`);
+      }
+    } catch (error) {
+      toast.error(formatSupabaseError(error) || "受注確定に失敗しました");
+    } finally {
+      setConfirmingOrder(false);
     }
   };
 
@@ -246,6 +281,19 @@ export function QuoteDetail({
                 </button>
               </>
             )}
+            {canConfirmOrderWithQuote ? (
+              <button
+                type="button"
+                disabled={confirmingOrder}
+                onClick={() => void handleConfirmOrderWithQuote()}
+                className={cn(
+                  buttonVariants(),
+                  "h-9 w-full rounded-xl bg-emerald-700 text-white hover:bg-emerald-600 sm:w-auto"
+                )}
+              >
+                この見積書で受注確定
+              </button>
+            ) : null}
             {canCreateOrderFromQuote ? (
               <button
                 type="button"
@@ -338,7 +386,7 @@ export function QuoteDetail({
         open={rejectOpen}
         onOpenChange={setRejectOpen}
         title="見積を否認にしますか？"
-        description="否認にすると案件ステータスを「失注」に更新します。"
+        description="否認にしても案件ステータスは変更しません。この見積書のみ否認になります。"
         onConfirm={() => {
           setRejectOpen(false);
           void changeStatus("rejected");

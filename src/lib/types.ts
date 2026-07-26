@@ -28,6 +28,8 @@ export type ProjectRecord = {
   endDate: string;
   assigneeName: string;
   memo: string;
+  /** 案件備考（帳票新規作成時の備考初期値の先頭） */
+  documentMemo: string;
   invoiceStatus: InvoiceStatus;
   paymentStatus: ProjectPaymentStatus;
   archived: boolean;
@@ -75,6 +77,8 @@ export type ProjectInput = {
   endDate: string;
   assigneeName: string;
   memo: string;
+  /** 案件備考（帳票新規作成時の備考初期値の先頭） */
+  documentMemo: string;
   items: ProjectItemInput[];
 };
 
@@ -440,6 +444,7 @@ export type CustomerProjectSummary = {
   projectName: string;
   status: ProjectStatus;
   amount: number;
+  quoteCount?: number;
 };
 
 export type CustomerInvoiceSummary = {

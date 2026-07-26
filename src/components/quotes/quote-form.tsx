@@ -1,9 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import {
+  useForm,
+  useWatch,
+  type FieldErrors,
+  type SubmitErrorHandler,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FileText, Loader2, Save } from "lucide-react";
+import { FileText, Loader2, Plus, Save } from "lucide-react";
 import { toast } from "sonner";
 import { FormSection } from "@/components/shared/form-section";
 import { Button } from "@/components/ui/button";
@@ -16,8 +21,12 @@ import {
   type QuoteFormValues,
 } from "@/lib/validations/quote";
 import { QuoteItemsEditor, type QuoteItemDraft } from "@/components/quotes/quote-items-editor";
+import type { ConstructionLineItemFieldErrors } from "@/components/shared/construction-line-items-editor";
 import { DEFAULT_UNIT } from "@/lib/constants/units";
-import { formatFieldErrorMessage } from "@/lib/form-error-message";
+import {
+  firstFormErrorMessage,
+  formatFieldErrorMessage,
+} from "@/lib/form-error-message";
 import { ItemTemplatePicker } from "@/components/quotes/item-template-picker";
 import { DiscountSection } from "@/components/shared/discount-section";
 import { DocumentTotalsSummary } from "@/components/shared/document-totals-summary";
@@ -34,6 +43,27 @@ import {
   calculateQuoteExpiryDate,
   type QuoteExpiryType,
 } from "@/lib/quote-expiry";
+import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import {
+  QUOTE_SAVE_PERMISSION_DENIED,
+  QUOTE_VALIDATION_FAILED_DESCRIPTION,
+  QUOTE_VALIDATION_FAILED_TITLE,
+} from "@/lib/quote-save-error";
+
+function createBlankQuoteItem(sortOrder: number): QuoteItemDraft {
+  return {
+    itemTemplateId: null,
+    name: "",
+    description: "",
+    width: "",
+    height: "",
+    quantity: 1,
+    unit: DEFAULT_UNIT,
+    unitPrice: 0,
+    taxRate: 0.1,
+    sortOrder,
+  };
+}
 
 function toFormItems(items: QuoteItemDraft[]): QuoteFormValues["items"] {
   return items.map((it, idx) => ({
@@ -50,6 +80,101 @@ function toFormItems(items: QuoteItemDraft[]): QuoteFormValues["items"] {
   }));
 }
 
+function withRowPrefix(rowIndex: number, message: string): string {
+  return `${rowIndex + 1}行目の${message.replace(/^項目名/, "商品名")}`;
+}
+
+function buildItemFieldErrors(
+  itemsError: FieldErrors<QuoteFormValues>["items"],
+  itemCount: number
+): Array<ConstructionLineItemFieldErrors | undefined> {
+  if (!itemsError || itemCount === 0) return [];
+
+  const result: Array<ConstructionLineItemFieldErrors | undefined> = Array.from(
+    { length: itemCount },
+    () => undefined
+  );
+
+  for (let idx = 0; idx < itemCount; idx++) {
+    const row = (itemsError as Record<number, FieldErrors<QuoteFormValues["items"][number]> | undefined>)[
+      idx
+    ];
+    if (!row || typeof row !== "object") continue;
+
+    const nameMsg = formatFieldErrorMessage(row.name?.message);
+    const quantityMsg = formatFieldErrorMessage(row.quantity?.message);
+    const unitMsg = formatFieldErrorMessage(row.unit?.message);
+    const unitPriceMsg = formatFieldErrorMessage(row.unitPrice?.message);
+    const widthMsg = formatFieldErrorMessage(row.width?.message);
+    const heightMsg = formatFieldErrorMessage(row.height?.message);
+    const taxMsg = formatFieldErrorMessage(row.taxRate?.message);
+    const descriptionMsg = formatFieldErrorMessage(row.description?.message);
+
+    const rowExtra = [taxMsg, descriptionMsg].filter(Boolean).join(" / ");
+
+    if (
+      !nameMsg &&
+      !quantityMsg &&
+      !unitMsg &&
+      !unitPriceMsg &&
+      !widthMsg &&
+      !heightMsg &&
+      !rowExtra
+    ) {
+      continue;
+    }
+
+    result[idx] = {
+      name: nameMsg ? withRowPrefix(idx, nameMsg) : undefined,
+      quantity: quantityMsg ? withRowPrefix(idx, quantityMsg) : undefined,
+      unit: unitMsg ? withRowPrefix(idx, unitMsg) : undefined,
+      unitPrice: unitPriceMsg ? withRowPrefix(idx, unitPriceMsg) : undefined,
+      width: widthMsg ? withRowPrefix(idx, widthMsg) : undefined,
+      height: heightMsg ? withRowPrefix(idx, heightMsg) : undefined,
+      row: rowExtra ? withRowPrefix(idx, rowExtra) : undefined,
+    };
+  }
+
+  return result;
+}
+
+function focusFirstQuoteError(
+  errors: FieldErrors<QuoteFormValues>,
+  setFocus: (name: keyof QuoteFormValues) => void
+) {
+  const scalarOrder: Array<keyof QuoteFormValues> = [
+    "issueDate",
+    "expiryType",
+    "expiryDate",
+    "paymentTerms",
+    "customerHonorific",
+    "customerContactName",
+    "customerDepartment",
+    "customerPosition",
+    "discountLabel",
+    "discountAmount",
+    "memo",
+  ];
+
+  for (const name of scalarOrder) {
+    if (errors[name]) {
+      try {
+        setFocus(name);
+      } catch {
+        /* setFocus 対象外フィールドは無視 */
+      }
+      return;
+    }
+  }
+
+  if (errors.items) {
+    const el = document.querySelector<HTMLElement>("[data-line-item-index]");
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const input = el?.querySelector<HTMLElement>("input");
+    input?.focus();
+  }
+}
+
 export function QuoteForm({
   projectId,
   customer,
@@ -63,6 +188,8 @@ export function QuoteForm({
   onSubmitAndSend,
   submitLabel = "保存する",
   sendLabel = "提出済みにする",
+  canWrite: canWriteProp,
+  externalSubmitting = false,
 }: {
   projectId: string;
   customer: Customer;
@@ -77,7 +204,14 @@ export function QuoteForm({
   onSubmitAndSend?: (values: QuoteFormValues) => Promise<void>;
   submitLabel?: string;
   sendLabel?: string;
+  /** 省略時は membership から判定 */
+  canWrite?: boolean;
+  /** 親の保存中フラグ（編集画面の二重送信防止） */
+  externalSubmitting?: boolean;
 }) {
+  const canWriteFromHook = useCanWriteBusinessData();
+  const canWrite = canWriteProp ?? canWriteFromHook;
+
   const form = useForm<QuoteFormValues>({
     resolver: zodResolver(quoteFormSchema),
     defaultValues: {
@@ -122,6 +256,14 @@ export function QuoteForm({
     [items]
   );
 
+  const itemFieldErrors = useMemo(
+    () => buildItemFieldErrors(form.formState.errors.items, items.length),
+    [form.formState.errors.items, items.length]
+  );
+
+  const isBusy = form.formState.isSubmitting || externalSubmitting;
+  const actionsDisabled = isBusy || !canWrite;
+
   useEffect(() => {
     if (!defaultValues?.expiryType) {
       form.setValue("expiryType", defaultExpiryType, { shouldValidate: true });
@@ -142,6 +284,7 @@ export function QuoteForm({
   }, [issueDate, expiryType, form]);
 
   const addFromTemplate = (t: ItemTemplate) => {
+    if (!canWrite) return;
     setItems((prev) => [
       ...prev,
       {
@@ -160,14 +303,53 @@ export function QuoteForm({
     toast.success("明細に追加しました", { description: t.name });
   };
 
+  const addBlank = () => {
+    if (!canWrite) return;
+    setItems((prev) => [...prev, createBlankQuoteItem(prev.length)]);
+  };
+
+  const handleInvalid: SubmitErrorHandler<QuoteFormValues> = (errors) => {
+    toast.error(QUOTE_VALIDATION_FAILED_TITLE, {
+      description: QUOTE_VALIDATION_FAILED_DESCRIPTION,
+    });
+
+    if (process.env.NODE_ENV === "development") {
+      console.error("[quote-form] validation failed", {
+        fields: Object.keys(errors),
+        firstMessage: firstFormErrorMessage(
+          errors as Record<string, unknown>
+        ),
+      });
+    }
+
+    focusFirstQuoteError(errors, (name) => {
+      void form.setFocus(name);
+    });
+  };
+
   const handleSave = form.handleSubmit(async (values) => {
+    if (!canWrite) {
+      toast.error(QUOTE_SAVE_PERMISSION_DENIED);
+      return;
+    }
     await onSubmit({ ...values, items: toFormItems(items) });
-  });
+  }, handleInvalid);
 
   const handleSend = form.handleSubmit(async (values) => {
     if (!onSubmitAndSend) return;
+    if (!canWrite) {
+      toast.error(QUOTE_SAVE_PERMISSION_DENIED);
+      return;
+    }
     await onSubmitAndSend({ ...values, items: toFormItems(items) });
-  });
+  }, handleInvalid);
+
+  const itemsRootMessage = formatFieldErrorMessage(
+    form.formState.errors.items &&
+      "message" in form.formState.errors.items
+      ? form.formState.errors.items.message
+      : undefined
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
@@ -192,6 +374,20 @@ export function QuoteForm({
                   ? formatContactWithSama(customer.contactName)
                   : "—"}
               </p>
+              {form.formState.errors.customerId?.message ? (
+                <p className="mt-2 text-sm text-red-600">
+                  {formatFieldErrorMessage(
+                    form.formState.errors.customerId.message
+                  )}
+                </p>
+              ) : null}
+              {form.formState.errors.projectId?.message ? (
+                <p className="mt-2 text-sm text-red-600">
+                  {formatFieldErrorMessage(
+                    form.formState.errors.projectId.message
+                  )}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -219,6 +415,7 @@ export function QuoteForm({
               <Input
                 type="date"
                 {...form.register("issueDate")}
+                disabled={!canWrite}
                 className="h-11 rounded-xl border-zinc-200/80 text-base"
               />
               {form.formState.errors.issueDate?.message && (
@@ -231,20 +428,30 @@ export function QuoteForm({
               <p className="text-sm font-medium text-zinc-700">支払い条件</p>
               <Input
                 {...form.register("paymentTerms")}
+                disabled={!canWrite}
                 placeholder="例: 納品後お支払い"
                 className="h-11 max-w-xl rounded-xl border-zinc-200/80 text-base"
               />
+              {form.formState.errors.paymentTerms?.message ? (
+                <p className="text-sm text-red-600">
+                  {formatFieldErrorMessage(
+                    form.formState.errors.paymentTerms.message
+                  )}
+                </p>
+              ) : null}
             </div>
             <QuoteExpiryFields
               issueDate={issueDate ?? ""}
               expiryType={(expiryType ?? defaultExpiryType) as QuoteExpiryType}
               expiryDate={expiryDate ?? ""}
-              onExpiryTypeChange={(type) =>
-                form.setValue("expiryType", type, { shouldValidate: true })
-              }
-              onExpiryDateChange={(date) =>
-                form.setValue("expiryDate", date, { shouldValidate: true })
-              }
+              onExpiryTypeChange={(type) => {
+                if (!canWrite) return;
+                form.setValue("expiryType", type, { shouldValidate: true });
+              }}
+              onExpiryDateChange={(date) => {
+                if (!canWrite) return;
+                form.setValue("expiryDate", date, { shouldValidate: true });
+              }}
               expiryTypeError={form.formState.errors.expiryType?.message}
               expiryDateError={form.formState.errors.expiryDate?.message}
             />
@@ -257,7 +464,7 @@ export function QuoteForm({
             onChange={(next) =>
               form.setValue("customerHonorific", next, { shouldValidate: true })
             }
-            disabled={form.formState.isSubmitting}
+            disabled={actionsDisabled}
             error={form.formState.errors.customerHonorific?.message}
             className="max-w-xs"
           />
@@ -278,7 +485,7 @@ export function QuoteForm({
                 shouldValidate: true,
               });
             }}
-            disabled={form.formState.isSubmitting}
+            disabled={actionsDisabled}
             errors={{
               customerContactName:
                 form.formState.errors.customerContactName?.message,
@@ -291,27 +498,48 @@ export function QuoteForm({
 
         <FormSection
           title="明細"
-          description="テンプレを選ぶだけで、30秒で見積が完成する体験を作ります"
+          description="テンプレから選ぶか、手入力で追加してください。明細は1件以上必要です。"
         >
-          <ItemTemplatePicker templates={itemTemplates} onPick={addFromTemplate} />
+          {canWrite ? (
+            <ItemTemplatePicker templates={itemTemplates} onPick={addFromTemplate} />
+          ) : null}
 
-          {form.formState.errors.items?.message && (
-            <p className="text-sm text-red-600">
-              {String(form.formState.errors.items.message)}
-            </p>
-          )}
+          {canWrite ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl"
+                onClick={addBlank}
+                disabled={isBusy}
+              >
+                <Plus className="size-4" />
+                手入力で追加
+              </Button>
+            </div>
+          ) : null}
 
-          <QuoteItemsEditor
-            items={items}
-            onChange={setItems}
-            onRemove={(index) =>
-              setItems((prev) =>
-                prev
-                  .filter((_, i) => i !== index)
-                  .map((it, idx) => ({ ...it, sortOrder: idx }))
-              )
-            }
-          />
+          {itemsRootMessage ? (
+            <p className="text-sm text-red-600">{itemsRootMessage}</p>
+          ) : null}
+
+          <div id="quote-items-section">
+            <QuoteItemsEditor
+              items={items}
+              onChange={canWrite ? setItems : () => {}}
+              fieldErrors={itemFieldErrors}
+              onRemove={
+                canWrite
+                  ? (index) =>
+                      setItems((prev) =>
+                        prev
+                          .filter((_, i) => i !== index)
+                          .map((it, idx) => ({ ...it, sortOrder: idx }))
+                      )
+                  : () => {}
+              }
+            />
+          </div>
         </FormSection>
 
         <FormSection title="値引き">
@@ -325,7 +553,7 @@ export function QuoteForm({
                 shouldValidate: true,
               });
             }}
-            disabled={form.formState.isSubmitting}
+            disabled={actionsDisabled}
             amountError={form.formState.errors.discountAmount?.message}
             labelError={form.formState.errors.discountLabel?.message}
           />
@@ -334,10 +562,16 @@ export function QuoteForm({
         <FormSection title="備考">
           <Textarea
             {...form.register("memo")}
+            disabled={!canWrite}
             rows={4}
             className="min-h-[120px] resize-none rounded-xl border-zinc-200/80 text-base"
             placeholder="補足や条件など（任意）"
           />
+          {form.formState.errors.memo?.message ? (
+            <p className="text-sm text-red-600">
+              {formatFieldErrorMessage(form.formState.errors.memo.message)}
+            </p>
+          ) : null}
         </FormSection>
       </div>
 
@@ -354,10 +588,10 @@ export function QuoteForm({
             <Button
               type="button"
               onClick={handleSave}
-              disabled={form.formState.isSubmitting}
+              disabled={actionsDisabled}
               className="h-11 rounded-xl bg-zinc-900 hover:bg-zinc-800"
             >
-              {form.formState.isSubmitting ? (
+              {isBusy ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
                   保存中...
@@ -370,26 +604,29 @@ export function QuoteForm({
               )}
             </Button>
 
-            {onSubmitAndSend && (
+            {onSubmitAndSend && canWrite ? (
               <Button
                 type="button"
                 onClick={handleSend}
-                disabled={form.formState.isSubmitting}
+                disabled={actionsDisabled}
                 variant="outline"
                 className="h-11 rounded-xl border-zinc-200"
               >
                 <FileText className="size-4" />
                 {sendLabel}
               </Button>
-            )}
+            ) : null}
           </div>
 
-          <p className="text-xs text-zinc-400">
-            提出済みにすると、案件ステータスが「見積提出済」になります。
-          </p>
+          {!canWrite ? (
+            <p className="text-xs text-amber-700">{QUOTE_SAVE_PERMISSION_DENIED}</p>
+          ) : (
+            <p className="text-xs text-zinc-400">
+              提出済みにすると、案件ステータスが「見積提出済」になります。
+            </p>
+          )}
         </div>
       </aside>
     </div>
   );
 }
-

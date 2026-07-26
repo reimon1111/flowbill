@@ -13,12 +13,18 @@ import {
   buildQuoteItems,
   computeLineTotals,
   quoteFromRow,
+  quoteItemFromRow,
   quoteItemToRow,
   quoteToRow,
+  type QuoteItemRow,
   type QuoteRow,
 } from "@/lib/db/mappers";
-import { dbChangeProjectStatus, dbInsertHistory } from "@/lib/db/write-projects";
-import { isMissingQuoteExpiryTypeColumn } from "@/lib/db/errors";
+import { dbInsertHistory } from "@/lib/db/write-projects";
+import {
+  UPDATE_QUOTE_WITH_ITEMS_RPC_HINT,
+  isMissingQuoteExpiryTypeColumn,
+} from "@/lib/db/errors";
+import { callUpdateWithItemsRpc } from "@/lib/db/update-with-items-rpc";
 import { insertRowsWithConstructionFallback } from "@/lib/db/line-item-insert";
 import { recordActivityLog } from "@/lib/db/write-activity-log";
 import {
@@ -155,7 +161,12 @@ export async function dbUpdateQuote(
   quoteId: string,
   input: QuoteInput
 ): Promise<{ quote: QuoteRecord; items: QuoteItemRecord[] } | null> {
+  if (!input.items || input.items.length < 1) {
+    throw new Error("見積明細は1件以上必要です");
+  }
+
   const companyId = await resolveCompanyId();
+  const userId = await getAuthUserId();
   const supabase = getSupabaseClient();
   const { data, error: fetchError } = await supabase
     .from("quotes")
@@ -194,33 +205,68 @@ export async function dbUpdateQuote(
     customerPosition: input.customerPosition?.trim() ?? "",
     memo: input.memo,
     paymentTerms: input.paymentTerms,
+    updatedBy: userId,
     updatedAt: now,
   };
 
-  await writeQuoteRow("update", companyId, quote, quoteId);
+  const quotePayload = {
+    project_id: quote.projectId,
+    customer_id: quote.customerId,
+    issue_date: quote.issueDate,
+    expiry_type: quote.expiryType,
+    expiry_date: quote.expiryDate,
+    subtotal: quote.subtotal,
+    tax_amount: quote.taxAmount,
+    total_amount: quote.totalAmount,
+    discount_label: quote.discountLabel,
+    discount_amount: quote.discountAmount,
+    customer_honorific: quote.customerHonorific,
+    customer_contact_name: quote.customerContactName,
+    customer_department: quote.customerDepartment,
+    customer_position: quote.customerPosition,
+    memo: quote.memo,
+    payment_terms: quote.paymentTerms,
+    updated_at: quote.updatedAt,
+  };
 
-  await supabase
-    .from("quote_items")
-    .delete()
-    .eq("quote_id", quoteId)
-    .eq("company_id", companyId);
-  await insertRowsWithConstructionFallback(
-    async (rows) => {
-      const { error } = await supabase.from("quote_items").insert(rows);
-      return { error };
-    },
-    items.map((i) => quoteItemToRow(companyId, i))
-  );
+  const itemsPayload = items.map((i) => quoteItemToRow(companyId, i));
+
+  const rpcResult = await callUpdateWithItemsRpc({
+    rpcName: "update_quote_with_items",
+    sqlFile: "supabase/add-update-quote-with-items-rpc.sql",
+    hint: UPDATE_QUOTE_WITH_ITEMS_RPC_HINT,
+    parentIdParam: "p_quote_id",
+    parentId: quoteId,
+    parentPayload: quotePayload,
+    parentPayloadKey: "p_quote",
+    itemsPayload,
+    companyId,
+    notFoundMessageIncludes: "quote not found",
+  });
+  if (!rpcResult) return null;
+
+  const result = rpcResult as {
+    quote?: QuoteRow;
+    items?: QuoteItemRow[];
+  };
+  if (!result.quote) {
+    throw new Error("見積の更新結果を取得できませんでした");
+  }
+
+  const savedQuote = quoteFromRow(result.quote);
+  const savedItems = Array.isArray(result.items)
+    ? result.items.map((row) => quoteItemFromRow(row))
+    : items;
 
   recordActivityLog({
     action: "updated",
     targetType: "quote",
-    targetId: quote.id,
-    targetLabel: quote.quoteNumber,
-    description: activityDescriptionUpdated("quote", quote.quoteNumber),
+    targetId: savedQuote.id,
+    targetLabel: savedQuote.quoteNumber,
+    description: activityDescriptionUpdated("quote", savedQuote.quoteNumber),
   });
 
-  return { quote, items };
+  return { quote: savedQuote, items: savedItems };
 }
 
 export async function dbDeleteQuote(quoteId: string): Promise<boolean> {
@@ -283,23 +329,13 @@ export async function dbUpdateQuoteStatus(
     .eq("company_id", companyId);
   if (error) throw error;
 
-  if (status === "accepted") {
-    await dbChangeProjectStatus(updated.projectId, "ordered");
-  }
-  if (status === "sent") {
-    await dbChangeProjectStatus(updated.projectId, "estimate");
-  }
-  if (status === "rejected") {
-    await dbChangeProjectStatus(updated.projectId, "lost");
-  }
-
   const historyTitle =
     status === "sent"
       ? "見積を提出済みにしました"
       : status === "accepted"
-        ? "見積が承認され、案件を受注に変更しました"
+        ? "見積を承認しました"
         : status === "rejected"
-          ? "見積が否認されました"
+          ? "見積を否認しました"
           : "見積を下書きに戻しました";
 
   await dbInsertHistory({

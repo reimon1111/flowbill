@@ -367,6 +367,21 @@ export function ProjectForm({
         </Field>
       </FormSection>
 
+      <FormSection title="案件備考">
+        <Field
+          label="案件備考"
+          error={errors.documentMemo?.message}
+          hint="見積・注文・納品・請求・領収を新規作成するとき、会社設定の備考テンプレートの前に自動で入ります。"
+        >
+          <Textarea
+            {...register("documentMemo")}
+            placeholder="帳票に共通で載せたい備考"
+            rows={4}
+            className="min-h-[120px] resize-none rounded-xl border-zinc-200/80 text-base"
+          />
+        </Field>
+      </FormSection>
+
       <div className="sticky bottom-0 -mx-4 border-t border-zinc-200/80 bg-zinc-50/80 px-4 py-4 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="mx-auto flex max-w-3xl justify-end">
           <Button

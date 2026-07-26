@@ -77,6 +77,7 @@ export function EditProjectClient() {
       endDate: project.endDate ?? "",
       assigneeName: project.assigneeName ?? "",
       memo: project.memo,
+      documentMemo: project.documentMemo ?? "",
       items,
     };
   }, [project, projectItemsForProject]);

@@ -40,6 +40,7 @@ import { getActiveInvoicesForProject } from "@/lib/invoice-filters";
 import {
   ensureDeliveryNoteForProject,
   ensureOrderForProject,
+  createOrderFromQuote,
 } from "@/lib/services/commercial-documents";
 import { useAppDataStore } from "@/stores/app-data-store";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
@@ -425,6 +426,82 @@ export async function confirmOrderForProject(projectId: string) {
 }
 
 /**
+ * 指定見積書で受注確定する（見積ステータス変更だけでは案件を動かさない方針の明示操作）。
+ * - 対象見積を承認済みにする
+ * - 案件を受注にする
+ * - 注文書がなければ当該見積から作成
+ */
+export async function confirmOrderWithQuote(quoteId: string) {
+  assertCanWriteBusinessData();
+
+  const quote = useQuoteStore.getState().getQuoteById(quoteId);
+  if (!quote) {
+    throw new Error("見積が見つかりません");
+  }
+  if (quote.status === "rejected") {
+    throw new Error("否認済みの見積では受注確定できません");
+  }
+
+  const projectId = quote.projectId;
+  const project = useProjectStore.getState().getProjectById(projectId);
+  if (!project) {
+    throw new Error("案件が見つかりません");
+  }
+
+  if (useAppDataStore.getState().migrationWarning?.includes("add-document-management.sql")) {
+    throw new Error(
+      "書類管理テーブルが未適用のため、注文書を作成できません（supabase/add-document-management.sql を実行してください）"
+    );
+  }
+
+  if (quote.status !== "accepted") {
+    await updateQuoteStatus(quoteId, "accepted");
+  }
+
+  const existingOrder =
+    useOrderStore
+      .getState()
+      .getOrdersByProjectId(projectId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] ?? null;
+
+  let order: NonNullable<typeof existingOrder> | null = existingOrder;
+  let orderCreated = false;
+  if (!order) {
+    const created = await createOrderFromQuote(quoteId);
+    if (!created) {
+      throw new Error("注文書の作成に失敗しました");
+    }
+    order = created;
+    orderCreated = true;
+  }
+
+  await changeProjectStatus(projectId, "ordered");
+
+  await addProjectHistory({
+    projectId,
+    type: "status_changed",
+    title: "受注確定しました",
+    description: `見積 ${quote.quoteNumber}`,
+  });
+  if (orderCreated) {
+    await addProjectHistory({
+      projectId,
+      type: "status_changed",
+      title: "注文書を作成しました",
+      description: order.orderNumber,
+    });
+  }
+
+  return {
+    project: useProjectStore.getState().getProjectById(projectId) ?? null,
+    order,
+    orderCreated,
+    orderAlreadyExisted: Boolean(existingOrder),
+    quoteId,
+  };
+}
+
+/**
  * 作業完了（ordered / in_progress から completed へ）
  */
 export async function completeWorkForProject(projectId: string) {
@@ -544,6 +621,7 @@ export function projectInputFromForm(values: ProjectFormValues): ProjectInput {
     endDate: values.endDate.trim(),
     assigneeName: values.assigneeName.trim(),
     memo: values.memo.trim(),
+    documentMemo: values.documentMemo.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
     customerHonorific: values.customerHonorific,

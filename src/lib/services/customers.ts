@@ -21,7 +21,9 @@ import { logSupabaseError, toCustomerSaveError } from "@/lib/db/errors";
 import { useInvoiceStore } from "@/stores/invoice-store";
 import { getInvoicePaymentStatus } from "@/lib/invoice-state";
 import { useProjectItemStore } from "@/stores/project-item-store";
+import { useQuoteStore } from "@/stores/quote-store";
 import { getProjectTotalWithTax } from "@/lib/project-amount-display";
+import { getProjectQuoteSummary } from "@/lib/project-quotes";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 
 function toListItem(customer: Customer): CustomerListItem {
@@ -103,11 +105,13 @@ export async function getCustomerProjects(
 
   const projects = await getProjectsByCustomerId(customerId);
   const projectItems = useProjectItemStore.getState().projectItems;
+  const quotes = useQuoteStore.getState().quotes;
   return projects.map((p) => ({
     id: p.id,
     projectName: p.projectName,
     status: p.status,
     amount: getProjectTotalWithTax(p.id, p.amount, projectItems, p),
+    quoteCount: getProjectQuoteSummary(p.id, quotes).quoteCount,
   }));
 }
 

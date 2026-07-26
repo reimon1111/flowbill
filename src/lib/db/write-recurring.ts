@@ -12,10 +12,14 @@ import {
   buildRecurringItems,
   computeLineTotals,
   recurringFromRow,
+  recurringItemFromRow,
   recurringItemToRow,
   recurringToRow,
+  type RecurringBillingItemRow,
   type RecurringBillingRow,
 } from "@/lib/db/mappers";
+import { UPDATE_RECURRING_WITH_ITEMS_RPC_HINT } from "@/lib/db/errors";
+import { callUpdateWithItemsRpc } from "@/lib/db/update-with-items-rpc";
 
 export async function dbInsertRecurring(
   input: RecurringBillingInput
@@ -72,6 +76,7 @@ export async function dbUpdateRecurring(
     .from("recurring_billings")
     .select("*")
     .eq("id", recurringId)
+    .eq("company_id", companyId)
     .single();
   if (fetchError || !data) return null;
 
@@ -100,21 +105,45 @@ export async function dbUpdateRecurring(
     updatedAt: now,
   };
 
-  const { error: updateError } = await supabase
-    .from("recurring_billings")
-    .update(recurringToRow(companyId, billing))
-    .eq("id", recurringId);
-  if (updateError) throw updateError;
+  const billingPayload = {
+    customer_id: billing.customerId,
+    title: billing.title,
+    billing_day: billing.billingDay,
+    next_billing_date: billing.nextBillingDate,
+    status: billing.status,
+    subtotal: billing.subtotal,
+    tax_amount: billing.taxAmount,
+    total_amount: billing.totalAmount,
+    memo: billing.memo,
+    updated_at: billing.updatedAt,
+  };
 
-  await supabase.from("recurring_billing_items").delete().eq("recurring_billing_id", recurringId);
-  if (items.length > 0) {
-    const { error: itemsError } = await supabase
-      .from("recurring_billing_items")
-      .insert(items.map((i) => recurringItemToRow(companyId, i)));
-    if (itemsError) throw itemsError;
+  const rpcResult = await callUpdateWithItemsRpc({
+    rpcName: "update_recurring_billing_with_items",
+    sqlFile: "supabase/add-update-documents-with-items-rpcs.sql",
+    hint: UPDATE_RECURRING_WITH_ITEMS_RPC_HINT,
+    parentIdParam: "p_recurring_billing_id",
+    parentId: recurringId,
+    parentPayload: billingPayload,
+    parentPayloadKey: "p_recurring_billing",
+    itemsPayload: items.map((i) => recurringItemToRow(companyId, i)),
+    companyId,
+    notFoundMessageIncludes: "recurring billing not found",
+  });
+  if (!rpcResult) return null;
+
+  const savedRow = rpcResult.recurring_billing as RecurringBillingRow | undefined;
+  if (!savedRow) {
+    throw new Error("定期請求の更新結果を取得できませんでした");
   }
+  const savedBilling = recurringFromRow(savedRow);
+  const savedItems = Array.isArray(rpcResult.items)
+    ? (rpcResult.items as RecurringBillingItemRow[]).map((row) =>
+        recurringItemFromRow(row)
+      )
+    : items;
 
-  return { billing, items };
+  return { billing: savedBilling, items: savedItems };
 }
 
 export async function dbUpdateRecurringStatus(
@@ -127,6 +156,7 @@ export async function dbUpdateRecurringStatus(
     .from("recurring_billings")
     .select("*")
     .eq("id", recurringId)
+    .eq("company_id", companyId)
     .single();
   if (fetchError || !data) return null;
 
@@ -142,7 +172,8 @@ export async function dbUpdateRecurringStatus(
   const { error } = await supabase
     .from("recurring_billings")
     .update(recurringToRow(companyId, updated))
-    .eq("id", recurringId);
+    .eq("id", recurringId)
+    .eq("company_id", companyId);
   if (error) throw error;
   return updated;
 }
@@ -156,6 +187,7 @@ export async function dbAdvanceRecurringAfterInvoice(
     .from("recurring_billings")
     .select("*")
     .eq("id", recurringId)
+    .eq("company_id", companyId)
     .single();
   if (fetchError || !data) return null;
 
@@ -174,7 +206,8 @@ export async function dbAdvanceRecurringAfterInvoice(
   const { error } = await supabase
     .from("recurring_billings")
     .update(recurringToRow(companyId, updated))
-    .eq("id", recurringId);
+    .eq("id", recurringId)
+    .eq("company_id", companyId);
   if (error) throw error;
   return updated;
 }

@@ -153,6 +153,7 @@ create table if not exists public.projects (
   confirmed_date date,
   completed_date date,
   memo text not null default '',
+  document_memo text not null default '',
   invoice_status text not null default 'not_created',
   payment_status text not null default 'unpaid',
   archived boolean not null default false,

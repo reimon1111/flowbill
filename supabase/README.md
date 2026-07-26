@@ -15,6 +15,8 @@ Supabase SQL Editor で、以下のファイルを **この順番で** 1つず�
 | 6 | `add-activity-logs.sql` | 操作履歴（`activity_logs`） |
 | 7 | `add-commercial-document-soft-delete.sql` | 注文書・納品書・領収書の論理削除 |
 | 8 | `fix-security-high-risks.sql` | **本番公開前必須** — セキュリティ修正 |
+| 9 | `add-update-quote-with-items-rpc.sql` | 見積更新の原子的 RPC（明細消失防止） |
+| 11 | `add-project-document-memo.sql` | 案件備考（帳票新規作成時の備考初期値） |
 
 手順の詳細・環境変数はリポジトリ直下の [README.md](../README.md#supabase-新規セットアップ) を参照してください。
 

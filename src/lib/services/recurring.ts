@@ -14,7 +14,11 @@ import {
 } from "@/lib/recurring-utils";
 import { useRecurringStore } from "@/stores/recurring-store";
 import { useProjectStore } from "@/stores/project-store";
-import { createInvoice, updateInvoiceStatus } from "@/lib/services/invoices";
+import {
+  createInvoice,
+  getInvoicesByProjectId,
+  updateInvoiceStatus,
+} from "@/lib/services/invoices";
 import { createProject, syncCustomerProjectCounts } from "@/lib/services/projects";
 import { createQuote, updateQuoteStatus } from "@/lib/services/quotes";
 import { calculateQuoteExpiryDate } from "@/lib/quote-expiry";
@@ -124,6 +128,7 @@ async function findOrCreateRecurringProject(
     endDate: "",
     assigneeName: "",
     memo: "定期請求から自動作成された案件",
+    documentMemo: "",
     discountLabel: "",
     discountAmount: 0,
     customerHonorific: "御中",
@@ -193,34 +198,50 @@ export async function createInvoiceFromRecurring(
   const { getQuoteItems } = await import("@/lib/services/quotes");
   const qItems = await getQuoteItems(quote.id);
 
-  const invoice = await createInvoice({
-    projectId,
-    customerId: recurring.customerId,
-    quoteId: quote.id,
-    issueDate,
-    dueDate,
-    paymentTerms: quote.paymentTerms || settings.paymentTerms || "",
-    bankAccountId: null,
-    memo: recurring.memo,
-    discountLabel: recurring.discountLabel ?? "",
-    discountAmount: recurring.discountAmount ?? 0,
-    customerHonorific: "御中",
-    customerContactName: "",
-    customerDepartment: "",
-    customerPosition: "",
-    items: qItems.map((it, idx) => ({
-      quoteItemId: it.id,
-      name: it.name,
-      description: it.description,
-      width: it.width ?? "",
-      height: it.height ?? "",
-      quantity: it.quantity,
-      unit: it.unit || "式",
-      unitPrice: it.unitPrice,
-      taxRate: it.taxRate,
-      sortOrder: it.sortOrder ?? idx,
-    })),
-  });
+  // 定期は同一案件を再利用するため、追加請求として明示する。
+  // allowAdditional なしだと createInvoice が既存請求を silent return し、
+  // 2回目以降の生成が壊れ、かつ next_billing_date だけ進む。
+  const existingInvoiceIds = new Set(
+    (await getInvoicesByProjectId(projectId)).map((inv) => inv.id)
+  );
+
+  const invoice = await createInvoice(
+    {
+      projectId,
+      customerId: recurring.customerId,
+      quoteId: quote.id,
+      issueDate,
+      dueDate,
+      paymentTerms: quote.paymentTerms || settings.paymentTerms || "",
+      bankAccountId: null,
+      memo: recurring.memo,
+      discountLabel: recurring.discountLabel ?? "",
+      discountAmount: recurring.discountAmount ?? 0,
+      customerHonorific: "御中",
+      customerContactName: "",
+      customerDepartment: "",
+      customerPosition: "",
+      items: qItems.map((it, idx) => ({
+        quoteItemId: it.id,
+        name: it.name,
+        description: it.description,
+        width: it.width ?? "",
+        height: it.height ?? "",
+        quantity: it.quantity,
+        unit: it.unit || "式",
+        unitPrice: it.unitPrice,
+        taxRate: it.taxRate,
+        sortOrder: it.sortOrder ?? idx,
+      })),
+    },
+    { allowAdditional: true }
+  );
+
+  const isNewInvoice = !existingInvoiceIds.has(invoice.id);
+  if (!isNewInvoice) {
+    // 防御: 既存返却時は請求済み扱いとし、日付を進めない（重複請求防止）
+    return { invoice, projectId };
+  }
 
   await updateInvoiceStatus(invoice.id, "issued");
 

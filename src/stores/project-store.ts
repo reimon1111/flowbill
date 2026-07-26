@@ -147,6 +147,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       endDate: input.endDate ?? "",
       assigneeName: input.assigneeName ?? "",
       memo: input.memo,
+      documentMemo: input.documentMemo ?? "",
       invoiceStatus: getDefaultInvoiceStatus(input.status),
       paymentStatus: getDefaultPaymentStatus(input.status, input.dueDate),
       archived: false,
@@ -190,6 +191,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             endDate: input.endDate ?? "",
             assigneeName: input.assigneeName ?? "",
             memo: input.memo,
+            documentMemo: input.documentMemo ?? "",
           },
           input.status
         );

@@ -165,7 +165,14 @@ export function CustomerDetail({
                 >
                   <div>
                     <p className="font-medium text-zinc-900">{p.projectName}</p>
-                    <ProjectStatusBadge status={p.status} className="mt-2" />
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <ProjectStatusBadge status={p.status} />
+                      {(p.quoteCount ?? 0) > 0 ? (
+                        <span className="text-xs text-zinc-500">
+                          見積書 {p.quoteCount}件
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <p className="text-base font-semibold tabular-nums text-zinc-900">
                     {formatCurrency(p.amount)}

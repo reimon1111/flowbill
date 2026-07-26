@@ -27,6 +27,10 @@ import { useProjectItemStore } from "@/stores/project-item-store";
 import { getProjectInvoiceState } from "@/lib/invoice-state";
 import { getProjectBillingDisplayStatus, getBillingStatusTheme } from "@/lib/billing-status-theme";
 import { getProjectTotalWithTax } from "@/lib/project-amount-display";
+import {
+  getProjectQuoteSummary,
+  quoteStatusLabel,
+} from "@/lib/project-quotes";
 
 type ProjectCardProps = {
   project: ProjectListItem;
@@ -63,17 +67,29 @@ export function ProjectCard({
   );
 }
 
-function useLatestQuoteId(projectId: string) {
+function useProjectQuoteInfo(projectId: string) {
   const quotes = useQuoteStore((s) => s.quotes);
   return useMemo(
-    () =>
-      quotes
-        .filter((q) => q.projectId === projectId)
-        .sort(
-          (a, b) =>
-            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-        )[0]?.id,
+    () => getProjectQuoteSummary(projectId, quotes),
     [quotes, projectId]
+  );
+}
+
+function useLatestQuoteId(projectId: string) {
+  const { latestQuote } = useProjectQuoteInfo(projectId);
+  return latestQuote?.id;
+}
+
+function QuoteCountHint({ projectId }: { projectId: string }) {
+  const { quoteCount, latestQuote } = useProjectQuoteInfo(projectId);
+  if (quoteCount <= 0) return null;
+  return (
+    <p className="truncate text-xs text-zinc-500">
+      見積 {quoteCount}件
+      {latestQuote
+        ? ` · 最新 ${quoteStatusLabel(latestQuote.status)}`
+        : null}
+    </p>
   );
 }
 
@@ -123,6 +139,7 @@ function ProjectRow({
           {getProjectTitleHeadline(project.projectName)}
         </Link>
         <p className="truncate text-sm text-zinc-500">{project.customerName}</p>
+        <QuoteCountHint projectId={project.id} />
       </div>
 
       <div className="min-w-0">
@@ -205,6 +222,9 @@ function ProjectCardMobile({
           <p className="mt-0.5 truncate text-sm text-zinc-500">
             {project.customerName}
           </p>
+          <div className="mt-2">
+            <QuoteCountHint projectId={project.id} />
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <ProjectStatusBadge status={project.status} />
             {billingStatus ? (

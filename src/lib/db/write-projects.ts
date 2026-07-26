@@ -10,7 +10,10 @@ import {
   getStatusAfterAction,
 } from "@/lib/project-utils";
 import { applyProjectMilestoneDates } from "@/lib/project-milestone-dates";
-import { isMissingProjectDateColumns } from "@/lib/db/errors";
+import {
+  isMissingProjectDateColumns,
+  isMissingProjectDocumentMemoColumn,
+} from "@/lib/db/errors";
 import { PROJECT_STATUS_LABELS } from "@/lib/constants";
 import type { ProjectActionType } from "@/lib/types";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -76,6 +79,18 @@ async function writeProjectRow(
 
   let { error } = await run(row);
 
+  if (error && isMissingProjectDocumentMemoColumn(error)) {
+    const legacy = { ...row };
+    delete legacy.document_memo;
+    const retry = await run(legacy);
+    error = retry.error;
+    if (!error) {
+      console.warn(
+        "projects.document_memo が未作成のため、案件備考以外を保存しました。supabase/add-project-document-memo.sql を実行してください。"
+      );
+    }
+  }
+
   if (error && isMissingProjectDateColumns(error)) {
     const legacy = { ...row };
     delete legacy.confirmed_date;
@@ -114,6 +129,7 @@ export async function dbInsertProject(input: ProjectInput): Promise<ProjectRecor
     endDate: input.endDate ?? "",
     assigneeName: input.assigneeName ?? "",
     memo: input.memo,
+    documentMemo: input.documentMemo ?? "",
     invoiceStatus: getDefaultInvoiceStatus(input.status),
     paymentStatus: getDefaultPaymentStatus(input.status, input.dueDate),
     archived: false,
@@ -178,6 +194,7 @@ export async function dbUpdateProject(
       endDate: input.endDate ?? "",
       assigneeName: input.assigneeName ?? "",
       memo: input.memo,
+      documentMemo: input.documentMemo ?? "",
     },
     input.status
   );

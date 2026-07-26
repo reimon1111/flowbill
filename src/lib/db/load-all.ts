@@ -11,6 +11,8 @@ import {
   projectItemFromRow,
   quoteFromRow,
   quoteItemFromRow,
+  recurringFromRow,
+  recurringItemFromRow,
   type CompanyRow,
   type CustomerRow,
   type InvoiceItemRow,
@@ -21,6 +23,8 @@ import {
   type ProjectRow,
   type QuoteItemRow,
   type QuoteRow,
+  type RecurringBillingItemRow,
+  type RecurringBillingRow,
 } from "@/lib/db/mappers";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { useCustomerStore } from "@/stores/customer-store";
@@ -30,6 +34,7 @@ import { useProjectStore } from "@/stores/project-store";
 import { useProjectItemStore } from "@/stores/project-item-store";
 import { useQuoteStore } from "@/stores/quote-store";
 import { useInvoiceStore } from "@/stores/invoice-store";
+import { useRecurringStore } from "@/stores/recurring-store";
 import { useBankAccountStore } from "@/stores/bank-account-store";
 import { useOrderStore } from "@/stores/order-store";
 import { useDeliveryNoteStore } from "@/stores/delivery-note-store";
@@ -63,6 +68,27 @@ import {
 } from "@/lib/db/load-project-supplement";
 import type { ProjectRecord } from "@/lib/types";
 
+function logLoadAllSelectFailure(
+  table: string,
+  companyId: string,
+  error: {
+    code?: string;
+    message?: string;
+    details?: string;
+    hint?: string;
+  }
+): void {
+  console.error("[loadAllDataFromSupabase]", {
+    operation: "select",
+    table,
+    companyId,
+    code: error.code ?? null,
+    message: error.message ?? null,
+    details: error.details ?? null,
+    hint: error.hint ?? null,
+  });
+}
+
 export async function loadAllDataFromSupabase(): Promise<void> {
   const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
@@ -79,6 +105,8 @@ export async function loadAllDataFromSupabase(): Promise<void> {
     quoteItemsRes,
     invoicesRes,
     invoiceItemsRes,
+    recurringBillingsRes,
+    recurringBillingItemsRes,
     bankAccountsRes,
     ordersRes,
     orderItemsRes,
@@ -131,6 +159,16 @@ export async function loadAllDataFromSupabase(): Promise<void> {
       .order("created_at", { ascending: false }),
     supabase.from("invoice_items").select("*").eq("company_id", companyId),
     supabase
+      .from("recurring_billings")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("recurring_billing_items")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("sort_order", { ascending: true }),
+    supabase
       .from("bank_accounts")
       .select("*")
       .eq("company_id", companyId)
@@ -174,6 +212,21 @@ export async function loadAllDataFromSupabase(): Promise<void> {
     pendingMigrations.push("add-item-template-categories.sql（カテゴリ管理）");
   }
 
+  if (recurringBillingsRes.error) {
+    logLoadAllSelectFailure(
+      "recurring_billings",
+      companyId,
+      recurringBillingsRes.error
+    );
+  }
+  if (recurringBillingItemsRes.error) {
+    logLoadAllSelectFailure(
+      "recurring_billing_items",
+      companyId,
+      recurringBillingItemsRes.error
+    );
+  }
+
   const firstError =
     companyRes.error ??
     customersRes.error ??
@@ -185,7 +238,9 @@ export async function loadAllDataFromSupabase(): Promise<void> {
     quotesRes.error ??
     quoteItemsRes.error ??
     invoicesRes.error ??
-    invoiceItemsRes.error;
+    invoiceItemsRes.error ??
+    recurringBillingsRes.error ??
+    recurringBillingItemsRes.error;
 
   if (firstError) throw firstError;
 
@@ -238,6 +293,15 @@ export async function loadAllDataFromSupabase(): Promise<void> {
   useInvoiceStore.getState().hydrate({
     invoices,
     invoiceItems: (invoiceItemsRes.data as InvoiceItemRow[]).map(invoiceItemFromRow),
+  });
+
+  useRecurringStore.getState().hydrate({
+    recurringBillings: (recurringBillingsRes.data as RecurringBillingRow[]).map(
+      recurringFromRow
+    ),
+    recurringBillingItems: (
+      recurringBillingItemsRes.data as RecurringBillingItemRow[]
+    ).map(recurringItemFromRow),
   });
 
   const documentManagementMissing =

@@ -29,11 +29,24 @@ export type ConstructionLineItemDraft = {
   sortOrder: number;
 };
 
+export type ConstructionLineItemFieldErrors = {
+  name?: string;
+  width?: string;
+  height?: string;
+  quantity?: string;
+  unit?: string;
+  unitPrice?: string;
+  /** 税率など行内に入力欄がない項目向け */
+  row?: string;
+};
+
 type ConstructionLineItemsEditorProps<T extends ConstructionLineItemDraft> = {
   items: T[];
   onChange: (items: T[]) => void;
   onRemove: (index: number) => void;
   namePlaceholder?: string;
+  /** 行インデックスごとのフィールドエラー（任意） */
+  fieldErrors?: Array<ConstructionLineItemFieldErrors | undefined>;
 };
 
 function parseQuantity(raw: string): number | null {
@@ -134,11 +147,17 @@ function LineItemNameInput({
  * 1段目: 商品名（横幅いっぱい）
  * 2段目: W / H / 数量 / 単位 / 単価 / 金額
  */
+function FieldErrorText({ message }: { message?: string }) {
+  if (!message) return null;
+  return <p className="text-xs text-red-600">{message}</p>;
+}
+
 export function ConstructionLineItemsEditor<T extends ConstructionLineItemDraft>({
   items,
   onChange,
   onRemove,
   namePlaceholder = "商品名・品目",
+  fieldErrors,
 }: ConstructionLineItemsEditorProps<T>) {
   const updateUnit = (index: number, unit: string) => {
     onChange(
@@ -163,20 +182,23 @@ export function ConstructionLineItemsEditor<T extends ConstructionLineItemDraft>
       <div className="overflow-x-hidden rounded-xl border border-zinc-200/80 bg-white">
         {items.map((it, idx) => {
           const amount = it.quantity * it.unitPrice;
+          const rowErrors = fieldErrors?.[idx];
           return (
             <div
               key={`line-item-${idx}`}
+              data-line-item-index={idx}
               className="space-y-3 border-b border-zinc-100 p-3 last:border-b-0 sm:p-4"
             >
               {/* 1段目: 商品名（全幅） */}
               <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 space-y-1">
                   <p className={cn(fieldLabelClass, "mb-1")}>商品名／品目</p>
                   <LineItemNameInput
                     value={it.name}
                     onChange={(name) => updateField(idx, { name })}
                     placeholder={namePlaceholder}
                   />
+                  <FieldErrorText message={rowErrors?.name} />
                 </div>
                 <button
                   type="button"
@@ -200,6 +222,7 @@ export function ConstructionLineItemsEditor<T extends ConstructionLineItemDraft>
                     placeholder="900"
                     className={cn(cellInputClass, "w-full tabular-nums")}
                   />
+                  <FieldErrorText message={rowErrors?.width} />
                 </div>
                 <div className="min-w-0 space-y-1 lg:w-[72px]">
                   <p className={fieldLabelClass}>H</p>
@@ -211,13 +234,15 @@ export function ConstructionLineItemsEditor<T extends ConstructionLineItemDraft>
                     placeholder="1800"
                     className={cn(cellInputClass, "w-full tabular-nums")}
                   />
+                  <FieldErrorText message={rowErrors?.height} />
                 </div>
                 <div className="min-w-0 space-y-1 lg:w-[72px]">
                   <p className={fieldLabelClass}>数量</p>
                   <Input
                     type="number"
                     min={0.01}
-                    step={0.01}
+                    // min=0.01 + step=1 は HTML の step base で 1→1.01 になるため any
+                    step="any"
                     value={String(it.quantity)}
                     onChange={(e) => {
                       const n = parseQuantity(e.target.value);
@@ -231,9 +256,11 @@ export function ConstructionLineItemsEditor<T extends ConstructionLineItemDraft>
                     }}
                     className={cn(
                       cellInputClass,
-                      "w-full text-right tabular-nums"
+                      "w-full text-right tabular-nums",
+                      rowErrors?.quantity && "border-red-300"
                     )}
                   />
+                  <FieldErrorText message={rowErrors?.quantity} />
                 </div>
                 <div className="min-w-0 space-y-1 lg:w-[88px]">
                   <p className={fieldLabelClass}>単位</p>
@@ -242,6 +269,7 @@ export function ConstructionLineItemsEditor<T extends ConstructionLineItemDraft>
                     onChange={(unit) => updateUnit(idx, unit)}
                     compact
                   />
+                  <FieldErrorText message={rowErrors?.unit} />
                 </div>
                 <div className="min-w-0 space-y-1 lg:w-[104px]">
                   <p className={fieldLabelClass}>単価</p>
@@ -262,9 +290,11 @@ export function ConstructionLineItemsEditor<T extends ConstructionLineItemDraft>
                     }}
                     className={cn(
                       cellInputClass,
-                      "w-full text-right tabular-nums"
+                      "w-full text-right tabular-nums",
+                      rowErrors?.unitPrice && "border-red-300"
                     )}
                   />
+                  <FieldErrorText message={rowErrors?.unitPrice} />
                 </div>
                 <div className="flex min-w-0 items-end justify-between gap-2 pb-1 sm:col-span-1 lg:ml-auto lg:w-[120px] lg:justify-end lg:pb-0">
                   <p className={cn(fieldLabelClass, "lg:sr-only")}>金額</p>
@@ -278,6 +308,7 @@ export function ConstructionLineItemsEditor<T extends ConstructionLineItemDraft>
                   </div>
                 </div>
               </div>
+              <FieldErrorText message={rowErrors?.row} />
             </div>
           );
         })}

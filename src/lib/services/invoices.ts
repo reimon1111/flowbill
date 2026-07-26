@@ -36,6 +36,7 @@ import { normalizeUnit } from "@/lib/constants/units";
 import { resolveInheritedDiscount } from "@/lib/discount-totals";
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
+import { composeInitialDocumentMemo } from "@/lib/document-memo";
 import { buildInvoiceInputItemsForProject } from "@/lib/services/project-items";
 import { syncQuoteItemsFromProject } from "@/lib/services/quotes";
 import {
@@ -533,7 +534,10 @@ export async function createInvoiceFromQuote(
     paymentTerms:
       quote.paymentTerms?.trim() || settings.paymentTerms?.trim() || "",
     bankAccountId: null,
-    memo: settings.invoiceMemoTemplate ?? "",
+    memo: composeInitialDocumentMemo(
+      project?.documentMemo,
+      settings.invoiceMemoTemplate
+    ),
     discountLabel: inheritedDiscount.discountLabel,
     discountAmount: inheritedDiscount.discountAmount,
     customerHonorific: pickCustomerHonorific(quote),

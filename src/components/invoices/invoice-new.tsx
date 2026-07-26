@@ -20,6 +20,7 @@ import { formatSupabaseError } from "@/lib/db/errors";
 import type { QuoteRecord } from "@/lib/types";
 import { resolveInheritedDiscount } from "@/lib/discount-totals";
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
+import { composeInitialDocumentMemo } from "@/lib/document-memo";
 
 function addDays(iso: string, days: number) {
   const d = new Date(iso + "T00:00:00");
@@ -239,7 +240,10 @@ export function NewInvoiceClient() {
             companySettings.paymentTerms ||
             "",
           bankAccountId: null,
-          memo: companySettings.invoiceMemoTemplate ?? "",
+          memo: composeInitialDocumentMemo(
+            project.documentMemo,
+            companySettings.invoiceMemoTemplate
+          ),
           discountLabel: inheritedDiscount.discountLabel,
           discountAmount: inheritedDiscount.discountAmount,
           customerHonorific:

@@ -38,6 +38,9 @@ export const projectFormSchema = applyDocumentFormRefines(
       endDate: z.string(),
       assigneeName: z.string().max(50, "担当者名は50文字以内で入力してください"),
       memo: z.string().max(500, "メモは500文字以内で入力してください"),
+      documentMemo: z
+        .string()
+        .max(2000, "案件備考は2000文字以内で入力してください"),
       items: z.array(projectItemSchema),
     })
     .merge(discountFieldsSchema)
@@ -66,6 +69,7 @@ export const projectFormDefaults: ProjectFormValues = {
   endDate: "",
   assigneeName: "",
   memo: "",
+  documentMemo: "",
   items: [],
   ...discountFormDefaults,
   ...customerHonorificFormDefaults,
