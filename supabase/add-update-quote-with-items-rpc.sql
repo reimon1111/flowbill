@@ -105,6 +105,10 @@ begin
       else customer_position
     end,
     memo = coalesce(p_quote->>'memo', memo),
+    document_email = case
+      when p_quote ? 'document_email' then coalesce(p_quote->>'document_email', '')
+      else document_email
+    end,
     payment_terms = coalesce(p_quote->>'payment_terms', payment_terms),
     updated_at = coalesce((p_quote->>'updated_at')::timestamptz, v_now),
     updated_by = v_uid

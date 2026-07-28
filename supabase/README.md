@@ -17,6 +17,8 @@ Supabase SQL Editor で、以下のファイルを **この順番で** 1つず�
 | 8 | `fix-security-high-risks.sql` | **本番公開前必須** — セキュリティ修正 |
 | 9 | `add-update-quote-with-items-rpc.sql` | 見積更新の原子的 RPC（明細消失防止） |
 | 11 | `add-project-document-memo.sql` | 案件備考（帳票新規作成時の備考初期値） |
+| 12 | `add-profile-document-email.sql` | ユーザー帳票用メールアドレス |
+| 13 | `add-document-email-columns.sql` | 各帳票のメールアドレス列（スナップショット） |
 
 手順の詳細・環境変数はリポジトリ直下の [README.md](../README.md#supabase-新規セットアップ) を参照してください。
 

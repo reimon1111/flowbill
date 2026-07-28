@@ -13,6 +13,10 @@ import {
   customerHonorificFieldSchema,
   customerHonorificFormDefaults,
 } from "@/lib/validations/customer-honorific";
+import {
+  documentEmailFieldSchema,
+  documentEmailFormDefaults,
+} from "@/lib/validations/document-email";
 
 const taxRateSchema = z.union([z.literal(0), z.literal(0.08), z.literal(0.1)]);
 
@@ -44,6 +48,7 @@ export const quoteFormSchema = applyDocumentFormRefines(
     .merge(discountFieldsSchema)
     .merge(customerHonorificFieldSchema)
     .merge(counterpartyContactFieldsSchema)
+    .merge(documentEmailFieldSchema)
 );
 
 export type QuoteFormValues = z.infer<typeof quoteFormSchema>;
@@ -56,6 +61,7 @@ export const quoteFormDefaults: QuoteFormValues = {
   expiryDate: "",
   paymentTerms: "",
   memo: "",
+  ...documentEmailFormDefaults,
   items: [],
   ...discountFormDefaults,
   ...customerHonorificFormDefaults,

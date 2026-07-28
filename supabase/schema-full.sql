@@ -45,6 +45,7 @@ create table if not exists public.profiles (
   user_id uuid not null references auth.users (id) on delete cascade,
   company_id text not null references public.companies (id) on delete cascade,
   email text not null default '',
+  document_email text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint profiles_user_id_unique unique (user_id)
@@ -229,6 +230,7 @@ create table if not exists public.quotes (
   customer_position text,
   payment_terms text not null default '',
   memo text not null default '',
+  document_email text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -286,6 +288,7 @@ create table if not exists public.invoices (
   payment_terms text not null default '',
   bank_account_id text references public.bank_accounts (id) on delete set null,
   memo text not null default '',
+  document_email text not null default '',
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -343,6 +346,7 @@ create table if not exists public.orders (
   customer_department text,
   customer_position text,
   memo text not null default '',
+  document_email text not null default '',
   recipient_name text not null default '',
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
@@ -399,6 +403,7 @@ create table if not exists public.delivery_notes (
   customer_department text,
   customer_position text,
   memo text not null default '',
+  document_email text not null default '',
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -455,6 +460,7 @@ create table if not exists public.receipts (
   customer_department text,
   customer_position text,
   memo text not null default '',
+  document_email text not null default '',
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

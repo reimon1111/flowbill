@@ -167,6 +167,7 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       customerDepartment: input.customerDepartment?.trim() ?? "",
       customerPosition: input.customerPosition?.trim() ?? "",
       memo: input.memo,
+      documentEmail: input.documentEmail ?? "",
       paymentTerms: input.paymentTerms,
       createdBy: null,
       updatedBy: null,
@@ -229,6 +230,7 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       customerDepartment: input.customerDepartment?.trim() ?? "",
       customerPosition: input.customerPosition?.trim() ?? "",
       memo: input.memo,
+      documentEmail: input.documentEmail ?? "",
       paymentTerms: input.paymentTerms,
       updatedAt: now,
     };

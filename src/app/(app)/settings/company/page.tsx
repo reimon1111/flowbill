@@ -1,18 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRef, useState, useEffect, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { CompanySettingsForm } from "@/components/settings/company-settings-form";
 import { DocumentPreviewCard } from "@/components/settings/document-preview-card";
 import { MembersManager } from "@/components/settings/members-manager";
+import { UserDocumentSettingsForm } from "@/components/settings/user-document-settings-form";
+import type { SettingsSectionHandle } from "@/components/settings/settings-section-handle";
+import { Button } from "@/components/ui/button";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { useCompanyMembershipStore } from "@/stores/company-membership-store";
 import { canManageMembers } from "@/lib/types/company-membership";
 import { cn } from "@/lib/utils";
-import { useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 
 const TABS = [
   { id: "info", label: "会社情報" },
@@ -29,6 +32,9 @@ export default function CompanySettingsPage() {
   const router = useRouter();
   const role = useCompanyMembershipStore((s) => s.currentRole);
   const canManage = canManageMembers(role);
+  const companyFormRef = useRef<SettingsSectionHandle>(null);
+  const userFormRef = useRef<SettingsSectionHandle>(null);
+  const [saving, setSaving] = useState(false);
 
   const visibleTabs = useMemo(() => {
     return canManage ? TABS : TABS.filter((t) => t.id !== "members");
@@ -40,6 +46,70 @@ export default function CompanySettingsPage() {
       router.replace("/settings/company?tab=info");
     }
   }, [tab, canManage, router]);
+
+  const handleSaveAll = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const [companyResult, userResult] = await Promise.all([
+        canManage
+          ? (companyFormRef.current?.save() ??
+            Promise.resolve({
+              ok: false as const,
+              reason: "error" as const,
+              message: "会社設定フォームを準備できませんでした",
+            }))
+          : Promise.resolve({ ok: true as const }),
+        userFormRef.current?.save() ??
+          Promise.resolve({
+            ok: false as const,
+            reason: "error" as const,
+            message: "担当者設定フォームを準備できませんでした",
+          }),
+      ]);
+
+      const companyOk = companyResult.ok;
+      const userOk = userResult.ok;
+      const companyMessage =
+        !companyOk && "message" in companyResult ? companyResult.message : "";
+      const userMessage =
+        !userOk && "message" in userResult ? userResult.message : "";
+
+      if (companyOk && userOk) {
+        toast.success("設定を保存しました");
+        return;
+      }
+
+      if (!companyOk && userOk) {
+        toast.success("担当者設定は保存しました");
+        toast.error("会社設定の保存に失敗しました", {
+          description: companyMessage || undefined,
+        });
+        return;
+      }
+
+      if (companyOk && !userOk) {
+        if (canManage) {
+          toast.success("会社設定は保存しました");
+        }
+        toast.error("担当者設定の保存に失敗しました", {
+          description: userMessage || undefined,
+        });
+        return;
+      }
+
+      toast.error("設定の保存に失敗しました", {
+        description: [
+          canManage && companyMessage ? `会社設定: ${companyMessage}` : null,
+          userMessage ? `担当者設定: ${userMessage}` : null,
+        ]
+          .filter(Boolean)
+          .join(" / "),
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="mx-auto min-w-0 max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
@@ -69,8 +139,42 @@ export default function CompanySettingsPage() {
         <MembersManager />
       ) : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,520px)] lg:items-start">
-          <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.03] sm:p-8">
-            <CompanySettingsForm settings={settings} />
+          <div className="space-y-8 pb-24">
+            <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.03] sm:p-8">
+              <h2 className="mb-6 text-lg font-semibold text-zinc-900">
+                会社情報
+              </h2>
+              <CompanySettingsForm ref={companyFormRef} settings={settings} />
+            </div>
+            <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.03] sm:p-8">
+              <h2 className="mb-2 text-lg font-semibold text-zinc-900">
+                担当者設定
+              </h2>
+              <p className="mb-6 text-sm text-zinc-500">
+                帳票を新規作成するとき、ログイン中のユーザーとして使用する連絡先です。
+              </p>
+              <UserDocumentSettingsForm ref={userFormRef} />
+            </div>
+
+            <div className="sticky bottom-0 -mx-4 border-t border-zinc-200/80 bg-zinc-50/90 px-4 py-4 backdrop-blur-sm sm:-mx-0 sm:rounded-2xl sm:border sm:border-zinc-200/80 sm:bg-white sm:px-6 sm:shadow-sm">
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  onClick={() => void handleSaveAll()}
+                  disabled={saving}
+                  className="h-11 min-w-[140px] rounded-xl bg-zinc-900 hover:bg-zinc-800"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      保存中...
+                    </>
+                  ) : (
+                    "保存"
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
           <div className="lg:sticky lg:top-20">
             <DocumentPreviewCard />

@@ -11,6 +11,7 @@ import { DocumentPurchaserInfo } from "@/components/documents/document-purchaser
 import { DocumentSummary } from "@/components/documents/document-summary";
 import { OrderDocumentRecipient } from "@/components/documents/order-document-recipient";
 import { getDocumentLabels } from "@/components/documents/document-labels";
+import { resolveDocumentEmail } from "@/lib/document-contact";
 
 type OrderDocumentLayoutProps = Omit<
   DocumentLayoutProps,
@@ -44,10 +45,12 @@ export function OrderDocumentLayout({
   discountAmount,
   memo,
   memoTemplate,
+  documentEmail,
   company,
   recipientName = "",
 }: OrderDocumentLayoutProps) {
   const labels = getDocumentLabels("order");
+  const displayEmail = resolveDocumentEmail(documentEmail, company.email);
   const subjectText = subject.trim()
     ? `件名：${subject.trim()}${labels.subjectSuffix}`
     : "";
@@ -106,6 +109,11 @@ export function OrderDocumentLayout({
           </p>
           <DocumentPaymentTerms paymentTerms={paymentTerms} />
           <DocumentSummary kind="order" totalAmount={totalAmount} />
+          {displayEmail ? (
+            <p className="document-order-email mt-1 text-[11px] text-zinc-800">
+              mail {displayEmail}
+            </p>
+          ) : null}
         </div>
         <DocumentPurchaserInfo />
       </div>

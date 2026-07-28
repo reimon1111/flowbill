@@ -100,6 +100,7 @@ type CommercialHeaderRow = {
   customer_department?: string | null;
   customer_position?: string | null;
   memo: string;
+  document_email?: string | null;
   deleted_at?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
@@ -183,6 +184,7 @@ export function orderFromRow(row: OrderRow): OrderRecord {
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
+    documentEmail: row.document_email != null ? String(row.document_email) : "",
     recipientName: row.recipient_name ?? "",
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
@@ -215,6 +217,7 @@ export function deliveryNoteFromRow(row: DeliveryNoteRow): DeliveryNoteRecord {
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
+    documentEmail: row.document_email != null ? String(row.document_email) : "",
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
     createdAt: toIso(row.created_at),
@@ -248,6 +251,7 @@ export function receiptFromRow(row: ReceiptRow): ReceiptRecord {
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
+    documentEmail: row.document_email != null ? String(row.document_email) : "",
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
     createdAt: toIso(row.created_at),
@@ -279,6 +283,7 @@ export function orderToRow(companyId: string, order: OrderRecord): OrderRow {
     customer_department: order.customerDepartment || null,
     customer_position: order.customerPosition || null,
     memo: order.memo,
+    document_email: order.documentEmail ?? "",
     recipient_name: order.recipientName,
     created_at: order.createdAt,
     updated_at: order.updatedAt,
@@ -333,6 +338,7 @@ export function deliveryNoteToRow(
     customer_department: note.customerDepartment || null,
     customer_position: note.customerPosition || null,
     memo: note.memo,
+    document_email: note.documentEmail ?? "",
     created_at: note.createdAt,
     updated_at: note.updatedAt,
   };
@@ -383,6 +389,7 @@ export function receiptToRow(companyId: string, receipt: ReceiptRecord): Receipt
     customer_department: receipt.customerDepartment || null,
     customer_position: receipt.customerPosition || null,
     memo: receipt.memo,
+    document_email: receipt.documentEmail ?? "",
     created_at: receipt.createdAt,
     updated_at: receipt.updatedAt,
   };

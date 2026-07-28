@@ -108,6 +108,10 @@ begin
       else customer_position
     end,
     memo = coalesce(p_invoice->>'memo', memo),
+    document_email = case
+      when p_invoice ? 'document_email' then coalesce(p_invoice->>'document_email', '')
+      else document_email
+    end,
     payment_terms = coalesce(p_invoice->>'payment_terms', payment_terms),
     bank_account_id = case
       when p_invoice ? 'bank_account_id' then nullif(trim(p_invoice->>'bank_account_id'), '')
@@ -304,6 +308,10 @@ begin
       else customer_position
     end,
     memo = coalesce(p_order->>'memo', memo),
+    document_email = case
+      when p_order ? 'document_email' then coalesce(p_order->>'document_email', '')
+      else document_email
+    end,
     updated_at = coalesce((p_order->>'updated_at')::timestamptz, v_now),
     updated_by = v_uid
   where id = p_order_id
@@ -494,6 +502,10 @@ begin
       else customer_position
     end,
     memo = coalesce(p_delivery_note->>'memo', memo),
+    document_email = case
+      when p_delivery_note ? 'document_email' then coalesce(p_delivery_note->>'document_email', '')
+      else document_email
+    end,
     updated_at = coalesce((p_delivery_note->>'updated_at')::timestamptz, v_now),
     updated_by = v_uid
   where id = p_delivery_note_id
@@ -684,6 +696,10 @@ begin
       else customer_position
     end,
     memo = coalesce(p_receipt->>'memo', memo),
+    document_email = case
+      when p_receipt ? 'document_email' then coalesce(p_receipt->>'document_email', '')
+      else document_email
+    end,
     updated_at = coalesce((p_receipt->>'updated_at')::timestamptz, v_now),
     updated_by = v_uid
   where id = p_receipt_id

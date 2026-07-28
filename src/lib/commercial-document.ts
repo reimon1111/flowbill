@@ -38,6 +38,7 @@ export type CommercialDocumentInput = {
   issueDate: string;
   paymentTerms: string;
   memo: string;
+  documentEmail: string;
   discountLabel: string;
   discountAmount: number;
   /** 納品・領収で使用。注文書では未使用 */
@@ -66,6 +67,7 @@ export type OrderRecord = {
   customerDepartment: string;
   customerPosition: string;
   memo: string;
+  documentEmail: string;
   /** 注文書の宛名（空欄可・帳票では手書き用スペースを表示） */
   recipientName: string;
   deletedAt: string | null;
@@ -107,6 +109,7 @@ export type DeliveryNoteRecord = {
   customerDepartment: string;
   customerPosition: string;
   memo: string;
+  documentEmail: string;
   deletedAt: string | null;
   createdBy: string | null;
   updatedBy: string | null;
@@ -146,6 +149,7 @@ export type ReceiptRecord = {
   customerDepartment: string;
   customerPosition: string;
   memo: string;
+  documentEmail: string;
   deletedAt: string | null;
   createdBy: string | null;
   updatedBy: string | null;
@@ -200,6 +204,7 @@ export type CommercialDocView = {
   customerDepartment: string;
   customerPosition: string;
   memo: string;
+  documentEmail: string;
 };
 
 export function toCommercialDocView(
@@ -217,6 +222,7 @@ export function toCommercialDocView(
     | "customerDepartment"
     | "customerPosition"
     | "memo"
+    | "documentEmail"
   > & {
     customerHonorific?: import("@/lib/customer-honorific").CustomerHonorific;
   }
@@ -235,5 +241,6 @@ export function toCommercialDocView(
     customerDepartment: record.customerDepartment ?? "",
     customerPosition: record.customerPosition ?? "",
     memo: record.memo,
+    documentEmail: record.documentEmail ?? "",
   };
 }

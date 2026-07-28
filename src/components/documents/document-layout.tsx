@@ -39,6 +39,7 @@ export type DocumentLayoutProps = {
   discountAmount?: number;
   memo: string;
   memoTemplate: string;
+  documentEmail?: string;
   company: CompanySettings;
   bankAccounts?: BankAccountDisplay[];
 };
@@ -64,6 +65,7 @@ export function DocumentLayout({
   discountAmount,
   memo,
   memoTemplate,
+  documentEmail,
   company,
   bankAccounts,
 }: DocumentLayoutProps) {
@@ -105,7 +107,7 @@ export function DocumentLayout({
           ) : null}
           <DocumentSummary kind={kind} totalAmount={totalAmount} />
         </div>
-        <DocumentCompanyInfo company={company} />
+        <DocumentCompanyInfo company={company} documentEmail={documentEmail} />
       </div>
 
       <DocumentItemsTable items={items} />

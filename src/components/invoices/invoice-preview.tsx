@@ -46,6 +46,7 @@ export function InvoicePreview({
       discountAmount={invoice.discountAmount}
       memo={invoice.memo}
       memoTemplate={company.invoiceMemoTemplate}
+      documentEmail={invoice.documentEmail}
       company={company}
       bankAccounts={bankAccounts}
     />

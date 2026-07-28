@@ -20,6 +20,7 @@ import { DiscountSection } from "@/components/shared/discount-section";
 import { DocumentTotalsSummary } from "@/components/shared/document-totals-summary";
 import { CounterpartyContactFieldsEditor } from "@/components/shared/counterparty-contact-fields";
 import { CustomerHonorificSelect } from "@/components/shared/customer-honorific-select";
+import { DocumentEmailField } from "@/components/shared/document-email-field";
 import { discountFormDefaults } from "@/lib/validations/discount";
 import { counterpartyContactFormDefaults } from "@/lib/validations/counterparty-contact";
 import { DEFAULT_CUSTOMER_HONORIFIC } from "@/lib/customer-honorific";
@@ -316,6 +317,17 @@ export function InvoiceForm({
             disabled={form.formState.isSubmitting}
             amountError={form.formState.errors.discountAmount?.message}
             labelError={form.formState.errors.discountLabel?.message}
+          />
+        </FormSection>
+
+        <FormSection title="連絡先">
+          <DocumentEmailField
+            value={form.watch("documentEmail")}
+            onChange={(value) =>
+              form.setValue("documentEmail", value, { shouldValidate: true })
+            }
+            onBlur={() => form.trigger("documentEmail")}
+            error={form.formState.errors.documentEmail?.message}
           />
         </FormSection>
 

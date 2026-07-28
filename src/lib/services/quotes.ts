@@ -31,6 +31,7 @@ import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
 import { normalizeUnit } from "@/lib/constants/units";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
+import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
 import { buildQuoteInputItemsForProject, quoteNeedsItemSync } from "@/lib/services/project-items";
 
 export const QUOTE_DELETE_BLOCKED_MESSAGE =
@@ -141,6 +142,7 @@ function buildQuoteInputFromProject(
     expiryDate: quote.expiryDate,
     paymentTerms: quote.paymentTerms,
     memo: quote.memo,
+    documentEmail: quote.documentEmail ?? "",
     discountLabel: project.discountLabel ?? "",
     discountAmount: project.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(project),
@@ -223,6 +225,7 @@ export async function ensureDraftQuoteForProject(
       project.documentMemo,
       useCompanySettingsStore.getState().settings.quoteMemoTemplate
     ),
+    documentEmail: await resolveInitialDocumentEmailForCreate(),
     discountLabel: project.discountLabel ?? "",
     discountAmount: project.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(project),
@@ -385,6 +388,7 @@ export function quoteInputFromForm(values: QuoteFormValues): QuoteInput {
     expiryDate,
     paymentTerms: values.paymentTerms.trim(),
     memo: values.memo.trim(),
+    documentEmail: values.documentEmail.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
     customerHonorific: values.customerHonorific,

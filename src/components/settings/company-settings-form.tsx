@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { useForm, useWatch, type FieldErrors } from "react-hook-form";
+import { forwardRef, useEffect, useImperativeHandle } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { toast } from "sonner";
 import { Building2, CalendarClock, CreditCard, FileText, ImageIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,12 +27,12 @@ import {
   DEFAULT_QUOTE_EXPIRY_TYPE,
   QUOTE_EXPIRY_PERIOD_OPTIONS,
 } from "@/lib/quote-expiry";
+import type { SettingsSectionHandle } from "@/components/settings/settings-section-handle";
 
-export function CompanySettingsForm({
-  settings,
-}: {
-  settings: CompanySettings;
-}) {
+export const CompanySettingsForm = forwardRef<
+  SettingsSectionHandle,
+  { settings: CompanySettings }
+>(function CompanySettingsForm({ settings }, ref) {
   const currentRole = useCompanyMembershipStore((s) => s.currentRole);
   const canEdit = canManageMembers(currentRole);
 
@@ -97,51 +95,55 @@ export function CompanySettingsForm({
     });
   }, [settings, form]);
 
-  const onSubmit = async (values: CompanySettingsFormValues) => {
-    if (!canEdit) {
-      toast.error("会社情報を変更する権限がありません");
-      return;
-    }
-    try {
-      await updateCompanySettings(values);
-      toast.success("会社設定を保存しました");
-    } catch (error) {
-      logSupabaseError("updateCompanySettings", error);
-      const description =
-        error instanceof Error
-          ? error.message
-          : formatSupabaseError(error);
-      toast.error("会社設定の保存に失敗しました", {
-        description: description || formatSupabaseError(error),
-      });
-    }
-  };
+  useImperativeHandle(ref, () => ({
+    save: () =>
+      new Promise((resolve) => {
+        if (!canEdit) {
+          resolve({
+            ok: false,
+            reason: "permission",
+            message: "会社情報を変更する権限がありません",
+          });
+          return;
+        }
 
-  const onInvalid = (errors: FieldErrors<CompanySettingsFormValues>) => {
-    toast.error("入力内容を確認してください", {
-      description: firstFormErrorMessage(errors),
-    });
-  };
+        void form.handleSubmit(
+          async (values) => {
+            try {
+              await updateCompanySettings(values);
+              resolve({ ok: true });
+            } catch (error) {
+              logSupabaseError("updateCompanySettings", error);
+              const description =
+                error instanceof Error
+                  ? error.message
+                  : formatSupabaseError(error);
+              resolve({
+                ok: false,
+                reason: "error",
+                message: description || "会社設定の保存に失敗しました",
+              });
+            }
+          },
+          (errors) => {
+            resolve({
+              ok: false,
+              reason: "validation",
+              message:
+                firstFormErrorMessage(errors) || "入力内容を確認してください",
+            });
+          }
+        )();
+      }),
+  }));
 
   const values = useWatch({ control: form.control }) ?? form.getValues();
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-8">
-      <div className="flex items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-lg font-semibold text-zinc-900">会社設定</h2>
-          <p className="mt-0.5 text-sm text-zinc-500">
-            見積書・請求書のプレビューに自動反映されます
-          </p>
-        </div>
-        <Button
-          type="submit"
-          className="h-10 rounded-xl bg-zinc-900 hover:bg-zinc-800"
-          disabled={form.formState.isSubmitting || !canEdit}
-        >
-          保存する
-        </Button>
-      </div>
+    <div className="space-y-8">
+      <p className="text-sm text-zinc-500">
+        見積書・請求書のプレビューに自動反映されます
+      </p>
 
       <Section
         icon={Building2}
@@ -368,9 +370,9 @@ export function CompanySettingsForm({
           />
         </div>
       </Section>
-    </form>
+    </div>
   );
-}
+});
 
 function Section({
   icon: Icon,

@@ -73,6 +73,7 @@ export type CommercialHeaderFields = {
   issueDate: string;
   paymentTerms: string;
   memo: string;
+  documentEmail: string;
   status: CommercialDocumentStatus;
   subtotal: number;
   taxAmount: number;
@@ -94,6 +95,7 @@ export function buildCommercialHeader(
     issueDate: string;
     paymentTerms: string;
     memo: string;
+    documentEmail: string;
     discountLabel?: string;
     discountAmount?: number;
     customerHonorific?: string | null;
@@ -122,6 +124,7 @@ export function buildCommercialHeader(
     issueDate: input.issueDate,
     paymentTerms: input.paymentTerms,
     memo: input.memo,
+    documentEmail: input.documentEmail ?? "",
     discountLabel: discount.discountLabel,
     discountAmount: discount.discountAmount,
     customerHonorific: pickCustomerHonorific(input),

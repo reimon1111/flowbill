@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -25,6 +25,8 @@ import { quoteItemsFromProjectTitle } from "@/lib/project-title";
 import { resolveInheritedDiscount } from "@/lib/discount-totals";
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
+import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
+import { PageContentLoader } from "@/components/shared/page-content-loader";
 
 function previewQuoteNumber(issueDate: string) {
   const quotes = useQuoteStore.getState().getQuotes();
@@ -37,6 +39,13 @@ export function NewQuoteClient({ projectId }: { projectId?: string }) {
   const router = useRouter();
   useQuoteStore((s) => s.quotes);
   const companySettings = useCompanySettingsStore((s) => s.settings);
+  const [initialDocumentEmail, setInitialDocumentEmail] = useState<
+    string | undefined
+  >(undefined);
+
+  useEffect(() => {
+    void resolveInitialDocumentEmailForCreate().then(setInitialDocumentEmail);
+  }, []);
 
   const project = useProjectStore((s) =>
     projectId ? s.getProjectById(projectId) : undefined
@@ -130,6 +139,10 @@ export function NewQuoteClient({ projectId }: { projectId?: string }) {
   const inheritedDiscount = resolveInheritedDiscount(null, project);
   const inheritedContact = pickCounterpartyContact(project);
 
+  if (initialDocumentEmail === undefined) {
+    return <PageContentLoader />;
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:py-10">
       <Link
@@ -162,6 +175,7 @@ export function NewQuoteClient({ projectId }: { projectId?: string }) {
             project.documentMemo,
             companySettings.quoteMemoTemplate
           ),
+          documentEmail: initialDocumentEmail,
           paymentTerms: companySettings.paymentTerms ?? "",
           discountLabel: inheritedDiscount.discountLabel,
           discountAmount: inheritedDiscount.discountAmount,

@@ -117,6 +117,7 @@ function orderUpdatePayload(order: OrderRecord): Record<string, unknown> {
     customer_department: order.customerDepartment,
     customer_position: order.customerPosition,
     memo: order.memo,
+    document_email: order.documentEmail ?? "",
     updated_at: order.updatedAt,
   };
 }
@@ -139,6 +140,7 @@ function deliveryNoteUpdatePayload(note: DeliveryNoteRecord): Record<string, unk
     customer_department: note.customerDepartment,
     customer_position: note.customerPosition,
     memo: note.memo,
+    document_email: note.documentEmail ?? "",
     updated_at: note.updatedAt,
   };
 }
@@ -161,6 +163,7 @@ function receiptUpdatePayload(receipt: ReceiptRecord): Record<string, unknown> {
     customer_department: receipt.customerDepartment,
     customer_position: receipt.customerPosition,
     memo: receipt.memo,
+    document_email: receipt.documentEmail ?? "",
     updated_at: receipt.updatedAt,
   };
 }

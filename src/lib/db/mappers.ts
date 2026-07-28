@@ -642,6 +642,7 @@ export type QuoteRow = {
   customer_department?: string | null;
   customer_position?: string | null;
   memo: string;
+  document_email?: string | null;
   payment_terms?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
@@ -673,6 +674,7 @@ export function quoteFromRow(row: QuoteRow): QuoteRecord {
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
+    documentEmail: row.document_email != null ? String(row.document_email) : "",
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
     ...auditUserFields(row),
     createdAt: toIso(row.created_at),
@@ -701,6 +703,7 @@ export function quoteToRow(companyId: string, q: QuoteRecord): QuoteRow {
     customer_department: q.customerDepartment || null,
     customer_position: q.customerPosition || null,
     memo: q.memo,
+    document_email: q.documentEmail ?? "",
     payment_terms: q.paymentTerms,
     created_at: q.createdAt,
     updated_at: q.updatedAt,
@@ -821,6 +824,7 @@ export type InvoiceRow = {
   customer_position?: string | null;
   pdf_url: string | null;
   memo: string;
+  document_email?: string | null;
   payment_terms?: string | null;
   bank_account_id?: string | null;
   created_by?: string | null;
@@ -851,6 +855,7 @@ export function invoiceFromRow(row: InvoiceRow): InvoiceRecord {
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     pdfUrl: row.pdf_url,
     memo: row.memo,
+    documentEmail: row.document_email != null ? String(row.document_email) : "",
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
     bankAccountId: row.bank_account_id ?? null,
     ...auditUserFields(row),
@@ -882,6 +887,7 @@ export function invoiceToRow(companyId: string, inv: InvoiceRecord): InvoiceRow 
     customer_position: inv.customerPosition || null,
     pdf_url: inv.pdfUrl,
     memo: inv.memo,
+    document_email: inv.documentEmail ?? "",
     payment_terms: inv.paymentTerms,
     bank_account_id: inv.bankAccountId,
     created_at: inv.createdAt,

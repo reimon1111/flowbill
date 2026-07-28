@@ -37,6 +37,7 @@ import { resolveInheritedDiscount } from "@/lib/discount-totals";
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
+import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
 import { buildInvoiceInputItemsForProject } from "@/lib/services/project-items";
 import { syncQuoteItemsFromProject } from "@/lib/services/quotes";
 import {
@@ -431,6 +432,7 @@ export function invoiceInputFromForm(values: InvoiceFormValues): InvoiceInput {
         ? values.bankAccountId
         : null,
     memo: values.memo.trim(),
+    documentEmail: values.documentEmail.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
     customerHonorific: values.customerHonorific,
@@ -538,6 +540,7 @@ export async function createInvoiceFromQuote(
       project?.documentMemo,
       settings.invoiceMemoTemplate
     ),
+    documentEmail: await resolveInitialDocumentEmailForCreate(),
     discountLabel: inheritedDiscount.discountLabel,
     discountAmount: inheritedDiscount.discountAmount,
     customerHonorific: pickCustomerHonorific(quote),

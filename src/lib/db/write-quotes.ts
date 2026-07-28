@@ -123,6 +123,7 @@ export async function dbInsertQuote(
     customerDepartment: input.customerDepartment?.trim() ?? "",
     customerPosition: input.customerPosition?.trim() ?? "",
     memo: input.memo,
+    documentEmail: input.documentEmail ?? "",
     paymentTerms: input.paymentTerms,
     createdBy: userId,
     updatedBy: userId,
@@ -204,6 +205,7 @@ export async function dbUpdateQuote(
     customerDepartment: input.customerDepartment?.trim() ?? "",
     customerPosition: input.customerPosition?.trim() ?? "",
     memo: input.memo,
+    documentEmail: input.documentEmail ?? "",
     paymentTerms: input.paymentTerms,
     updatedBy: userId,
     updatedAt: now,
@@ -225,6 +227,7 @@ export async function dbUpdateQuote(
     customer_department: quote.customerDepartment,
     customer_position: quote.customerPosition,
     memo: quote.memo,
+    document_email: quote.documentEmail ?? "",
     payment_terms: quote.paymentTerms,
     updated_at: quote.updatedAt,
   };

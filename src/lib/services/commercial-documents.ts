@@ -1,6 +1,7 @@
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
+import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
 import {
   itemsFromInvoiceItems,
 } from "@/lib/build-commercial-items";
@@ -96,6 +97,7 @@ export async function createOrderFromProject(
     project.documentMemo,
     settings.orderMemoTemplate
   );
+  const documentEmail = await resolveInitialDocumentEmailForCreate();
 
   const input: OrderInput = {
     projectId: project.id,
@@ -104,6 +106,7 @@ export async function createOrderFromProject(
     issueDate: todayISO(),
     paymentTerms: quote?.paymentTerms?.trim() || defaultPaymentTerms(),
     memo: sourceMemo,
+    documentEmail,
     recipientName: defaultOrderRecipientName(settings.companyName),
     discountLabel: quote?.discountLabel ?? project.discountLabel ?? "",
     discountAmount: quote?.discountAmount ?? project.discountAmount ?? 0,
@@ -152,6 +155,7 @@ export async function createDeliveryNoteFromProject(projectId: string) {
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
 
   const settings = useCompanySettingsStore.getState().settings;
+  const documentEmail = await resolveInitialDocumentEmailForCreate();
   const input: DeliveryNoteInput = {
     projectId: project.id,
     customerId: project.customerId,
@@ -162,6 +166,7 @@ export async function createDeliveryNoteFromProject(projectId: string) {
       project.documentMemo,
       settings.deliveryNoteMemoTemplate
     ),
+    documentEmail,
     discountLabel: order?.discountLabel ?? project.discountLabel ?? "",
     discountAmount: order?.discountAmount ?? project.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(project),
@@ -189,6 +194,7 @@ export async function createReceiptFromInvoice(invoiceId: string) {
   const invoiceItems = useInvoiceStore.getState().getInvoiceItems(invoiceId);
   const settings = useCompanySettingsStore.getState().settings;
   const project = useProjectStore.getState().getProjectById(invoice.projectId);
+  const documentEmail = await resolveInitialDocumentEmailForCreate();
 
   const input: ReceiptInput = {
     projectId: invoice.projectId,
@@ -200,6 +206,7 @@ export async function createReceiptFromInvoice(invoiceId: string) {
       project?.documentMemo,
       settings.receiptMemoTemplate
     ),
+    documentEmail,
     discountLabel: invoice.discountLabel ?? "",
     discountAmount: invoice.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(invoice),
@@ -258,6 +265,7 @@ export function commercialDocumentInputFromForm(
     issueDate: values.issueDate,
     paymentTerms: values.paymentTerms.trim(),
     memo: values.memo.trim(),
+    documentEmail: values.documentEmail.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
     customerHonorific: values.customerHonorific,
@@ -286,6 +294,7 @@ export function orderInputFromForm(values: OrderDocumentFormValues): OrderInput 
     issueDate: values.issueDate,
     paymentTerms: values.paymentTerms.trim(),
     memo: values.memo.trim(),
+    documentEmail: values.documentEmail.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
     customerContactName: values.customerContactName.trim(),

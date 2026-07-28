@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -21,6 +21,8 @@ import type { QuoteRecord } from "@/lib/types";
 import { resolveInheritedDiscount } from "@/lib/discount-totals";
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
+import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
+import { PageContentLoader } from "@/components/shared/page-content-loader";
 
 function addDays(iso: string, days: number) {
   const d = new Date(iso + "T00:00:00");
@@ -57,7 +59,14 @@ export function NewInvoiceClient() {
   useInvoiceStore((s) => s.invoices);
   const allQuotes = useQuoteStore((s) => s.quotes);
   const companySettings = useCompanySettingsStore((s) => s.settings);
+  const [initialDocumentEmail, setInitialDocumentEmail] = useState<
+    string | undefined
+  >(undefined);
   useBankAccountStore((s) => s.bankAccounts);
+
+  useEffect(() => {
+    void resolveInitialDocumentEmailForCreate().then(setInitialDocumentEmail);
+  }, []);
 
   const project = useProjectStore((s) =>
     projectId ? s.getProjectById(projectId) : undefined
@@ -202,6 +211,10 @@ export function NewInvoiceClient() {
     }
   };
 
+  if (initialDocumentEmail === undefined) {
+    return <PageContentLoader />;
+  }
+
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 pb-24 sm:px-6 lg:px-8 lg:py-10">
       <Link
@@ -244,6 +257,7 @@ export function NewInvoiceClient() {
             project.documentMemo,
             companySettings.invoiceMemoTemplate
           ),
+          documentEmail: initialDocumentEmail,
           discountLabel: inheritedDiscount.discountLabel,
           discountAmount: inheritedDiscount.discountAmount,
           customerHonorific:

@@ -12,6 +12,10 @@ import {
   customerHonorificFieldSchema,
   customerHonorificFormDefaults,
 } from "@/lib/validations/customer-honorific";
+import {
+  documentEmailFieldSchema,
+  documentEmailFormDefaults,
+} from "@/lib/validations/document-email";
 
 const taxRateSchema = z.union([z.literal(0), z.literal(0.08), z.literal(0.1)]);
 
@@ -44,6 +48,7 @@ export const invoiceFormSchema = applyDocumentFormRefines(
     .merge(discountFieldsSchema)
     .merge(customerHonorificFieldSchema)
     .merge(counterpartyContactFieldsSchema)
+    .merge(documentEmailFieldSchema)
 );
 
 export type InvoiceFormValues = z.infer<typeof invoiceFormSchema>;
@@ -57,6 +62,7 @@ export const invoiceFormDefaults: InvoiceFormValues = {
   paymentTerms: "",
   bankAccountId: null,
   memo: "",
+  ...documentEmailFormDefaults,
   items: [],
   ...discountFormDefaults,
   ...customerHonorificFormDefaults,

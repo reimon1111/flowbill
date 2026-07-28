@@ -1,6 +1,14 @@
 import type { CompanySettings } from "@/lib/types";
+import { resolveDocumentEmail } from "@/lib/document-contact";
 
-export function DocumentCompanyInfo({ company }: { company: CompanySettings }) {
+export function DocumentCompanyInfo({
+  company,
+  documentEmail,
+}: {
+  company: CompanySettings;
+  documentEmail?: string | null;
+}) {
+  const displayEmail = resolveDocumentEmail(documentEmail, company.email);
   return (
     <div className="document-company-info w-full text-left text-[11px] leading-snug text-zinc-800 sm:ml-auto sm:w-[46%] sm:max-w-[400px] sm:shrink-0 sm:text-right">
       {company.logoUrl ? (
@@ -38,7 +46,7 @@ export function DocumentCompanyInfo({ company }: { company: CompanySettings }) {
         {company.contactName ? <p className="mt-0.5">担当 {company.contactName}</p> : null}
         {company.phone ? <p>TEL {company.phone}</p> : null}
         {company.fax ? <p>FAX {company.fax}</p> : null}
-        {company.email ? <p>mail {company.email}</p> : null}
+        {displayEmail ? <p>mail {displayEmail}</p> : null}
         {company.invoiceNumber ? (
           <p className="mt-0.5">登録番号 {company.invoiceNumber}</p>
         ) : null}

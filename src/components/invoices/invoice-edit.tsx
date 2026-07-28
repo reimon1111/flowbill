@@ -76,6 +76,7 @@ export function EditInvoiceClient({ invoiceId: invoiceIdProp }: { invoiceId?: st
         paymentTerms: inv.paymentTerms,
         bankAccountId: inv.bankAccountId,
         memo: inv.memo,
+        documentEmail: inv.documentEmail ?? "",
         discountLabel: inv.discountLabel ?? "",
         discountAmount: inv.discountAmount ?? 0,
         customerHonorific: inv.customerHonorific ?? "御中",

@@ -13,6 +13,10 @@ import {
   customerHonorificFieldSchema,
   customerHonorificFormDefaults,
 } from "@/lib/validations/customer-honorific";
+import {
+  documentEmailFieldSchema,
+  documentEmailFormDefaults,
+} from "@/lib/validations/document-email";
 
 const commercialCoreFields = z.object({
   projectId: z.string().min(1, "案件が指定されていません"),
@@ -29,6 +33,7 @@ export const commercialDocumentFormSchema = applyDocumentFormRefines(
     .merge(discountFieldsSchema)
     .merge(customerHonorificFieldSchema)
     .merge(counterpartyContactFieldsSchema)
+    .merge(documentEmailFieldSchema)
 );
 
 export type CommercialDocumentFormValues = z.infer<
@@ -43,6 +48,7 @@ export const orderDocumentFormSchema = applyDocumentFormRefines(
     })
     .merge(discountFieldsSchema)
     .merge(counterpartyContactFieldsSchema)
+    .merge(documentEmailFieldSchema)
 );
 
 export type OrderDocumentFormValues = z.infer<typeof orderDocumentFormSchema>;
@@ -53,6 +59,7 @@ export const commercialDocumentFormDefaults: CommercialDocumentFormValues = {
   issueDate: "",
   paymentTerms: "",
   memo: "",
+  ...documentEmailFormDefaults,
   items: [],
   ...discountFormDefaults,
   ...customerHonorificFormDefaults,

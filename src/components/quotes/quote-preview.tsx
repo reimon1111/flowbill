@@ -41,6 +41,7 @@ export function QuotePreview({
       discountAmount={quote.discountAmount}
       memo={quote.memo}
       memoTemplate={company.quoteMemoTemplate}
+      documentEmail={quote.documentEmail}
       company={company}
     />
   );

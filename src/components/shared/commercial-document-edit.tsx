@@ -119,6 +119,7 @@ function resolveEditPayload(
             issueDate: doc.issueDate,
             paymentTerms: doc.paymentTerms,
             memo: doc.memo,
+            documentEmail: doc.documentEmail ?? "",
             discountLabel: doc.discountLabel ?? "",
             discountAmount: doc.discountAmount ?? 0,
             customerContactName: doc.customerContactName ?? "",
@@ -133,6 +134,7 @@ function resolveEditPayload(
             issueDate: doc.issueDate,
             paymentTerms: doc.paymentTerms,
             memo: doc.memo,
+            documentEmail: doc.documentEmail ?? "",
             discountLabel: doc.discountLabel ?? "",
             discountAmount: doc.discountAmount ?? 0,
             customerHonorific:

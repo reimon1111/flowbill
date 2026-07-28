@@ -149,6 +149,7 @@ export type QuoteRecord = {
   customerDepartment: string;
   customerPosition: string;
   memo: string;
+  documentEmail: string;
   paymentTerms: string;
   createdBy: string | null;
   updatedBy: string | null;
@@ -182,6 +183,7 @@ export type QuoteInput = {
   expiryType: import("@/lib/quote-expiry").QuoteExpiryType;
   expiryDate: string;
   memo: string;
+  documentEmail: string;
   paymentTerms: string;
   discountLabel: string;
   discountAmount: number;
@@ -237,6 +239,7 @@ export type InvoiceRecord = {
   customerPosition: string;
   pdfUrl: string | null;
   memo: string;
+  documentEmail: string;
   paymentTerms: string;
   bankAccountId: string | null;
   createdBy: string | null;
@@ -276,6 +279,7 @@ export type InvoiceInput = {
   issueDate: string;
   dueDate: string;
   memo: string;
+  documentEmail: string;
   paymentTerms: string;
   bankAccountId?: string | null;
   discountLabel: string;
