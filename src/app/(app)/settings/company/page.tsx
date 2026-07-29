@@ -1,186 +1,139 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
 import { CompanySettingsForm } from "@/components/settings/company-settings-form";
 import { DocumentPreviewCard } from "@/components/settings/document-preview-card";
 import { MembersManager } from "@/components/settings/members-manager";
 import { UserDocumentSettingsForm } from "@/components/settings/user-document-settings-form";
-import type { SettingsSectionHandle } from "@/components/settings/settings-section-handle";
-import { Button } from "@/components/ui/button";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { useCompanyMembershipStore } from "@/stores/company-membership-store";
-import { canManageMembers } from "@/lib/types/company-membership";
+import {
+  canManageMembers,
+  canWriteBusinessData,
+} from "@/lib/types/company-membership";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { id: "info", label: "会社情報" },
-  { id: "members", label: "メンバー管理" },
-] as const;
+type TabId = "company" | "personal" | "members";
 
-type TabId = (typeof TABS)[number]["id"];
+function normalizeTabParam(raw: string | null): TabId | "info" | null {
+  if (!raw) return null;
+  if (raw === "info" || raw === "company" || raw === "personal" || raw === "members") {
+    return raw;
+  }
+  return null;
+}
 
 export default function CompanySettingsPage() {
   useCompanySettingsStore((s) => s.settings);
   const settings = useCompanySettingsStore.getState().getSettings();
   const searchParams = useSearchParams();
-  const tab = (searchParams.get("tab") as TabId) || "info";
   const router = useRouter();
   const role = useCompanyMembershipStore((s) => s.currentRole);
   const canManage = canManageMembers(role);
-  const companyFormRef = useRef<SettingsSectionHandle>(null);
-  const userFormRef = useRef<SettingsSectionHandle>(null);
-  const [saving, setSaving] = useState(false);
+  const canWritePersonal = canWriteBusinessData(role);
 
-  const visibleTabs = useMemo(() => {
-    return canManage ? TABS : TABS.filter((t) => t.id !== "members");
-  }, [canManage]);
+  const rawTab = normalizeTabParam(searchParams.get("tab"));
+
+  const activeTab: TabId = useMemo(() => {
+    if (!canManage) return "personal";
+    if (rawTab === "info" || rawTab === "company") return "company";
+    if (rawTab === "personal") return "personal";
+    if (rawTab === "members") return "members";
+    return "company";
+  }, [canManage, rawTab]);
+
+  const manageTabs = useMemo(
+    () =>
+      [
+        { id: "company" as const, label: "会社情報" },
+        { id: "personal" as const, label: "個人設定" },
+        { id: "members" as const, label: "メンバー管理" },
+      ] as const,
+    []
+  );
 
   useEffect(() => {
-    if (tab === "members" && !canManage) {
-      toast.error("この画面にアクセスする権限がありません");
-      router.replace("/settings/company?tab=info");
+    if (!canManage) {
+      // member / viewer: 会社情報・メンバー管理へ直接アクセスしても個人設定へ
+      if (rawTab === "company" || rawTab === "info" || rawTab === "members") {
+        toast.error("この画面にアクセスする権限がありません");
+        router.replace("/settings/company?tab=personal");
+        return;
+      }
+      if (rawTab == null) {
+        router.replace("/settings/company?tab=personal");
+      }
+      return;
     }
-  }, [tab, canManage, router]);
 
-  const handleSaveAll = async () => {
-    if (saving) return;
-    setSaving(true);
-    try {
-      const [companyResult, userResult] = await Promise.all([
-        canManage
-          ? (companyFormRef.current?.save() ??
-            Promise.resolve({
-              ok: false as const,
-              reason: "error" as const,
-              message: "会社設定フォームを準備できませんでした",
-            }))
-          : Promise.resolve({ ok: true as const }),
-        userFormRef.current?.save() ??
-          Promise.resolve({
-            ok: false as const,
-            reason: "error" as const,
-            message: "担当者設定フォームを準備できませんでした",
-          }),
-      ]);
-
-      const companyOk = companyResult.ok;
-      const userOk = userResult.ok;
-      const companyMessage =
-        !companyOk && "message" in companyResult ? companyResult.message : "";
-      const userMessage =
-        !userOk && "message" in userResult ? userResult.message : "";
-
-      if (companyOk && userOk) {
-        toast.success("設定を保存しました");
-        return;
-      }
-
-      if (!companyOk && userOk) {
-        toast.success("担当者設定は保存しました");
-        toast.error("会社設定の保存に失敗しました", {
-          description: companyMessage || undefined,
-        });
-        return;
-      }
-
-      if (companyOk && !userOk) {
-        if (canManage) {
-          toast.success("会社設定は保存しました");
-        }
-        toast.error("担当者設定の保存に失敗しました", {
-          description: userMessage || undefined,
-        });
-        return;
-      }
-
-      toast.error("設定の保存に失敗しました", {
-        description: [
-          canManage && companyMessage ? `会社設定: ${companyMessage}` : null,
-          userMessage ? `担当者設定: ${userMessage}` : null,
-        ]
-          .filter(Boolean)
-          .join(" / "),
-      });
-    } finally {
-      setSaving(false);
+    // owner / admin: 旧 ?tab=info を company へ正規化
+    if (rawTab === "info") {
+      router.replace("/settings/company?tab=company");
+      return;
     }
-  };
+    if (rawTab == null) {
+      router.replace("/settings/company?tab=company");
+    }
+  }, [canManage, rawTab, router]);
+
+  const pageDescription = canManage
+    ? "会社情報・個人設定・メンバー管理"
+    : "帳票に表示する連絡先など";
 
   return (
     <div className="mx-auto min-w-0 max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <PageHeader
-        title="会社設定"
-        description="会社情報・帳票設定・メンバー管理"
-      />
+      <PageHeader title="設定" description={pageDescription} />
 
-      <div className="flex gap-2 border-b border-zinc-200">
-        {visibleTabs.map((item) => (
-          <Link
-            key={item.id}
-            href={`/settings/company?tab=${item.id}`}
-            className={cn(
-              "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-              tab === item.id
-                ? "border-zinc-900 text-zinc-900"
-                : "border-transparent text-zinc-500 hover:text-zinc-800"
-            )}
-          >
-            {item.label}
-          </Link>
-        ))}
-      </div>
+      {canManage ? (
+        <div className="flex gap-2 border-b border-zinc-200">
+          {manageTabs.map((item) => (
+            <Link
+              key={item.id}
+              href={`/settings/company?tab=${item.id}`}
+              className={cn(
+                "border-b-2 px-4 py-2 text-sm font-medium transition-colors",
+                activeTab === item.id
+                  ? "border-zinc-900 text-zinc-900"
+                  : "border-transparent text-zinc-500 hover:text-zinc-800"
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      ) : null}
 
-      {tab === "members" ? (
+      {activeTab === "members" && canManage ? (
         <MembersManager />
-      ) : (
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,520px)] lg:items-start">
-          <div className="space-y-8 pb-24">
-            <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.03] sm:p-8">
-              <h2 className="mb-6 text-lg font-semibold text-zinc-900">
-                会社情報
-              </h2>
-              <CompanySettingsForm ref={companyFormRef} settings={settings} />
-            </div>
-            <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.03] sm:p-8">
-              <h2 className="mb-2 text-lg font-semibold text-zinc-900">
-                担当者設定
-              </h2>
-              <p className="mb-6 text-sm text-zinc-500">
-                帳票を新規作成するとき、ログイン中のユーザーとして使用する連絡先です。
-              </p>
-              <UserDocumentSettingsForm ref={userFormRef} />
-            </div>
+      ) : null}
 
-            <div className="sticky bottom-0 -mx-4 border-t border-zinc-200/80 bg-zinc-50/90 px-4 py-4 backdrop-blur-sm sm:-mx-0 sm:rounded-2xl sm:border sm:border-zinc-200/80 sm:bg-white sm:px-6 sm:shadow-sm">
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  onClick={() => void handleSaveAll()}
-                  disabled={saving}
-                  className="h-11 min-w-[140px] rounded-xl bg-zinc-900 hover:bg-zinc-800"
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      保存中...
-                    </>
-                  ) : (
-                    "保存"
-                  )}
-                </Button>
-              </div>
-            </div>
+      {activeTab === "company" && canManage ? (
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(280px,520px)] lg:items-start">
+          <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.03] sm:p-8">
+            <h2 className="mb-6 text-lg font-semibold text-zinc-900">会社情報</h2>
+            <CompanySettingsForm settings={settings} />
           </div>
           <div className="lg:sticky lg:top-20">
             <DocumentPreviewCard />
           </div>
         </div>
-      )}
+      ) : null}
+
+      {activeTab === "personal" ? (
+        <div className="mx-auto max-w-3xl">
+          <div className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm shadow-zinc-900/[0.03] sm:p-8">
+            <h2 className="mb-2 text-lg font-semibold text-zinc-900">個人設定</h2>
+            <p className="mb-6 text-sm text-zinc-500">
+              ログイン中のあなたに紐づく設定です。会社情報とは別に保存されます。
+            </p>
+            <UserDocumentSettingsForm readOnly={!canWritePersonal} />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -92,5 +92,5 @@ export const NAV_ITEMS = [
     label: "請求項目テンプレ",
     icon: "FileText" as const,
   },
-  { href: "/settings/company", label: "会社設定", icon: "Building2" as const },
+  { href: "/settings/company", label: "設定", icon: "Settings" as const },
 ] as const;

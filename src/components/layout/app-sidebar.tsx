@@ -16,6 +16,7 @@ import {
   Package,
   Receipt,
   ScrollText,
+  Settings,
   Stamp,
   Users,
   Wallet,
@@ -27,8 +28,6 @@ import { NAV_ITEMS } from "@/lib/constants";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { signOut } from "@/lib/auth/session";
 import { useAuthStore } from "@/stores/auth-store";
-import { useCompanyMembershipStore } from "@/stores/company-membership-store";
-import { canManageMembers } from "@/lib/types/company-membership";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -40,6 +39,7 @@ const iconMap: Record<string, LucideIcon> = {
   CalendarClock,
   CalendarRange,
   Building2,
+  Settings,
   ScrollText,
   ClipboardList,
   Package,
@@ -170,8 +170,6 @@ export function AppSidebar({
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const showAuth = isSupabaseConfigured();
-  const role = useCompanyMembershipStore((s) => s.currentRole);
-  const canManage = canManageMembers(role);
 
   const docsGroupActive = useMemo(() => {
     return (
@@ -296,9 +294,7 @@ export function AppSidebar({
         >
           <NavLink item={NAV_ITEMS[9]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
           <NavLink item={NAV_ITEMS[10]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
-          {canManage ? (
-            <NavLink item={NAV_ITEMS[11]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
-          ) : null}
+          <NavLink item={NAV_ITEMS[11]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
         </CollapsibleGroup>
       </nav>
 
