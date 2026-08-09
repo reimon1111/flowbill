@@ -17,7 +17,13 @@ import {
   dbUpdateQuote,
   dbUpdateQuoteStatus,
 } from "@/lib/db/write-quotes";
+import {
+  applyCustomerChangeToStores,
+  reassignEstimateProjectCustomerLocal,
+} from "@/lib/db/write-project-customer";
+import { getProjectCustomerChangeBlockReason } from "@/lib/project-customer";
 import { dbInsertHistory } from "@/lib/db/write-projects";
+import { useCustomerStore } from "@/stores/customer-store";
 import { reloadSingleProjectToStore } from "@/lib/db/load-all";
 import { logSupabaseError, formatSupabaseError } from "@/lib/db/errors";
 import { todayISO } from "@/lib/quote-dates";
@@ -310,12 +316,55 @@ export async function createQuote(input: QuoteInput): Promise<QuoteRecord> {
 
 export async function updateQuote(id: string, input: QuoteInput): Promise<QuoteRecord | null> {
   assertCanWriteBusinessData();
-  if (isSupabaseConfigured()) {
-    const result = await dbUpdateQuote(id, input);
-    if (result) useQuoteStore.getState().mergeQuote(result.quote, result.items);
-    return result?.quote ?? null;
+
+  const existing = useQuoteStore.getState().getQuoteById(id);
+  if (!existing) return null;
+
+  const customerChanged = input.customerId !== existing.customerId;
+  let nextInput = input;
+
+  if (customerChanged) {
+    const block = getProjectCustomerChangeBlockReason(existing.projectId);
+    if (block) throw new Error(block);
+
+    const customer = useCustomerStore.getState().getCustomerById(input.customerId);
+    if (!customer) throw new Error("顧客が見つかりません");
+
+    nextInput = {
+      ...input,
+      customerContactName: customer.contactName?.trim() ?? "",
+      customerDepartment: "",
+      customerPosition: "",
+    };
   }
-  return useQuoteStore.getState().updateQuote(id, input);
+
+  if (isSupabaseConfigured()) {
+    // 顧客変更は update_quote_with_items 内で再割当と同一TX（部分成功なし）
+    const result = await dbUpdateQuote(id, nextInput);
+    if (!result) return null;
+    useQuoteStore.getState().mergeQuote(result.quote, result.items);
+    if (customerChanged) {
+      const customer = useCustomerStore
+        .getState()
+        .getCustomerById(nextInput.customerId);
+      if (customer) {
+        applyCustomerChangeToStores(
+          existing.projectId,
+          nextInput.customerId,
+          customer
+        );
+        // 編集中見積の最終状態で merge 済み明細を再適用
+        useQuoteStore.getState().mergeQuote(result.quote, result.items);
+      }
+    }
+    return result.quote;
+  }
+
+  // ローカルモード: ストア内で再割当の後に見積更新（サーバTXなし）
+  if (customerChanged) {
+    reassignEstimateProjectCustomerLocal(existing.projectId, nextInput.customerId);
+  }
+  return useQuoteStore.getState().updateQuote(id, nextInput);
 }
 
 export async function deleteQuote(

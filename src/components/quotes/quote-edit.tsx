@@ -33,6 +33,14 @@ import {
   logQuoteSaveError,
   quoteSaveErrorToastDescription,
 } from "@/lib/quote-save-error";
+import {
+  canChangeProjectCustomer,
+  getProjectCustomerChangeBlockReason,
+  PROJECT_CUSTOMER_LOCKED_AFTER_CONFIRM,
+  PROJECT_CUSTOMER_LOCKED_LOST,
+  PROJECT_CUSTOMER_LOCKED_NON_DRAFT_COMMERCIAL,
+  PROJECT_CUSTOMER_LOCKED_NON_DRAFT_QUOTES,
+} from "@/lib/project-customer";
 
 export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) {
   const router = useRouter();
@@ -51,7 +59,12 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
   const [quoteNumber, setQuoteNumber] = useState<string>("");
   const [projectId, setProjectId] = useState<string>("");
   const [customerId, setCustomerId] = useState<string>("");
+  const [allowCustomerChange, setAllowCustomerChange] = useState(false);
+  const [customerChangeLockedReason, setCustomerChangeLockedReason] = useState<
+    string | null
+  >(null);
 
+  const customers = useCustomerStore((s) => s.customers);
   const customer = useCustomerStore((s) =>
     customerId ? s.getCustomerById(customerId) : undefined
   );
@@ -80,6 +93,10 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
       setQuoteNumber(q.quoteNumber);
       setProjectId(q.projectId);
       setCustomerId(q.customerId);
+      setAllowCustomerChange(canChangeProjectCustomer(q.projectId));
+      setCustomerChangeLockedReason(
+        getProjectCustomerChangeBlockReason(q.projectId)
+      );
 
       setDefaultExpiryType(q.expiryType);
       setValues({
@@ -163,6 +180,14 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
       });
       if (isQuoteWritePermissionError(error)) {
         toast.error(QUOTE_SAVE_PERMISSION_DENIED);
+      } else if (
+        error instanceof Error &&
+        (error.message === PROJECT_CUSTOMER_LOCKED_AFTER_CONFIRM ||
+          error.message === PROJECT_CUSTOMER_LOCKED_LOST ||
+          error.message === PROJECT_CUSTOMER_LOCKED_NON_DRAFT_QUOTES ||
+          error.message === PROJECT_CUSTOMER_LOCKED_NON_DRAFT_COMMERCIAL)
+      ) {
+        toast.error(error.message);
       } else {
         toast.error(QUOTE_SAVE_FAILED_TITLE, {
           description: quoteSaveErrorToastDescription(error),
@@ -211,6 +236,9 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
         submitLabel="変更を保存"
         canWrite={canWrite}
         externalSubmitting={saving}
+        allowCustomerChange={allowCustomerChange}
+        customers={customers}
+        customerChangeLockedReason={customerChangeLockedReason}
       />
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  Controller,
   useForm,
   useWatch,
   type FieldErrors,
@@ -45,6 +46,7 @@ import {
   type QuoteExpiryType,
 } from "@/lib/quote-expiry";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { CustomerCombobox } from "@/components/projects/customer-combobox";
 import {
   QUOTE_SAVE_PERMISSION_DENIED,
   QUOTE_VALIDATION_FAILED_DESCRIPTION,
@@ -191,6 +193,9 @@ export function QuoteForm({
   sendLabel = "提出済みにする",
   canWrite: canWriteProp,
   externalSubmitting = false,
+  allowCustomerChange = false,
+  customers = [],
+  customerChangeLockedReason = null,
 }: {
   projectId: string;
   customer: Customer;
@@ -209,6 +214,11 @@ export function QuoteForm({
   canWrite?: boolean;
   /** 親の保存中フラグ（編集画面の二重送信防止） */
   externalSubmitting?: boolean;
+  /** 案件が estimate のとき true。見積新規では false のまま */
+  allowCustomerChange?: boolean;
+  customers?: Customer[];
+  /** 変更不可のとき顧客欄近くに出す説明 */
+  customerChangeLockedReason?: string | null;
 }) {
   const canWriteFromHook = useCanWriteBusinessData();
   const canWrite = canWriteProp ?? canWriteFromHook;
@@ -226,6 +236,12 @@ export function QuoteForm({
 
   const [items, setItems] = useState<QuoteItemDraft[]>(defaultItems ?? []);
   const issueDate = useWatch({ control: form.control, name: "issueDate" });
+  const watchedCustomerId = useWatch({
+    control: form.control,
+    name: "customerId",
+  });
+  const displayCustomer =
+    customers.find((c) => c.id === watchedCustomerId) ?? customer;
   const expiryType = useWatch({ control: form.control, name: "expiryType" });
   const expiryDate = useWatch({ control: form.control, name: "expiryDate" });
   const discountLabel =
@@ -367,15 +383,57 @@ export function QuoteForm({
               <p className="text-xs font-medium uppercase tracking-wider text-zinc-400">
                 顧客
               </p>
-              <p className="mt-2 font-semibold text-zinc-900">
-                {customer.customerName}
-              </p>
-              <p className="mt-1 text-sm text-zinc-500">
-                {customer.contactName
-                  ? formatContactWithSama(customer.contactName)
-                  : "—"}
-              </p>
-              {form.formState.errors.customerId?.message ? (
+              {allowCustomerChange && canWrite ? (
+                <div className="mt-2">
+                  <Controller
+                    control={form.control}
+                    name="customerId"
+                    render={({ field }) => (
+                      <CustomerCombobox
+                        customers={customers}
+                        value={field.value}
+                        onChange={(nextId) => {
+                          field.onChange(nextId);
+                          const next = customers.find((c) => c.id === nextId);
+                          form.setValue(
+                            "customerContactName",
+                            next?.contactName?.trim() ?? "",
+                            { shouldDirty: true }
+                          );
+                          form.setValue("customerDepartment", "", {
+                            shouldDirty: true,
+                          });
+                          form.setValue("customerPosition", "", {
+                            shouldDirty: true,
+                          });
+                        }}
+                        error={form.formState.errors.customerId?.message}
+                      />
+                    )}
+                  />
+                  <p className="mt-2 text-xs text-zinc-500">
+                    見積内容・明細・金額はそのまま、顧客のみ変更できます。案件と未発行の関連帳票にも反映されます。
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="mt-2 font-semibold text-zinc-900">
+                    {displayCustomer.customerName}
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-500">
+                    {displayCustomer.contactName
+                      ? formatContactWithSama(displayCustomer.contactName)
+                      : "—"}
+                  </p>
+                  {customerChangeLockedReason ? (
+                    <p className="mt-2 text-xs text-zinc-500">
+                      {customerChangeLockedReason}
+                    </p>
+                  ) : null}
+                </>
+              )}
+              {form.formState.errors.customerId?.message &&
+              !(allowCustomerChange && canWrite) ? (
                 <p className="mt-2 text-sm text-red-600">
                   {formatFieldErrorMessage(
                     form.formState.errors.customerId.message

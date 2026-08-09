@@ -32,6 +32,7 @@ import {
   activityDescriptionDeleted,
   activityDescriptionUpdated,
 } from "@/lib/activity-log-messages";
+import { mapCustomerChangeRpcError } from "@/lib/project-customer";
 
 async function writeQuoteRow(
   mode: "insert" | "update",
@@ -178,6 +179,7 @@ export async function dbUpdateQuote(
   if (fetchError || !data) return null;
 
   const existing = quoteFromRow(data as QuoteRow);
+
   const now = new Date().toISOString();
   const items = buildQuoteItems(companyId, quoteId, input, now).map((it) => ({
     ...it,
@@ -234,18 +236,36 @@ export async function dbUpdateQuote(
 
   const itemsPayload = items.map((i) => quoteItemToRow(companyId, i));
 
-  const rpcResult = await callUpdateWithItemsRpc({
-    rpcName: "update_quote_with_items",
-    sqlFile: "supabase/add-update-quote-with-items-rpc.sql",
-    hint: UPDATE_QUOTE_WITH_ITEMS_RPC_HINT,
-    parentIdParam: "p_quote_id",
-    parentId: quoteId,
-    parentPayload: quotePayload,
-    parentPayloadKey: "p_quote",
-    itemsPayload,
-    companyId,
-    notFoundMessageIncludes: "quote not found",
-  });
+  let rpcResult: Record<string, unknown> | null;
+  try {
+    rpcResult = await callUpdateWithItemsRpc({
+      rpcName: "update_quote_with_items",
+      sqlFile: "supabase/update-quote-customer-reassign-atomic.sql",
+      hint: UPDATE_QUOTE_WITH_ITEMS_RPC_HINT,
+      parentIdParam: "p_quote_id",
+      parentId: quoteId,
+      parentPayload: quotePayload,
+      parentPayloadKey: "p_quote",
+      itemsPayload,
+      companyId,
+      notFoundMessageIncludes: "quote not found",
+    });
+  } catch (error) {
+    const message = [
+      error instanceof Error ? error.message : "",
+      typeof error === "object" && error && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : "",
+      typeof error === "object" && error && "details" in error
+        ? String((error as { details?: unknown }).details ?? "")
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const mapped = mapCustomerChangeRpcError(message);
+    if (mapped) throw new Error(mapped);
+    throw error;
+  }
   if (!rpcResult) return null;
 
   const result = rpcResult as {
