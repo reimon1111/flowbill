@@ -24,15 +24,6 @@ import { composeInitialDocumentMemo } from "@/lib/document-memo";
 import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
 import { PageContentLoader } from "@/components/shared/page-content-loader";
 
-function addDays(iso: string, days: number) {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
 function previewInvoiceNumber(issueDate: string) {
   const invoices = useInvoiceStore.getState().getInvoices();
   const y = issueDate.slice(0, 4);
@@ -75,7 +66,6 @@ export function NewInvoiceClient() {
     project ? s.getCustomerById(project.customerId) : undefined
   );
   const issueDate = todayISO();
-  const dueDate = addDays(issueDate, 30);
   const invoiceNumber = useMemo(() => previewInvoiceNumber(issueDate), [issueDate]);
 
   const candidates = useMemo(
@@ -247,7 +237,8 @@ export function NewInvoiceClient() {
           customerId: customer.id,
           quoteId: sourceQuote.id,
           issueDate,
-          dueDate,
+          dueDateMode: "discussion",
+          dueDate: "",
           paymentTerms:
             sourceQuote.paymentTerms?.trim() ||
             companySettings.paymentTerms ||
@@ -257,6 +248,7 @@ export function NewInvoiceClient() {
             project.documentMemo,
             companySettings.invoiceMemoTemplate
           ),
+          memoFontSize: "normal",
           documentEmail: initialDocumentEmail,
           discountLabel: inheritedDiscount.discountLabel,
           discountAmount: inheritedDiscount.discountAmount,

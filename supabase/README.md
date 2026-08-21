@@ -21,6 +21,8 @@ Supabase SQL Editor で、以下のファイルを **この順番で** 1つず�
 | 13 | `add-document-email-columns.sql` | 各帳票のメールアドレス列（スナップショット） |
 | 14 | `reassign-estimate-project-customer.sql` | （旧）顧客再割当のみ。**15 で置き換え推奨** |
 | 15 | `update-quote-customer-reassign-atomic.sql` | 顧客変更ガード + 見積更新と再割当の原子的統合 |
+| 16 | `add-invoice-due-date-mode-and-memo-font-size.sql` | 支払期限モード + 備考文字サイズ列 |
+| 17 | `patch-due-date-mode-and-memo-font-size-rpcs.sql` | 上記列対応の with_items RPC 更新 |
 
 手順の詳細・環境変数はリポジトリ直下の [README.md](../README.md#supabase-新規セットアップ) を参照してください。
 

@@ -16,6 +16,10 @@ import {
   pickCustomerHonorific,
   type CustomerHonorific,
 } from "@/lib/customer-honorific";
+import {
+  DEFAULT_DOCUMENT_MEMO_FONT_SIZE,
+  type DocumentMemoFontSize,
+} from "@/lib/document-memo-font-size";
 
 export function nextCommercialNumber(
   prefix: string,
@@ -84,6 +88,7 @@ export type CommercialHeaderFields = {
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
+  memoFontSize: DocumentMemoFontSize;
   createdAt: string;
   updatedAt: string;
 };
@@ -102,6 +107,7 @@ export function buildCommercialHeader(
     customerContactName?: string;
     customerDepartment?: string;
     customerPosition?: string;
+    memoFontSize?: DocumentMemoFontSize;
   },
   items: CommercialDocumentItemInput[]
 ): Omit<CommercialHeaderFields, "createdAt" | "updatedAt" | "status"> & {
@@ -114,6 +120,7 @@ export function buildCommercialHeader(
   customerContactName: string;
   customerDepartment: string;
   customerPosition: string;
+  memoFontSize: DocumentMemoFontSize;
 } {
   const discount = pickDocumentDiscount(input);
   const contact = pickCounterpartyContact(input);
@@ -131,6 +138,7 @@ export function buildCommercialHeader(
     customerContactName: contact.customerContactName,
     customerDepartment: contact.customerDepartment,
     customerPosition: contact.customerPosition,
+    memoFontSize: input.memoFontSize ?? DEFAULT_DOCUMENT_MEMO_FONT_SIZE,
     ...totals,
   };
 }

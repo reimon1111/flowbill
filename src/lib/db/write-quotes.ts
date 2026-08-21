@@ -124,6 +124,7 @@ export async function dbInsertQuote(
     customerDepartment: input.customerDepartment?.trim() ?? "",
     customerPosition: input.customerPosition?.trim() ?? "",
     memo: input.memo,
+    memoFontSize: input.memoFontSize ?? "normal",
     documentEmail: input.documentEmail ?? "",
     paymentTerms: input.paymentTerms,
     createdBy: userId,
@@ -207,6 +208,7 @@ export async function dbUpdateQuote(
     customerDepartment: input.customerDepartment?.trim() ?? "",
     customerPosition: input.customerPosition?.trim() ?? "",
     memo: input.memo,
+    memoFontSize: input.memoFontSize ?? "normal",
     documentEmail: input.documentEmail ?? "",
     paymentTerms: input.paymentTerms,
     updatedBy: userId,
@@ -229,6 +231,7 @@ export async function dbUpdateQuote(
     customer_department: quote.customerDepartment,
     customer_position: quote.customerPosition,
     memo: quote.memo,
+    memo_font_size: quote.memoFontSize,
     document_email: quote.documentEmail ?? "",
     payment_terms: quote.paymentTerms,
     updated_at: quote.updatedAt,
@@ -240,7 +243,7 @@ export async function dbUpdateQuote(
   try {
     rpcResult = await callUpdateWithItemsRpc({
       rpcName: "update_quote_with_items",
-      sqlFile: "supabase/update-quote-customer-reassign-atomic.sql",
+      sqlFile: "supabase/patch-due-date-mode-and-memo-font-size-rpcs.sql",
       hint: UPDATE_QUOTE_WITH_ITEMS_RPC_HINT,
       parentIdParam: "p_quote_id",
       parentId: quoteId,

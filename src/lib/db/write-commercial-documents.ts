@@ -36,7 +36,8 @@ import {
 } from "@/lib/db/errors";
 import { callUpdateWithItemsRpc } from "@/lib/db/update-with-items-rpc";
 
-const DOCUMENTS_RPC_SQL = "supabase/add-update-documents-with-items-rpcs.sql";
+const DOCUMENTS_RPC_SQL =
+  "supabase/patch-due-date-mode-and-memo-font-size-rpcs.sql";
 
 export async function dbInsertOrder(
   order: OrderRecord,
@@ -117,6 +118,7 @@ function orderUpdatePayload(order: OrderRecord): Record<string, unknown> {
     customer_department: order.customerDepartment,
     customer_position: order.customerPosition,
     memo: order.memo,
+    memo_font_size: order.memoFontSize ?? "normal",
     document_email: order.documentEmail ?? "",
     updated_at: order.updatedAt,
   };
@@ -140,6 +142,7 @@ function deliveryNoteUpdatePayload(note: DeliveryNoteRecord): Record<string, unk
     customer_department: note.customerDepartment,
     customer_position: note.customerPosition,
     memo: note.memo,
+    memo_font_size: note.memoFontSize ?? "normal",
     document_email: note.documentEmail ?? "",
     updated_at: note.updatedAt,
   };
@@ -163,6 +166,7 @@ function receiptUpdatePayload(receipt: ReceiptRecord): Record<string, unknown> {
     customer_department: receipt.customerDepartment,
     customer_position: receipt.customerPosition,
     memo: receipt.memo,
+    memo_font_size: receipt.memoFontSize ?? "normal",
     document_email: receipt.documentEmail ?? "",
     updated_at: receipt.updatedAt,
   };

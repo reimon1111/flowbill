@@ -107,6 +107,7 @@ export function EditQuoteClient({ quoteId: quoteIdProp }: { quoteId?: string }) 
         expiryDate: q.expiryDate,
         paymentTerms: q.paymentTerms,
         memo: q.memo,
+        memoFontSize: q.memoFontSize ?? "normal",
         documentEmail: q.documentEmail ?? "",
         discountLabel: q.discountLabel ?? "",
         discountAmount: q.discountAmount ?? 0,

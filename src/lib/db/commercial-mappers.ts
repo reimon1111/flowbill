@@ -8,6 +8,7 @@ import type {
   ReceiptRecord,
 } from "@/lib/commercial-document";
 import { normalizeCustomerHonorific } from "@/lib/customer-honorific";
+import { normalizeDocumentMemoFontSize } from "@/lib/document-memo-font-size";
 
 function toIso(v: string | null | undefined): string {
   if (!v) return new Date().toISOString();
@@ -100,6 +101,7 @@ type CommercialHeaderRow = {
   customer_department?: string | null;
   customer_position?: string | null;
   memo: string;
+  memo_font_size?: string | null;
   document_email?: string | null;
   deleted_at?: string | null;
   created_by?: string | null;
@@ -184,6 +186,7 @@ export function orderFromRow(row: OrderRow): OrderRecord {
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
+    memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
     recipientName: row.recipient_name ?? "",
     deletedAt: row.deleted_at ?? null,
@@ -217,6 +220,7 @@ export function deliveryNoteFromRow(row: DeliveryNoteRow): DeliveryNoteRecord {
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
+    memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
@@ -251,6 +255,7 @@ export function receiptFromRow(row: ReceiptRow): ReceiptRecord {
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
+    memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
@@ -283,6 +288,7 @@ export function orderToRow(companyId: string, order: OrderRecord): OrderRow {
     customer_department: order.customerDepartment || null,
     customer_position: order.customerPosition || null,
     memo: order.memo,
+    memo_font_size: order.memoFontSize ?? "normal",
     document_email: order.documentEmail ?? "",
     recipient_name: order.recipientName,
     created_at: order.createdAt,
@@ -338,6 +344,7 @@ export function deliveryNoteToRow(
     customer_department: note.customerDepartment || null,
     customer_position: note.customerPosition || null,
     memo: note.memo,
+    memo_font_size: note.memoFontSize ?? "normal",
     document_email: note.documentEmail ?? "",
     created_at: note.createdAt,
     updated_at: note.updatedAt,
@@ -389,6 +396,7 @@ export function receiptToRow(companyId: string, receipt: ReceiptRecord): Receipt
     customer_department: receipt.customerDepartment || null,
     customer_position: receipt.customerPosition || null,
     memo: receipt.memo,
+    memo_font_size: receipt.memoFontSize ?? "normal",
     document_email: receipt.documentEmail ?? "",
     created_at: receipt.createdAt,
     updated_at: receipt.updatedAt,

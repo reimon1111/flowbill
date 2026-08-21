@@ -425,13 +425,15 @@ export function invoiceInputFromForm(values: InvoiceFormValues): InvoiceInput {
     customerId: values.customerId,
     quoteId: values.quoteId,
     issueDate: values.issueDate,
-    dueDate: values.dueDate,
+    dueDateMode: values.dueDateMode,
+    dueDate: values.dueDateMode === "date" ? values.dueDate : "",
     paymentTerms: values.paymentTerms.trim(),
     bankAccountId:
       values.bankAccountId && values.bankAccountId.trim()
         ? values.bankAccountId
         : null,
     memo: values.memo.trim(),
+    memoFontSize: values.memoFontSize,
     documentEmail: values.documentEmail.trim(),
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
@@ -468,7 +470,7 @@ export async function refreshOverdueInvoices(): Promise<void> {
 export async function createInvoiceFromQuote(
   projectId: string,
   issueDate: string,
-  dueDate: string,
+  dueDate = "",
   options?: CreateInvoiceOptions
 ) {
   assertCanWriteBusinessData();
@@ -532,6 +534,7 @@ export async function createInvoiceFromQuote(
     customerId: quote.customerId,
     quoteId: quote.id,
     issueDate,
+    dueDateMode: dueDate ? "date" : "discussion",
     dueDate,
     paymentTerms:
       quote.paymentTerms?.trim() || settings.paymentTerms?.trim() || "",
@@ -540,6 +543,7 @@ export async function createInvoiceFromQuote(
       project?.documentMemo,
       settings.invoiceMemoTemplate
     ),
+    memoFontSize: "normal",
     documentEmail: await resolveInitialDocumentEmailForCreate(),
     discountLabel: inheritedDiscount.discountLabel,
     discountAmount: inheritedDiscount.discountAmount,

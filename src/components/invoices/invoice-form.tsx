@@ -8,7 +8,6 @@ import { FormSection } from "@/components/shared/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import type { Customer } from "@/lib/types";
 import {
   invoiceFormDefaults,
@@ -28,6 +27,8 @@ import type { CustomerHonorific } from "@/lib/customer-honorific";
 import { formatFieldErrorMessage } from "@/lib/form-error-message";
 import { useBankAccountStore } from "@/stores/bank-account-store";
 import { formatBankAccountOptionLabel } from "@/lib/services/bank-accounts";
+import { DocumentMemoFontSizeSelect } from "@/components/shared/document-memo-font-size-select";
+import { INVOICE_DUE_DATE_DISCUSSION_LABEL } from "@/lib/invoice-due-date";
 
 function toFormItems(items: InvoiceItemDraft[]): InvoiceFormValues["items"] {
   return items.map((it, idx) => ({
@@ -115,7 +116,22 @@ export function InvoiceForm({
     (useWatch({ control: form.control, name: "customerHonorific" }) as
       | CustomerHonorific
       | undefined) ?? DEFAULT_CUSTOMER_HONORIFIC;
-  const bankAccountId = form.watch("bankAccountId");
+  const bankAccountId = useWatch({
+    control: form.control,
+    name: "bankAccountId",
+  });
+  const dueDateMode = useWatch({
+    control: form.control,
+    name: "dueDateMode",
+  });
+  const memoFontSize = useWatch({
+    control: form.control,
+    name: "memoFontSize",
+  });
+  const documentEmail = useWatch({
+    control: form.control,
+    name: "documentEmail",
+  });
 
   useEffect(() => {
     form.setValue("items", toFormItems(items), { shouldValidate: true });
@@ -186,11 +202,31 @@ export function InvoiceForm({
             </div>
             <div className="space-y-2">
               <p className="text-sm font-medium text-zinc-700">支払期限 *</p>
-              <Input
-                type="date"
-                {...form.register("dueDate")}
-                className="h-11 rounded-xl border-zinc-200/80 text-base"
-              />
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-sm text-zinc-700">
+                  <input
+                    type="radio"
+                    value="discussion"
+                    {...form.register("dueDateMode")}
+                  />
+                  {INVOICE_DUE_DATE_DISCUSSION_LABEL}
+                </label>
+                <label className="flex items-center gap-2 text-sm text-zinc-700">
+                  <input
+                    type="radio"
+                    value="date"
+                    {...form.register("dueDateMode")}
+                  />
+                  日付を指定
+                </label>
+              </div>
+              {dueDateMode === "date" ? (
+                <Input
+                  type="date"
+                  {...form.register("dueDate")}
+                  className="h-11 rounded-xl border-zinc-200/80 text-base"
+                />
+              ) : null}
               {form.formState.errors.dueDate?.message && (
                 <p className="text-sm text-red-600">
                   {formatFieldErrorMessage(form.formState.errors.dueDate.message)}
@@ -322,7 +358,7 @@ export function InvoiceForm({
 
         <FormSection title="連絡先">
           <DocumentEmailField
-            value={form.watch("documentEmail")}
+            value={documentEmail}
             onChange={(value) =>
               form.setValue("documentEmail", value, { shouldValidate: true })
             }
@@ -337,6 +373,14 @@ export function InvoiceForm({
             rows={4}
             className="min-h-[120px] resize-none rounded-xl border-zinc-200/80 text-base"
             placeholder="補足や振込条件など（任意）"
+          />
+          <DocumentMemoFontSizeSelect
+            value={memoFontSize}
+            onChange={(next) =>
+              form.setValue("memoFontSize", next, { shouldValidate: true })
+            }
+            disabled={form.formState.isSubmitting}
+            id="invoice-memo-font-size"
           />
         </FormSection>
       </div>

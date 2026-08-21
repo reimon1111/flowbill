@@ -57,6 +57,7 @@ export function CommercialDocumentPreview({
     discountLabel: document.discountLabel,
     discountAmount: document.discountAmount,
     memo: document.memo,
+    memoFontSize: document.memoFontSize,
     documentEmail: document.documentEmail,
     memoTemplate: company[memoKey] ?? "",
     company,

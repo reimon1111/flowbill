@@ -149,6 +149,7 @@ export type QuoteRecord = {
   customerDepartment: string;
   customerPosition: string;
   memo: string;
+  memoFontSize: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   documentEmail: string;
   paymentTerms: string;
   createdBy: string | null;
@@ -183,6 +184,7 @@ export type QuoteInput = {
   expiryType: import("@/lib/quote-expiry").QuoteExpiryType;
   expiryDate: string;
   memo: string;
+  memoFontSize?: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   documentEmail: string;
   paymentTerms: string;
   discountLabel: string;
@@ -226,7 +228,13 @@ export type InvoiceRecord = {
   quoteId: string;
   invoiceNumber: string;
   issueDate: string; // YYYY-MM-DD
-  dueDate: string; // YYYY-MM-DD
+  /** YYYY-MM-DD。discussion 時は空文字 */
+  dueDate: string;
+  /**
+   * 支払期限方式。null は既存データ（mode 未設定）。
+   * discussion = 別途打ち合わせ / date = 日付指定
+   */
+  dueDateMode: import("@/lib/invoice-due-date").InvoiceDueDateMode | null;
   status: InvoiceDocumentStatus;
   subtotal: number;
   taxAmount: number;
@@ -239,6 +247,7 @@ export type InvoiceRecord = {
   customerPosition: string;
   pdfUrl: string | null;
   memo: string;
+  memoFontSize: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   documentEmail: string;
   paymentTerms: string;
   bankAccountId: string | null;
@@ -278,7 +287,9 @@ export type InvoiceInput = {
   quoteId: string;
   issueDate: string;
   dueDate: string;
+  dueDateMode: import("@/lib/invoice-due-date").InvoiceDueDateMode;
   memo: string;
+  memoFontSize?: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   documentEmail: string;
   paymentTerms: string;
   bankAccountId?: string | null;

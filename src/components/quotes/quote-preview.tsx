@@ -40,6 +40,7 @@ export function QuotePreview({
       discountLabel={quote.discountLabel}
       discountAmount={quote.discountAmount}
       memo={quote.memo}
+      memoFontSize={quote.memoFontSize}
       memoTemplate={company.quoteMemoTemplate}
       documentEmail={quote.documentEmail}
       company={company}

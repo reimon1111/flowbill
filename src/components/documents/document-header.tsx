@@ -8,6 +8,7 @@ export function DocumentHeader({
   documentNumber,
   issueDate,
   secondDate,
+  secondDateDisplay,
   customerName,
   contactName,
   department,
@@ -18,6 +19,8 @@ export function DocumentHeader({
   documentNumber: string;
   issueDate: string;
   secondDate?: string;
+  /** 指定時は formatDate せずそのまま表示（支払期限の「別途打ち合わせによる」等） */
+  secondDateDisplay?: string | null;
   customerName: string;
   contactName?: string;
   department?: string;
@@ -25,6 +28,12 @@ export function DocumentHeader({
   honorific?: string | null;
 }) {
   const labels = getDocumentLabels(kind);
+  const secondText =
+    secondDateDisplay != null && secondDateDisplay !== ""
+      ? secondDateDisplay
+      : secondDate
+        ? formatDate(secondDate)
+        : null;
 
   return (
     <div className="document-header">
@@ -51,12 +60,12 @@ export function DocumentHeader({
             <span className="inline-block w-[4.5em] text-left">発行日</span>
             <span>{formatDate(issueDate)}</span>
           </p>
-          {labels.secondDateLabel && secondDate ? (
+          {labels.secondDateLabel && secondText ? (
             <p>
               <span className="inline-block w-[4.5em] text-left">
                 {labels.secondDateLabel}
               </span>
-              <span>{formatDate(secondDate)}</span>
+              <span>{secondText}</span>
             </p>
           ) : null}
         </div>

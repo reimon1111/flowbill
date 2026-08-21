@@ -19,6 +19,7 @@ export type DocumentLayoutProps = {
   documentNumber: string;
   issueDate: string;
   secondDate?: string;
+  secondDateDisplay?: string | null;
   customerName: string;
   /** 先方担当者名（書類スナップショット） */
   contactName?: string;
@@ -39,6 +40,7 @@ export type DocumentLayoutProps = {
   discountAmount?: number;
   memo: string;
   memoTemplate: string;
+  memoFontSize?: import("@/lib/document-memo-font-size").DocumentMemoFontSize | string | null;
   documentEmail?: string;
   company: CompanySettings;
   bankAccounts?: BankAccountDisplay[];
@@ -49,6 +51,7 @@ export function DocumentLayout({
   documentNumber,
   issueDate,
   secondDate,
+  secondDateDisplay,
   customerName,
   contactName,
   department,
@@ -65,6 +68,7 @@ export function DocumentLayout({
   discountAmount,
   memo,
   memoTemplate,
+  memoFontSize,
   documentEmail,
   company,
   bankAccounts,
@@ -82,6 +86,7 @@ export function DocumentLayout({
         documentNumber={documentNumber}
         issueDate={issueDate}
         secondDate={secondDate}
+        secondDateDisplay={secondDateDisplay}
         customerName={customerName}
         contactName={contactName}
         department={department}
@@ -121,6 +126,7 @@ export function DocumentLayout({
         discountAmount={discountAmount}
         memo={memo}
         memoTemplate={memoTemplate}
+        memoFontSize={memoFontSize}
         company={company}
         bankAccounts={bankAccounts}
       />

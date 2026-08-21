@@ -34,6 +34,7 @@ import {
   type CommercialDocumentFormValues,
   type OrderDocumentFormValues,
 } from "@/lib/validations/commercial-document";
+import { DocumentMemoFontSizeSelect } from "@/components/shared/document-memo-font-size-select";
 
 function toFormItems(items: QuoteItemDraft[]): CommercialDocumentFormValues["items"] {
   return items.map((it, idx) => ({
@@ -111,6 +112,10 @@ export function CommercialDocumentForm({
     ((useWatch({ control: form.control, name: "customerHonorific" }) as
       | CustomerHonorific
       | undefined) ?? DEFAULT_CUSTOMER_HONORIFIC);
+  const memoFontSize = useWatch({
+    control: form.control,
+    name: "memoFontSize",
+  });
   const totalsItems = useMemo(
     () =>
       items.map((item) => ({
@@ -320,6 +325,14 @@ export function CommercialDocumentForm({
             rows={4}
             className="min-h-[120px] resize-none rounded-xl border-zinc-200/80 text-base"
             placeholder="補足や条件など（任意）"
+          />
+          <DocumentMemoFontSizeSelect
+            value={memoFontSize}
+            onChange={(next) =>
+              form.setValue("memoFontSize", next, { shouldValidate: true })
+            }
+            disabled={form.formState.isSubmitting}
+            id={`${kind}-memo-font-size`}
           />
         </FormSection>
       </div>

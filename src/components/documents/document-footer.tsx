@@ -1,10 +1,16 @@
 import { PrintableDocumentTotals } from "@/components/documents/printable-document-totals";
 import { resolveDocumentMemo } from "@/lib/document-memo";
+import {
+  normalizeDocumentMemoFontSize,
+  resolveDocumentMemoFontClass,
+  type DocumentMemoFontSize,
+} from "@/lib/document-memo-font-size";
 import type { CompanySettings } from "@/lib/types";
 import type { BankAccountDisplay } from "@/lib/services/bank-accounts";
 import type { DocumentKind } from "@/components/documents/document-labels";
 import { getDocumentLabels } from "@/components/documents/document-labels";
 import { DocumentBankInfo } from "@/components/documents/document-bank-info";
+import { cn } from "@/lib/utils";
 
 export function DocumentFooter({
   kind,
@@ -15,6 +21,7 @@ export function DocumentFooter({
   discountAmount,
   memo,
   memoTemplate,
+  memoFontSize,
   company,
   bankAccounts,
 }: {
@@ -26,11 +33,15 @@ export function DocumentFooter({
   discountAmount?: number;
   memo: string;
   memoTemplate: string;
+  memoFontSize?: DocumentMemoFontSize | string | null;
   company: CompanySettings;
   bankAccounts?: BankAccountDisplay[];
 }) {
   const labels = getDocumentLabels(kind);
   const displayMemo = resolveDocumentMemo(memo, memoTemplate);
+  const memoBodyClass = resolveDocumentMemoFontClass(
+    normalizeDocumentMemoFontSize(memoFontSize)
+  );
 
   return (
     <footer className="document-footer mt-4 space-y-3 text-[10px] leading-snug text-zinc-700">
@@ -49,7 +60,9 @@ export function DocumentFooter({
       {displayMemo ? (
         <div className="document-memo max-w-xl">
           <p className="font-medium text-zinc-800">備考</p>
-          <p className="mt-0.5 whitespace-pre-wrap">{displayMemo}</p>
+          <p className={cn("mt-0.5 whitespace-pre-wrap", memoBodyClass)}>
+            {displayMemo}
+          </p>
         </div>
       ) : null}
 

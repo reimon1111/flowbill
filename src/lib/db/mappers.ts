@@ -10,6 +10,8 @@ import {
   type DocumentDiscountFields,
 } from "@/lib/discount-totals";
 import { normalizeCustomerHonorific } from "@/lib/customer-honorific";
+import { normalizeInvoiceDueDateMode } from "@/lib/invoice-due-date";
+import { normalizeDocumentMemoFontSize } from "@/lib/document-memo-font-size";
 import type {
   CompanySettings,
   Customer,
@@ -642,6 +644,7 @@ export type QuoteRow = {
   customer_department?: string | null;
   customer_position?: string | null;
   memo: string;
+  memo_font_size?: string | null;
   document_email?: string | null;
   payment_terms?: string | null;
   created_by?: string | null;
@@ -674,6 +677,7 @@ export function quoteFromRow(row: QuoteRow): QuoteRecord {
     customerDepartment: row.customer_department != null ? String(row.customer_department) : "",
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     memo: row.memo,
+    memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
     ...auditUserFields(row),
@@ -703,6 +707,7 @@ export function quoteToRow(companyId: string, q: QuoteRecord): QuoteRow {
     customer_department: q.customerDepartment || null,
     customer_position: q.customerPosition || null,
     memo: q.memo,
+    memo_font_size: q.memoFontSize ?? "normal",
     document_email: q.documentEmail ?? "",
     payment_terms: q.paymentTerms,
     created_at: q.createdAt,
@@ -811,7 +816,8 @@ export type InvoiceRow = {
   quote_id: string;
   invoice_number: string;
   issue_date: string;
-  due_date: string;
+  due_date: string | null;
+  due_date_mode?: string | null;
   status: string;
   subtotal: number;
   tax_amount: number;
@@ -824,6 +830,7 @@ export type InvoiceRow = {
   customer_position?: string | null;
   pdf_url: string | null;
   memo: string;
+  memo_font_size?: string | null;
   document_email?: string | null;
   payment_terms?: string | null;
   bank_account_id?: string | null;
@@ -842,7 +849,8 @@ export function invoiceFromRow(row: InvoiceRow): InvoiceRecord {
     quoteId: row.quote_id,
     invoiceNumber: row.invoice_number,
     issueDate: toDateStr(row.issue_date),
-    dueDate: toDateStr(row.due_date),
+    dueDate: row.due_date ? toDateStr(row.due_date) : "",
+    dueDateMode: normalizeInvoiceDueDateMode(row.due_date_mode),
     status: row.status as InvoiceDocumentStatus,
     subtotal: num(row.subtotal),
     taxAmount: num(row.tax_amount),
@@ -855,6 +863,7 @@ export function invoiceFromRow(row: InvoiceRow): InvoiceRecord {
     customerPosition: row.customer_position != null ? String(row.customer_position) : "",
     pdfUrl: row.pdf_url,
     memo: row.memo,
+    memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
     bankAccountId: row.bank_account_id ?? null,
@@ -874,7 +883,11 @@ export function invoiceToRow(companyId: string, inv: InvoiceRecord): InvoiceRow 
     quote_id: inv.quoteId,
     invoice_number: inv.invoiceNumber,
     issue_date: inv.issueDate,
-    due_date: inv.dueDate,
+    due_date:
+      inv.dueDateMode === "discussion" || !inv.dueDate.trim()
+        ? null
+        : inv.dueDate,
+    due_date_mode: inv.dueDateMode,
     status: inv.status,
     subtotal: inv.subtotal,
     tax_amount: inv.taxAmount,
@@ -887,6 +900,7 @@ export function invoiceToRow(companyId: string, inv: InvoiceRecord): InvoiceRow 
     customer_position: inv.customerPosition || null,
     pdf_url: inv.pdfUrl,
     memo: inv.memo,
+    memo_font_size: inv.memoFontSize ?? "normal",
     document_email: inv.documentEmail ?? "",
     payment_terms: inv.paymentTerms,
     bank_account_id: inv.bankAccountId,

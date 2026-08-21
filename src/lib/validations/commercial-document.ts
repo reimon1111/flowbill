@@ -17,6 +17,10 @@ import {
   documentEmailFieldSchema,
   documentEmailFormDefaults,
 } from "@/lib/validations/document-email";
+import {
+  documentMemoFontSizeFieldSchema,
+  documentMemoFontSizeFormDefaults,
+} from "@/lib/document-memo-font-size";
 
 const commercialCoreFields = z.object({
   projectId: z.string().min(1, "案件が指定されていません"),
@@ -34,6 +38,7 @@ export const commercialDocumentFormSchema = applyDocumentFormRefines(
     .merge(customerHonorificFieldSchema)
     .merge(counterpartyContactFieldsSchema)
     .merge(documentEmailFieldSchema)
+    .merge(documentMemoFontSizeFieldSchema)
 );
 
 export type CommercialDocumentFormValues = z.infer<
@@ -49,6 +54,7 @@ export const orderDocumentFormSchema = applyDocumentFormRefines(
     .merge(discountFieldsSchema)
     .merge(counterpartyContactFieldsSchema)
     .merge(documentEmailFieldSchema)
+    .merge(documentMemoFontSizeFieldSchema)
 );
 
 export type OrderDocumentFormValues = z.infer<typeof orderDocumentFormSchema>;
@@ -60,6 +66,7 @@ export const commercialDocumentFormDefaults: CommercialDocumentFormValues = {
   paymentTerms: "",
   memo: "",
   ...documentEmailFormDefaults,
+  ...documentMemoFontSizeFormDefaults,
   items: [],
   ...discountFormDefaults,
   ...customerHonorificFormDefaults,

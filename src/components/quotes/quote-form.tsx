@@ -52,6 +52,7 @@ import {
   QUOTE_VALIDATION_FAILED_DESCRIPTION,
   QUOTE_VALIDATION_FAILED_TITLE,
 } from "@/lib/quote-save-error";
+import { DocumentMemoFontSizeSelect } from "@/components/shared/document-memo-font-size-select";
 
 function createBlankQuoteItem(sortOrder: number): QuoteItemDraft {
   return {
@@ -263,6 +264,10 @@ export function QuoteForm({
     (useWatch({ control: form.control, name: "customerHonorific" }) as
       | CustomerHonorific
       | undefined) ?? DEFAULT_CUSTOMER_HONORIFIC;
+  const memoFontSize = useWatch({
+    control: form.control,
+    name: "memoFontSize",
+  });
   const totalsItems = useMemo(
     () =>
       items.map((item) => ({
@@ -637,6 +642,14 @@ export function QuoteForm({
             rows={4}
             className="min-h-[120px] resize-none rounded-xl border-zinc-200/80 text-base"
             placeholder="補足や条件など（任意）"
+          />
+          <DocumentMemoFontSizeSelect
+            value={memoFontSize}
+            onChange={(next) =>
+              form.setValue("memoFontSize", next, { shouldValidate: true })
+            }
+            disabled={!canWrite}
+            id="quote-memo-font-size"
           />
           {form.formState.errors.memo?.message ? (
             <p className="text-sm text-red-600">

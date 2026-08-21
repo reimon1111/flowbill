@@ -16,6 +16,10 @@ import {
   documentEmailFieldSchema,
   documentEmailFormDefaults,
 } from "@/lib/validations/document-email";
+import {
+  documentMemoFontSizeFieldSchema,
+  documentMemoFontSizeFormDefaults,
+} from "@/lib/document-memo-font-size";
 
 const taxRateSchema = z.union([z.literal(0), z.literal(0.08), z.literal(0.1)]);
 
@@ -39,7 +43,8 @@ export const invoiceFormSchema = applyDocumentFormRefines(
       customerId: z.string().min(1, "顧客が指定されていません"),
       quoteId: z.string().min(1, "元見積が指定されていません"),
       issueDate: z.string().min(1, "発行日を入力してください"),
-      dueDate: z.string().min(1, "支払期限を入力してください"),
+      dueDateMode: z.enum(["discussion", "date"]),
+      dueDate: z.string(),
       paymentTerms: z.string().max(200),
       bankAccountId: z.string().nullable().optional(),
       memo: z.string().max(500),
@@ -49,6 +54,16 @@ export const invoiceFormSchema = applyDocumentFormRefines(
     .merge(customerHonorificFieldSchema)
     .merge(counterpartyContactFieldsSchema)
     .merge(documentEmailFieldSchema)
+    .merge(documentMemoFontSizeFieldSchema)
+    .superRefine((data, ctx) => {
+      if (data.dueDateMode === "date" && !data.dueDate.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "支払期限を入力してください",
+          path: ["dueDate"],
+        });
+      }
+    })
 );
 
 export type InvoiceFormValues = z.infer<typeof invoiceFormSchema>;
@@ -58,11 +73,13 @@ export const invoiceFormDefaults: InvoiceFormValues = {
   customerId: "",
   quoteId: "",
   issueDate: "",
+  dueDateMode: "discussion",
   dueDate: "",
   paymentTerms: "",
   bankAccountId: null,
   memo: "",
   ...documentEmailFormDefaults,
+  ...documentMemoFontSizeFormDefaults,
   items: [],
   ...discountFormDefaults,
   ...customerHonorificFormDefaults,

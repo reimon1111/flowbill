@@ -17,6 +17,10 @@ import {
   documentEmailFieldSchema,
   documentEmailFormDefaults,
 } from "@/lib/validations/document-email";
+import {
+  documentMemoFontSizeFieldSchema,
+  documentMemoFontSizeFormDefaults,
+} from "@/lib/document-memo-font-size";
 
 const taxRateSchema = z.union([z.literal(0), z.literal(0.08), z.literal(0.1)]);
 
@@ -49,6 +53,7 @@ export const quoteFormSchema = applyDocumentFormRefines(
     .merge(customerHonorificFieldSchema)
     .merge(counterpartyContactFieldsSchema)
     .merge(documentEmailFieldSchema)
+    .merge(documentMemoFontSizeFieldSchema)
 );
 
 export type QuoteFormValues = z.infer<typeof quoteFormSchema>;
@@ -62,6 +67,7 @@ export const quoteFormDefaults: QuoteFormValues = {
   paymentTerms: "",
   memo: "",
   ...documentEmailFormDefaults,
+  ...documentMemoFontSizeFormDefaults,
   items: [],
   ...discountFormDefaults,
   ...customerHonorificFormDefaults,

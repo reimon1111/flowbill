@@ -9,7 +9,6 @@ import type {
 import type { RecurringFormValues } from "@/lib/validations/recurring";
 import {
   RECURRING_PROJECT_PREFIX,
-  addDays,
   todayISO,
 } from "@/lib/recurring-utils";
 import { useRecurringStore } from "@/stores/recurring-store";
@@ -161,7 +160,6 @@ export async function createInvoiceFromRecurring(
   );
 
   const issueDate = todayISO();
-  const dueDate = addDays(issueDate, 30);
   const expiryType = "2_weeks";
   const expiryDate = calculateQuoteExpiryDate(issueDate, expiryType);
   const settings = useCompanySettingsStore.getState().settings;
@@ -212,10 +210,12 @@ export async function createInvoiceFromRecurring(
       customerId: recurring.customerId,
       quoteId: quote.id,
       issueDate,
-      dueDate,
+      dueDateMode: "discussion",
+      dueDate: "",
       paymentTerms: quote.paymentTerms || settings.paymentTerms || "",
       bankAccountId: null,
       memo: recurring.memo,
+      memoFontSize: "normal",
       documentEmail: "",
       discountLabel: recurring.discountLabel ?? "",
       discountAmount: recurring.discountAmount ?? 0,

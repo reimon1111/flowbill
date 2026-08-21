@@ -29,11 +29,11 @@ export const CONSTRUCTION_ITEM_FIELDS_MIGRATION_HINT = buildMigrationBanner(
 );
 
 export const UPDATE_QUOTE_WITH_ITEMS_RPC_HINT = buildMigrationBanner(
-  "見積の安全な更新処理（update_quote_with_items）が未適用または旧版です。supabase/add-update-quote-with-items-rpc.sql のあと supabase/update-quote-customer-reassign-atomic.sql を実行してください。"
+  "見積の安全な更新処理（update_quote_with_items）が未適用または旧版です。supabase/update-quote-customer-reassign-atomic.sql のあと supabase/patch-due-date-mode-and-memo-font-size-rpcs.sql を実行してください。"
 );
 
 export const UPDATE_DOCUMENTS_WITH_ITEMS_RPC_HINT = buildMigrationBanner(
-  "請求・帳票・定期の安全な更新処理が未適用です。supabase/add-update-documents-with-items-rpcs.sql を実行してください。"
+  "請求・帳票の安全な更新処理が未適用または旧版です。supabase/add-update-documents-with-items-rpcs.sql のあと supabase/patch-due-date-mode-and-memo-font-size-rpcs.sql を実行してください。"
 );
 
 export const UPDATE_INVOICE_WITH_ITEMS_RPC_HINT = UPDATE_DOCUMENTS_WITH_ITEMS_RPC_HINT;

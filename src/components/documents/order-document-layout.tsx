@@ -45,6 +45,7 @@ export function OrderDocumentLayout({
   discountAmount,
   memo,
   memoTemplate,
+  memoFontSize,
   documentEmail,
   company,
   recipientName = "",
@@ -129,6 +130,7 @@ export function OrderDocumentLayout({
         discountAmount={discountAmount}
         memo={memo}
         memoTemplate={memoTemplate}
+        memoFontSize={memoFontSize}
         company={company}
       />
       </div>
