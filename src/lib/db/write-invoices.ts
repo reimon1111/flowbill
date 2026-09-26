@@ -35,21 +35,14 @@ import {
   activityDescriptionInvoicePaid,
   activityDescriptionUpdated,
 } from "@/lib/activity-log-messages";
-import { UPDATE_INVOICE_WITH_ITEMS_RPC_HINT } from "@/lib/db/errors";
+import { UPDATE_INVOICE_WITH_ITEMS_RPC_HINT, isMissingDocumentContactNameColumn, isMissingInvoiceRecurringOccurrenceColumns, isUniqueViolation, isRecurringOccurrenceUniqueViolation, RecurringOccurrenceConflictError } from "@/lib/db/errors";
 import { callUpdateWithItemsRpc } from "@/lib/db/update-with-items-rpc";
+import { allocateDocumentNumber } from "@/lib/document-number";
 
-async function nextInvoiceNumber(issueDate: string, companyId: string): Promise<string> {
-  const y = issueDate.slice(0, 4);
-  const supabase = getSupabaseClient();
-  const { count, error } = await supabase
-    .from("invoices")
-    .select("*", { count: "exact", head: true })
-    .eq("company_id", companyId)
-    .like("invoice_number", `INV-${y}-%`);
-  if (error) throw error;
-  const n = (count ?? 0) + 1;
-  return `INV-${y}-${String(n).padStart(4, "0")}`;
-}
+export {
+  RecurringOccurrenceConflictError,
+  isRecurringOccurrenceConflictError,
+} from "@/lib/db/errors";
 
 async function syncProjectInvoiceFields(
   projectId: string,
@@ -103,7 +96,7 @@ export async function dbInsertInvoice(
     projectId: input.projectId,
     customerId: input.customerId,
     quoteId: input.quoteId,
-    invoiceNumber: await nextInvoiceNumber(input.issueDate, companyId),
+    invoiceNumber: await allocateDocumentNumber("invoice", input.issueDate),
     issueDate: input.issueDate,
     dueDateMode: input.dueDateMode,
     dueDate: input.dueDateMode === "date" ? input.dueDate : "",
@@ -121,8 +114,11 @@ export async function dbInsertInvoice(
     memo: input.memo,
     memoFontSize: input.memoFontSize ?? "normal",
     documentEmail: input.documentEmail ?? "",
+    documentContactName: input.documentContactName ?? "",
     paymentTerms: input.paymentTerms,
     bankAccountId,
+    recurringBillingId: input.recurringBillingId?.trim() || null,
+    recurringOccurrenceDate: input.recurringOccurrenceDate?.trim() || null,
     createdBy: userId,
     updatedBy: userId,
     createdAt: now,
@@ -131,9 +127,45 @@ export async function dbInsertInvoice(
   };
 
   const supabase = getSupabaseClient();
-  const { error: invError } = await supabase
-    .from("invoices")
-    .insert(withCreateAudit(invoiceToRow(companyId, invoice), userId));
+  const invoiceRow = withCreateAudit(invoiceToRow(companyId, invoice), userId);
+  let { error: invError } = await supabase.from("invoices").insert(invoiceRow);
+  if (invError && isMissingDocumentContactNameColumn(invError)) {
+    const legacy = { ...invoiceRow };
+    delete legacy.document_contact_name;
+    const retry = await supabase.from("invoices").insert(legacy);
+    invError = retry.error;
+    if (!invError) {
+      console.warn(
+        "invoices.document_contact_name が未作成のため、担当者名以外を保存しました。supabase/add-document-contact-name.sql を実行してください。"
+      );
+    }
+  }
+  if (invError && isMissingInvoiceRecurringOccurrenceColumns(invError)) {
+    const legacy = { ...invoiceRow };
+    delete legacy.recurring_billing_id;
+    delete legacy.recurring_occurrence_date;
+    const retry = await supabase.from("invoices").insert(legacy);
+    invError = retry.error;
+    if (!invError) {
+      console.warn(
+        "invoices.recurring_* 列が未作成のため、定期請求回情報以外を保存しました。supabase/add-invoice-recurring-occurrence.sql を実行してください。"
+      );
+      invoice.recurringBillingId = null;
+      invoice.recurringOccurrenceDate = null;
+    }
+  }
+  if (
+    invError &&
+    isUniqueViolation(invError) &&
+    invoice.recurringBillingId &&
+    invoice.recurringOccurrenceDate &&
+    isRecurringOccurrenceUniqueViolation(invError)
+  ) {
+    throw new RecurringOccurrenceConflictError(
+      invoice.recurringBillingId,
+      invoice.recurringOccurrenceDate
+    );
+  }
   if (invError) throw invError;
 
   try {
@@ -272,6 +304,7 @@ export async function dbUpdateInvoice(
     memo: invoice.memo,
     memo_font_size: invoice.memoFontSize,
     document_email: invoice.documentEmail ?? "",
+    document_contact_name: invoice.documentContactName ?? "",
     payment_terms: invoice.paymentTerms,
     bank_account_id: invoice.bankAccountId,
     updated_at: invoice.updatedAt,
@@ -279,7 +312,7 @@ export async function dbUpdateInvoice(
 
   const rpcResult = await callUpdateWithItemsRpc({
     rpcName: "update_invoice_with_items",
-    sqlFile: "supabase/patch-due-date-mode-and-memo-font-size-rpcs.sql",
+    sqlFile: "supabase/patch-document-contact-name-rpcs.sql",
     hint: UPDATE_INVOICE_WITH_ITEMS_RPC_HINT,
     parentIdParam: "p_invoice_id",
     parentId: invoiceId,

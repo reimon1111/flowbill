@@ -19,7 +19,7 @@ import {
 } from "@/lib/db/write-customers";
 import { logSupabaseError, toCustomerSaveError } from "@/lib/db/errors";
 import { useInvoiceStore } from "@/stores/invoice-store";
-import { getInvoicePaymentStatus } from "@/lib/invoice-state";
+import { getInvoiceBillingDisplayStatus } from "@/lib/billing-status-theme";
 import { useProjectItemStore } from "@/stores/project-item-store";
 import { useQuoteStore } from "@/stores/quote-store";
 import { getProjectTotalWithTax } from "@/lib/project-amount-display";
@@ -125,22 +125,13 @@ export async function getCustomerInvoices(
     .getState()
     .getListItems()
     .filter((inv) => inv.customerId === customerId)
-    .map((inv) => {
-      const paymentStatus = getInvoicePaymentStatus(inv);
-      const status =
-        paymentStatus === "paid"
-          ? "paid"
-          : paymentStatus === "overdue"
-            ? "overdue"
-            : "unpaid";
-      return {
-        id: inv.id,
-        invoiceNumber: inv.invoiceNumber,
-        issueDate: inv.issueDate,
-        amount: inv.totalAmount,
-        status,
-      };
-    });
+    .map((inv) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      issueDate: inv.issueDate,
+      amount: inv.totalAmount,
+      status: getInvoiceBillingDisplayStatus(inv),
+    }));
 }
 
 export function customerInputFromForm(

@@ -34,7 +34,7 @@ import { ActivityLogFeed } from "@/components/shared/activity-log-panel";
 import { useActivityLogStore } from "@/stores/activity-log-store";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
 
-type TaskTone = "overdue" | "unpaid" | "unissued" | "work" | "order";
+type TaskTone = "overdue" | "unpaid" | "not_created" | "work" | "order";
 
 type DashboardTask = {
   key: string;
@@ -70,12 +70,12 @@ const TONE_STYLES: Record<
     kpi: BILLING_STATUS_THEME.unpaid.kpiClass,
     kpiText: BILLING_STATUS_THEME.unpaid.kpiTextClass,
   },
-  unissued: {
-    card: BILLING_STATUS_THEME.unissued.cardClass,
-    badge: BILLING_STATUS_THEME.unissued.badgeClass,
-    button: BILLING_STATUS_THEME.unissued.buttonClass,
-    kpi: BILLING_STATUS_THEME.unissued.kpiClass,
-    kpiText: BILLING_STATUS_THEME.unissued.kpiTextClass,
+  not_created: {
+    card: BILLING_STATUS_THEME.not_created.cardClass,
+    badge: BILLING_STATUS_THEME.not_created.badgeClass,
+    button: BILLING_STATUS_THEME.not_created.buttonClass,
+    kpi: BILLING_STATUS_THEME.not_created.kpiClass,
+    kpiText: BILLING_STATUS_THEME.not_created.kpiTextClass,
   },
   work: {
     card: "border-emerald-200/80 bg-emerald-50/40",
@@ -140,6 +140,7 @@ export function DashboardPage() {
     () =>
       projects
         .filter((p) => {
+          if (p.workflowMode === "simple") return false;
           if (p.status !== "completed") return false;
           const state = getProjectInvoiceState(p.id, billableInvoices);
           return (
@@ -155,6 +156,7 @@ export function DashboardPage() {
     () =>
       projects
         .filter((p) => {
+          if (p.workflowMode === "simple") return false;
           if (p.status !== "completed") return false;
           const state = getProjectInvoiceState(p.id, billableInvoices);
           return (
@@ -168,7 +170,11 @@ export function DashboardPage() {
   const workPendingItems = useMemo(
     () =>
       projects
-        .filter((p) => p.status === "ordered" || p.status === "in_progress")
+        .filter(
+          (p) =>
+            p.workflowMode !== "simple" &&
+            (p.status === "ordered" || p.status === "in_progress")
+        )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [projects]
   );
@@ -176,7 +182,9 @@ export function DashboardPage() {
   const orderPendingItems = useMemo(
     () =>
       projects
-        .filter((p) => p.status === "estimate")
+        .filter(
+          (p) => p.workflowMode !== "simple" && p.status === "estimate"
+        )
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     [projects]
   );
@@ -233,11 +241,11 @@ export function DashboardPage() {
         hint: "入金確認が必要です",
       },
       {
-        tone: "unissued" as const,
-        label: "請求書未発行",
+        tone: "not_created" as const,
+        label: "請求書未作成",
         count: unissuedItems.length,
         amount: sumProjectAmounts(unissuedItems),
-        hint: "請求書を発行できます",
+        hint: "請求書を作成できます",
       },
       {
         tone: "work" as const,
@@ -387,15 +395,20 @@ export function DashboardPage() {
     }
 
     for (const p of unissuedItems) {
+      const state = getProjectInvoiceState(p.id, billableInvoices);
+      const isDraft = state.invoiceStatus === "draft";
+      const theme = isDraft
+        ? BILLING_STATUS_THEME.draft
+        : BILLING_STATUS_THEME.not_created;
       tasks.push({
         key: `unissued:${p.id}`,
-        tone: "unissued",
-        categoryLabel: "請求書未発行",
+        tone: "not_created",
+        categoryLabel: theme.statusLabel,
         projectName: p.projectName,
         customerName: p.customerName,
         amount: projectAmountWithTax.get(p.id) ?? p.amount,
         dateLabel: p.dueDate ? `納期 ${formatShortDate(p.dueDate)}` : "納期 —",
-        buttonLabel: BILLING_STATUS_THEME.unissued.actionLabel,
+        buttonLabel: theme.actionLabel,
         busyKey: `issue:${p.id}`,
         href: `/projects/${p.id}`,
         projectId: p.id,
@@ -438,7 +451,7 @@ export function DashboardPage() {
     }
 
     return tasks;
-  }, [overdueItems, unpaidItems, unissuedItems, workPendingItems, orderPendingItems, projectAmountWithTax]);
+  }, [overdueItems, unpaidItems, unissuedItems, workPendingItems, orderPendingItems, projectAmountWithTax, billableInvoices]);
 
   const runTaskAction = async (task: DashboardTask) => {
     switch (task.action) {

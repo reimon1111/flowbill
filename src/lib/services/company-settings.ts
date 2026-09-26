@@ -46,5 +46,7 @@ export async function updateCompanySettings(
     orderMemoTemplate: (values.orderMemoTemplate ?? "").trim(),
     deliveryNoteMemoTemplate: (values.deliveryNoteMemoTemplate ?? "").trim(),
     receiptMemoTemplate: (values.receiptMemoTemplate ?? "").trim(),
+    showDocumentManagement: values.showDocumentManagement,
+    workflowMode: values.workflowMode,
   });
 }

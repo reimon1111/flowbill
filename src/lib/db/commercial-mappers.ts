@@ -103,6 +103,7 @@ type CommercialHeaderRow = {
   memo: string;
   memo_font_size?: string | null;
   document_email?: string | null;
+  document_contact_name?: string | null;
   deleted_at?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
@@ -188,6 +189,8 @@ export function orderFromRow(row: OrderRow): OrderRecord {
     memo: row.memo,
     memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
+    documentContactName:
+      row.document_contact_name != null ? String(row.document_contact_name) : "",
     recipientName: row.recipient_name ?? "",
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
@@ -222,6 +225,8 @@ export function deliveryNoteFromRow(row: DeliveryNoteRow): DeliveryNoteRecord {
     memo: row.memo,
     memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
+    documentContactName:
+      row.document_contact_name != null ? String(row.document_contact_name) : "",
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
     createdAt: toIso(row.created_at),
@@ -257,6 +262,8 @@ export function receiptFromRow(row: ReceiptRow): ReceiptRecord {
     memo: row.memo,
     memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
+    documentContactName:
+      row.document_contact_name != null ? String(row.document_contact_name) : "",
     deletedAt: row.deleted_at ?? null,
     ...auditUserFields(row),
     createdAt: toIso(row.created_at),
@@ -290,6 +297,7 @@ export function orderToRow(companyId: string, order: OrderRecord): OrderRow {
     memo: order.memo,
     memo_font_size: order.memoFontSize ?? "normal",
     document_email: order.documentEmail ?? "",
+    document_contact_name: order.documentContactName ?? "",
     recipient_name: order.recipientName,
     created_at: order.createdAt,
     updated_at: order.updatedAt,
@@ -346,6 +354,7 @@ export function deliveryNoteToRow(
     memo: note.memo,
     memo_font_size: note.memoFontSize ?? "normal",
     document_email: note.documentEmail ?? "",
+    document_contact_name: note.documentContactName ?? "",
     created_at: note.createdAt,
     updated_at: note.updatedAt,
   };
@@ -398,6 +407,7 @@ export function receiptToRow(companyId: string, receipt: ReceiptRecord): Receipt
     memo: receipt.memo,
     memo_font_size: receipt.memoFontSize ?? "normal",
     document_email: receipt.documentEmail ?? "",
+    document_contact_name: receipt.documentContactName ?? "",
     created_at: receipt.createdAt,
     updated_at: receipt.updatedAt,
   };

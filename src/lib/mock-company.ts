@@ -26,6 +26,8 @@ export const companySettings: CompanySettings = {
   orderMemoTemplate: "",
   deliveryNoteMemoTemplate: "",
   receiptMemoTemplate: "",
+  showDocumentManagement: true,
+  workflowMode: "standard",
   contractStatus: "active",
   contractStartedAt: null,
   contractEndedAt: null,

@@ -32,7 +32,10 @@ type OrderStore = {
   getOrdersByProjectId: (projectId: string) => OrderRecord[];
   getOrderItems: (orderId: string) => OrderItemRecord[];
   getListItems: () => OrderListItem[];
-  createOrder: (input: OrderInput) => OrderRecord;
+  createOrder: (
+    input: OrderInput,
+    options?: { documentNumber?: string }
+  ) => OrderRecord;
   updateOrder: (orderId: string, input: OrderInput) => OrderRecord | null;
   softDeleteOrder: (orderId: string) => OrderRecord | null;
   removeOrder: (orderId: string) => void;
@@ -74,7 +77,7 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
       }));
   },
 
-  createOrder: (input) => {
+  createOrder: (input, options) => {
     const now = new Date().toISOString();
     const orderId = `ord_${Date.now().toString(36)}`;
     const items = buildCommercialItemRecords<OrderItemRecord>(
@@ -89,11 +92,13 @@ export const useOrderStore = create<OrderStore>((set, get) => ({
     const order: OrderRecord = {
       id: orderId,
       quoteId: input.quoteId ?? "",
-      orderNumber: nextCommercialNumber(
-        "OR",
-        input.issueDate,
-        get().orders.map((o) => o.orderNumber)
-      ),
+      orderNumber:
+        options?.documentNumber ??
+        nextCommercialNumber(
+          "OR",
+          input.issueDate,
+          get().orders.map((o) => o.orderNumber)
+        ),
       status: "draft",
       recipientName: input.recipientName ?? "",
       deletedAt: null,

@@ -12,6 +12,8 @@ import {
 } from "@/lib/billing-status-theme";
 import { getProjectInvoiceState } from "@/lib/invoice-state";
 import { getProjectInvoiceQuickAction } from "@/lib/project-invoice-actions";
+import type { WorkflowMode } from "@/lib/workflow-mode";
+import { canCreateInvoice } from "@/lib/document-creation-policy";
 
 export function normalizeProjectStatus(
   status: string | ProjectStatus
@@ -48,9 +50,8 @@ export function getNextAction(args: {
   if (status === "lost") return "対応不要";
 
   if (hasMultipleActive) return "請求書一覧";
-  if (invoiceStatus === "not_created" || invoiceStatus === "draft") {
-    return "請求書発行";
-  }
+  if (invoiceStatus === "not_created") return "請求書を作成";
+  if (invoiceStatus === "draft") return "請求書を確認";
   if (paymentStatus === "overdue") return "期限超過を確認";
   if (paymentStatus === "unpaid") return "請求書を確認";
   if (paymentStatus === "paid") return "入金済み";
@@ -87,16 +88,49 @@ export function getQuickActions(
     paymentStatus: ProjectPaymentStatus;
     projectId?: string;
     invoices?: InvoiceRecord[];
+    workflowMode?: WorkflowMode | string | null;
   }
 ): ProjectQuickAction[] {
-  const { status, invoiceStatus, paymentStatus, projectId, invoices } = args;
+  const { status, invoiceStatus, paymentStatus, projectId, invoices, workflowMode } =
+    args;
+
+  const appendSimpleInvoiceAction = (
+    actions: ProjectQuickAction[]
+  ): ProjectQuickAction[] => {
+    if (!projectId || !invoices) return actions;
+    if (!canCreateInvoice({ workflowMode, projectStatus: status }).allowed) {
+      return actions;
+    }
+    // standard では completed 以外で請求アクションを出さない（既存どおり）
+    if (status === "completed") return actions;
+    const invoiceAction = getProjectInvoiceQuickAction({
+      status,
+      invoices,
+      projectId,
+      workflowMode,
+    });
+    if (
+      invoiceAction?.type === "generate_invoice" ||
+      invoiceAction?.type === "view_invoice"
+    ) {
+      actions.push({
+        ...invoiceAction,
+        billingStatus: invoiceAction.billingStatus,
+      });
+    }
+    return actions;
+  };
 
   if (status === "estimate") {
-    return [{ type: "mark_ordered", label: "受注確定" }];
+    return appendSimpleInvoiceAction([
+      { type: "mark_ordered", label: "受注確定" },
+    ]);
   }
 
   if (status === "ordered" || status === "in_progress") {
-    return [{ type: "mark_completed", label: "作業完了" }];
+    return appendSimpleInvoiceAction([
+      { type: "mark_completed", label: "作業完了" },
+    ]);
   }
 
   if (status === "completed") {
@@ -109,11 +143,12 @@ export function getQuickActions(
         status,
         invoices,
         projectId,
+        workflowMode,
       });
       if (invoiceAction) {
         actions.push({
           ...invoiceAction,
-          billingStatus: billingStatus ?? undefined,
+          billingStatus: invoiceAction.billingStatus ?? billingStatus ?? undefined,
         });
       }
 
@@ -124,8 +159,23 @@ export function getQuickActions(
       return actions;
     }
 
-    if (invoiceStatus === "not_created" || invoiceStatus === "draft") {
-      return [{ type: "generate_invoice", label: "請求書発行", billingStatus: "unissued" }];
+    if (invoiceStatus === "not_created") {
+      return [
+        {
+          type: "generate_invoice",
+          label: "請求書を作成",
+          billingStatus: "not_created",
+        },
+      ];
+    }
+    if (invoiceStatus === "draft") {
+      return [
+        {
+          type: "view_invoice",
+          label: "請求書を確認",
+          billingStatus: "draft",
+        },
+      ];
     }
     if (paymentStatus === "overdue") {
       return [
@@ -140,7 +190,7 @@ export function getQuickActions(
       ];
     }
     if (paymentStatus === "paid") {
-      return [{ type: "view_invoice", label: "入金済み", billingStatus: "paid" }];
+      return [{ type: "view_invoice", label: "請求書を確認", billingStatus: "paid" }];
     }
     return [];
   }
@@ -166,8 +216,11 @@ export function getStatusChangeMessage(
   status: ProjectStatus,
   action?: ProjectActionType
 ): string {
-  if (action === "generate_invoice" || action === "view_invoice") {
+  if (action === "generate_invoice") {
     return "請求書の作成画面を開きます";
+  }
+  if (action === "view_invoice") {
+    return "請求書を確認します";
   }
   return `案件を「${PROJECT_STATUS_LABELS[status]}」に変更しました`;
 }

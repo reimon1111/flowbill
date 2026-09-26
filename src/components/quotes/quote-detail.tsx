@@ -36,6 +36,8 @@ import { DocumentPreviewCollapsible } from "@/components/shared/document-preview
 import { useDocumentExport } from "@/hooks/use-document-export";
 import { LinePdfExportGuide } from "@/components/shared/line-pdf-export-guide";
 import { useProjectStore } from "@/stores/project-store";
+import { canCreateOrder } from "@/lib/document-creation-policy";
+import { isSimpleWorkflowMode } from "@/lib/workflow-mode";
 
 export function QuoteDetail({
   quote,
@@ -65,10 +67,17 @@ export function QuoteDetail({
     useDocumentExport();
   const deleteBlockReason = getQuoteDeletionBlockReason(quote.id);
   const deletable = canDeleteQuote(quote.id);
+  const orderCreateDecision = canCreateOrder({
+    workflowMode: project?.workflowMode,
+    projectStatus: project?.status ?? "estimate",
+  });
   const canCreateOrderFromQuote =
-    canWrite && quote.status !== "rejected";
+    canWrite &&
+    quote.status !== "rejected" &&
+    orderCreateDecision.allowed;
   const canConfirmOrderWithQuote =
     canWrite &&
+    !isSimpleWorkflowMode(project?.workflowMode) &&
     quote.status !== "rejected" &&
     project != null &&
     project.status !== "ordered" &&

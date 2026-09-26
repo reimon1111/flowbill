@@ -27,6 +27,7 @@ import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
 import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
 import { PageContentLoader } from "@/components/shared/page-content-loader";
+import { canCreateQuote } from "@/lib/document-creation-policy";
 
 function previewQuoteNumber(issueDate: string) {
   const quotes = useQuoteStore.getState().getQuotes();
@@ -116,6 +117,33 @@ export function NewQuoteClient({ projectId }: { projectId?: string }) {
           >
             案件一覧へ
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const quoteCreateDecision = canCreateQuote({
+    workflowMode: project.workflowMode,
+    projectStatus: project.status,
+  });
+  if (!quoteCreateDecision.allowed) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <Link
+          href={`/projects/${projectId}`}
+          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-900"
+        >
+          <ArrowLeft className="size-4" />
+          案件詳細に戻る
+        </Link>
+        <PageHeader
+          title="見積を作成"
+          description={`${project.projectName} / ${customer.customerName}`}
+        />
+        <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-8">
+          <p className="text-sm text-zinc-600">
+            {quoteCreateDecision.reason ?? "この案件では見積を作成できません。"}
+          </p>
         </div>
       </div>
     );

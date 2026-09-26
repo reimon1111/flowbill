@@ -12,6 +12,7 @@ import {
 import { normalizeCustomerHonorific } from "@/lib/customer-honorific";
 import { normalizeInvoiceDueDateMode } from "@/lib/invoice-due-date";
 import { normalizeDocumentMemoFontSize } from "@/lib/document-memo-font-size";
+import { normalizeWorkflowMode } from "@/lib/workflow-mode";
 import type {
   CompanySettings,
   Customer,
@@ -98,6 +99,8 @@ export type CompanyRow = {
   order_memo_template?: string | null;
   delivery_note_memo_template?: string | null;
   receipt_memo_template?: string | null;
+  show_document_management?: boolean | null;
+  workflow_mode?: string | null;
   contract_status?: string | null;
   contract_started_at?: string | null;
   contract_ended_at?: string | null;
@@ -160,6 +163,8 @@ export function companyFromRow(row: CompanyRow): CompanySettings {
         : "",
     receiptMemoTemplate:
       row.receipt_memo_template != null ? String(row.receipt_memo_template) : "",
+    showDocumentManagement: row.show_document_management !== false,
+    workflowMode: normalizeWorkflowMode(row.workflow_mode),
     contractStatus: (row.contract_status as import("@/lib/types/signup-access").ContractStatus) ?? "active",
     contractStartedAt: row.contract_started_at ? toIso(row.contract_started_at) : null,
     contractEndedAt: row.contract_ended_at ? toIso(row.contract_ended_at) : null,
@@ -195,6 +200,8 @@ export function companyToRow(s: CompanySettings): CompanyRow {
     order_memo_template: s.orderMemoTemplate,
     delivery_note_memo_template: s.deliveryNoteMemoTemplate,
     receipt_memo_template: s.receiptMemoTemplate,
+    show_document_management: s.showDocumentManagement,
+    workflow_mode: s.workflowMode,
     contract_status: s.contractStatus,
     contract_started_at: s.contractStartedAt,
     contract_ended_at: s.contractEndedAt,
@@ -232,6 +239,8 @@ export function companyToUpdateRow(
     order_memo_template: s.orderMemoTemplate,
     delivery_note_memo_template: s.deliveryNoteMemoTemplate,
     receipt_memo_template: s.receiptMemoTemplate,
+    show_document_management: s.showDocumentManagement,
+    workflow_mode: s.workflowMode,
     updated_at: s.updatedAt,
   };
 }
@@ -408,6 +417,8 @@ export type ProjectRow = {
   invoice_status: string;
   payment_status: string;
   archived?: boolean | null;
+  workflow_mode?: string | null;
+  simple_documents_initialized_at?: string | null;
   confirmed_date?: string | null;
   completed_date?: string | null;
   created_by?: string | null;
@@ -446,6 +457,10 @@ export function projectFromRow(row: ProjectRow): ProjectRecord {
     assigneeName: row.assignee_name ?? "",
     memo: row.memo,
     documentMemo: row.document_memo != null ? String(row.document_memo) : "",
+    workflowMode: normalizeWorkflowMode(row.workflow_mode),
+    simpleDocumentsInitializedAt: row.simple_documents_initialized_at
+      ? toIso(row.simple_documents_initialized_at)
+      : null,
     invoiceStatus: normalizedInvoiceStatus,
     paymentStatus: normalizedPaymentStatus,
     archived: row.archived ?? false,
@@ -481,6 +496,8 @@ export function projectToRow(
     assignee_name: p.assigneeName ?? "",
     memo: p.memo,
     document_memo: p.documentMemo ?? "",
+    workflow_mode: p.workflowMode,
+    simple_documents_initialized_at: p.simpleDocumentsInitializedAt || null,
     invoice_status: p.invoiceStatus,
     payment_status: p.paymentStatus,
     archived: p.archived,
@@ -646,6 +663,7 @@ export type QuoteRow = {
   memo: string;
   memo_font_size?: string | null;
   document_email?: string | null;
+  document_contact_name?: string | null;
   payment_terms?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
@@ -679,6 +697,8 @@ export function quoteFromRow(row: QuoteRow): QuoteRecord {
     memo: row.memo,
     memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
+    documentContactName:
+      row.document_contact_name != null ? String(row.document_contact_name) : "",
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
     ...auditUserFields(row),
     createdAt: toIso(row.created_at),
@@ -709,6 +729,7 @@ export function quoteToRow(companyId: string, q: QuoteRecord): QuoteRow {
     memo: q.memo,
     memo_font_size: q.memoFontSize ?? "normal",
     document_email: q.documentEmail ?? "",
+    document_contact_name: q.documentContactName ?? "",
     payment_terms: q.paymentTerms,
     created_at: q.createdAt,
     updated_at: q.updatedAt,
@@ -832,8 +853,11 @@ export type InvoiceRow = {
   memo: string;
   memo_font_size?: string | null;
   document_email?: string | null;
+  document_contact_name?: string | null;
   payment_terms?: string | null;
   bank_account_id?: string | null;
+  recurring_billing_id?: string | null;
+  recurring_occurrence_date?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
   created_at: string;
@@ -865,8 +889,16 @@ export function invoiceFromRow(row: InvoiceRow): InvoiceRecord {
     memo: row.memo,
     memoFontSize: normalizeDocumentMemoFontSize(row.memo_font_size),
     documentEmail: row.document_email != null ? String(row.document_email) : "",
+    documentContactName:
+      row.document_contact_name != null ? String(row.document_contact_name) : "",
     paymentTerms: row.payment_terms != null ? String(row.payment_terms) : "",
     bankAccountId: row.bank_account_id ?? null,
+    recurringBillingId: row.recurring_billing_id
+      ? String(row.recurring_billing_id)
+      : null,
+    recurringOccurrenceDate: row.recurring_occurrence_date
+      ? toDateStr(row.recurring_occurrence_date)
+      : null,
     ...auditUserFields(row),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
@@ -902,8 +934,11 @@ export function invoiceToRow(companyId: string, inv: InvoiceRecord): InvoiceRow 
     memo: inv.memo,
     memo_font_size: inv.memoFontSize ?? "normal",
     document_email: inv.documentEmail ?? "",
+    document_contact_name: inv.documentContactName ?? "",
     payment_terms: inv.paymentTerms,
     bank_account_id: inv.bankAccountId,
+    recurring_billing_id: inv.recurringBillingId,
+    recurring_occurrence_date: inv.recurringOccurrenceDate,
     created_at: inv.createdAt,
     updated_at: inv.updatedAt,
     deleted_at: inv.deletedAt,

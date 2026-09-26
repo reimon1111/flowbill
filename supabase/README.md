@@ -23,6 +23,14 @@ Supabase SQL Editor で、以下のファイルを **この順番で** 1つず�
 | 15 | `update-quote-customer-reassign-atomic.sql` | 顧客変更ガード + 見積更新と再割当の原子的統合 |
 | 16 | `add-invoice-due-date-mode-and-memo-font-size.sql` | 支払期限モード + 備考文字サイズ列 |
 | 17 | `patch-due-date-mode-and-memo-font-size-rpcs.sql` | 上記列対応の with_items RPC 更新 |
+| 18 | `add-company-show-document-management.sql` | サイドバー「書類管理」メニュー表示切替 |
+| 19 | `add-document-contact-name.sql` | 帳票用担当者名（profiles + 各帳票スナップショット） |
+| 20 | `patch-document-contact-name-rpcs.sql` | 上記列対応の with_items RPC 更新 |
+| 21 | `add-company-workflow-mode.sql` | 会社の業務フロー設定（standard / simple・新規案件デフォルト） |
+| 22 | `add-project-workflow-mode.sql` | 案件単位の workflow_mode スナップショット + 初期化フラグ |
+| 23 | `provision-simple-project-documents-rpc.sql` | simple案件の帳票一式生成 RPC |
+| 24 | `add-invoice-recurring-occurrence.sql` | 定期請求の請求回冪等性（invoice列 + UNIQUE + advance RPC） |
+| 25 | `add-document-number-allocation.sql` | 帳票番号の原子的採番 + 会社単位 UNIQUE（QT/OR/DN/INV/RC） |
 
 手順の詳細・環境変数はリポジトリ直下の [README.md](../README.md#supabase-新規セットアップ) を参照してください。
 

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { Building2, CalendarClock, CreditCard, FileText, ImageIcon } from "lucide-react";
+import { Building2, CalendarClock, CreditCard, FileText, GitBranch, ImageIcon, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,12 @@ import {
   DEFAULT_QUOTE_EXPIRY_TYPE,
   QUOTE_EXPIRY_PERIOD_OPTIONS,
 } from "@/lib/quote-expiry";
+import {
+  DEFAULT_WORKFLOW_MODE,
+  WORKFLOW_MODE_OPTIONS,
+  WORKFLOW_MODE_SETTINGS_HINT,
+  normalizeWorkflowMode,
+} from "@/lib/workflow-mode";
 
 export function CompanySettingsForm({
   settings,
@@ -65,6 +71,10 @@ export function CompanySettingsForm({
       orderMemoTemplate: settings.orderMemoTemplate ?? "",
       deliveryNoteMemoTemplate: settings.deliveryNoteMemoTemplate ?? "",
       receiptMemoTemplate: settings.receiptMemoTemplate ?? "",
+      showDocumentManagement: settings.showDocumentManagement !== false,
+      workflowMode: normalizeWorkflowMode(
+        settings.workflowMode ?? DEFAULT_WORKFLOW_MODE
+      ),
     },
   });
 
@@ -94,6 +104,10 @@ export function CompanySettingsForm({
       orderMemoTemplate: settings.orderMemoTemplate ?? "",
       deliveryNoteMemoTemplate: settings.deliveryNoteMemoTemplate ?? "",
       receiptMemoTemplate: settings.receiptMemoTemplate ?? "",
+      showDocumentManagement: settings.showDocumentManagement !== false,
+      workflowMode: normalizeWorkflowMode(
+        settings.workflowMode ?? DEFAULT_WORKFLOW_MODE
+      ),
     });
   }, [settings, form]);
 
@@ -311,6 +325,106 @@ export function CompanySettingsForm({
             />
           </Field>
         </div>
+      </Section>
+
+      <Separator className="bg-zinc-200/80" />
+
+      <Section
+        icon={GitBranch}
+        title="業務フロー"
+        description="新しく作成する案件のデフォルト業務フローを選びます"
+      >
+        <fieldset className="space-y-3" disabled={!canEdit}>
+          <legend className="sr-only">業務フロー</legend>
+          {WORKFLOW_MODE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200/80 bg-white px-4 py-3 has-[:checked]:border-zinc-400 has-[:checked]:ring-1 has-[:checked]:ring-zinc-200"
+            >
+              <input
+                type="radio"
+                className="mt-1 size-4 accent-zinc-900"
+                checked={
+                  (values.workflowMode ?? DEFAULT_WORKFLOW_MODE) ===
+                  option.value
+                }
+                onChange={() =>
+                  form.setValue("workflowMode", option.value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+                disabled={!canEdit}
+              />
+              <span>
+                <span className="block text-sm font-medium text-zinc-900">
+                  {option.label}
+                </span>
+                <span className="mt-0.5 block text-xs text-zinc-500">
+                  {option.description}
+                </span>
+              </span>
+            </label>
+          ))}
+          <p className="text-xs text-zinc-500">{WORKFLOW_MODE_SETTINGS_HINT}</p>
+        </fieldset>
+      </Section>
+
+      <Separator className="bg-zinc-200/80" />
+
+      <Section
+        icon={PanelLeft}
+        title="書類管理メニュー"
+        description="案件詳細だけで帳票管理を行う場合、左メニューの「書類管理」を非表示にできます"
+      >
+        <fieldset className="space-y-3" disabled={!canEdit}>
+          <legend className="sr-only">書類管理メニューの表示</legend>
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200/80 bg-white px-4 py-3 has-[:checked]:border-zinc-400 has-[:checked]:ring-1 has-[:checked]:ring-zinc-200">
+            <input
+              type="radio"
+              className="mt-1 size-4 accent-zinc-900"
+              checked={values.showDocumentManagement !== false}
+              onChange={() =>
+                form.setValue("showDocumentManagement", true, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              disabled={!canEdit}
+            />
+            <span>
+              <span className="block text-sm font-medium text-zinc-900">
+                表示する
+              </span>
+              <span className="mt-0.5 block text-xs text-zinc-500">
+                左サイドバーに見積・注文・納品・請求・領収を表示します
+              </span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200/80 bg-white px-4 py-3 has-[:checked]:border-zinc-400 has-[:checked]:ring-1 has-[:checked]:ring-zinc-200">
+            <input
+              type="radio"
+              className="mt-1 size-4 accent-zinc-900"
+              checked={values.showDocumentManagement === false}
+              onChange={() =>
+                form.setValue("showDocumentManagement", false, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                })
+              }
+              disabled={!canEdit}
+            />
+            <span>
+              <span className="block text-sm font-medium text-zinc-900">
+                表示しない
+              </span>
+              <span className="mt-0.5 block text-xs text-zinc-500">
+                サイドバーから隠します。案件詳細や URL
+                直アクセスからの操作はこれまでどおり使えます
+              </span>
+            </span>
+          </label>
+        </fieldset>
       </Section>
 
       <Separator className="bg-zinc-200/80" />

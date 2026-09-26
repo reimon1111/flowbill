@@ -44,6 +44,12 @@ import {
 } from "@/lib/services/commercial-documents";
 import { useAppDataStore } from "@/stores/app-data-store";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
+import { useCompanySettingsStore } from "@/stores/company-settings-store";
+import {
+  isSimpleWorkflowMode,
+  normalizeWorkflowMode,
+} from "@/lib/workflow-mode";
+import { provisionSimpleProjectDocuments } from "@/lib/services/provision-simple-documents";
 import {
   isMissingProjectArchivedColumn,
   DOCUMENT_MANAGEMENT_MIGRATION_HINT,
@@ -111,17 +117,48 @@ export async function getProjectListItem(
   return items.find((p) => p.id === id) ?? null;
 }
 
+export type CreateProjectOptions = {
+  /**
+   * 案件にスナップショットする業務フロー。
+   * 未指定時は会社設定の workflowMode。
+   * 定期請求など内部生成は 'standard' を明示すること。
+   */
+  workflowMode?: import("@/lib/workflow-mode").WorkflowMode;
+  /**
+   * simple 案件の帳票一式自動生成。
+   * 既定: workflowMode が simple のとき true。
+   * 定期請求など内部用途は false。
+   */
+  provisionSimpleDocuments?: boolean;
+};
+
 export async function createProject(
-  input: ProjectInput
-): Promise<{ project: ProjectRecord; quoteDraftFailed: boolean }> {
+  input: ProjectInput,
+  options?: CreateProjectOptions
+): Promise<{
+  project: ProjectRecord;
+  quoteDraftFailed: boolean;
+  simpleDocumentsFailed: boolean;
+}> {
   assertCanWriteBusinessData();
   // 進捗はアクションで進める。新規作成は常に見積中から開始する
   const createInput: ProjectInput = { ...input, status: "estimate" };
+  const companyWorkflowMode = normalizeWorkflowMode(
+    useCompanySettingsStore.getState().settings.workflowMode
+  );
+  const workflowMode = normalizeWorkflowMode(
+    options?.workflowMode ?? companyWorkflowMode
+  );
+  const shouldProvisionSimple =
+    isSimpleWorkflowMode(workflowMode) &&
+    options?.provisionSimpleDocuments !== false;
+
   let project: ProjectRecord;
   let quoteDraftFailed = false;
+  let simpleDocumentsFailed = false;
 
   if (isSupabaseConfigured()) {
-    project = await dbInsertProject(createInput);
+    project = await dbInsertProject(createInput, { workflowMode });
     const items = await dbReplaceProjectItems(project.id, createInput);
     useProjectItemStore.getState().hydrate([
       ...useProjectItemStore.getState().projectItems.filter(
@@ -141,31 +178,45 @@ export async function createProject(
       ],
     });
   } else {
-    project = useProjectStore.getState().addProject(createInput);
+    project = useProjectStore.getState().addProject(createInput, {
+      workflowMode,
+    });
     useProjectItemStore.getState().replaceForProject(project.id, createInput.items);
   }
 
-  try {
-    await ensureDraftQuoteForProject(project);
-    await syncDraftQuoteFromProject(project);
-    if (isSupabaseConfigured()) {
-      const histories = await dbFetchProjectHistories(project.id);
-      useProjectStore.getState().hydrate({
-        projects: useProjectStore.getState().projects,
-        histories: [
-          ...histories,
-          ...useProjectStore.getState().histories.filter(
-            (h) => h.projectId !== project.id
-          ),
-        ],
-      });
+  if (shouldProvisionSimple) {
+    try {
+      await provisionSimpleProjectDocuments(project.id);
+      const refreshed = useProjectStore.getState().getProjectById(project.id);
+      if (refreshed) project = refreshed;
+    } catch (error) {
+      simpleDocumentsFailed = true;
+      logSupabaseError("provisionSimpleProjectDocuments", error);
     }
-  } catch (error) {
-    quoteDraftFailed = true;
-    logSupabaseError("ensureDraftQuoteForProject", error);
+  } else {
+    // standard: 既存どおり見積下書きを用意
+    try {
+      await ensureDraftQuoteForProject(project);
+      await syncDraftQuoteFromProject(project);
+      if (isSupabaseConfigured()) {
+        const histories = await dbFetchProjectHistories(project.id);
+        useProjectStore.getState().hydrate({
+          projects: useProjectStore.getState().projects,
+          histories: [
+            ...histories,
+            ...useProjectStore.getState().histories.filter(
+              (h) => h.projectId !== project.id
+            ),
+          ],
+        });
+      }
+    } catch (error) {
+      quoteDraftFailed = true;
+      logSupabaseError("ensureDraftQuoteForProject", error);
+    }
   }
 
-  return { project, quoteDraftFailed };
+  return { project, quoteDraftFailed, simpleDocumentsFailed };
 }
 
 export async function updateProject(
@@ -519,7 +570,7 @@ export async function completeWorkForProject(projectId: string) {
 }
 
 /**
- * 請求書発行ボタン用 — DBには書き込まず遷移先だけ決める
+ * 請求アクション押下時の遷移先 — DBには書き込まない
  */
 export function resolveProjectInvoiceHref(
   projectId: string,

@@ -29,8 +29,17 @@ export function NewProjectClient({ initialCustomerId }: { initialCustomerId?: st
       return;
     }
 
-    const { project, quoteDraftFailed } = result;
+    const { project, quoteDraftFailed, simpleDocumentsFailed } = result;
     syncCustomerProjectCounts();
+
+    if (simpleDocumentsFailed) {
+      toast.error("書類一式の作成に失敗しました", {
+        description:
+          "案件詳細から再試行できます。帳票が中途半端に残っていないかご確認ください。",
+      });
+      router.push(`/projects/${project.id}`);
+      return;
+    }
 
     if (quoteDraftFailed) {
       toast.error("見積下書きの作成に失敗しました", {
@@ -42,12 +51,15 @@ export function NewProjectClient({ initialCustomerId }: { initialCustomerId?: st
       !quoteDraftFailed &&
       useQuoteStore.getState().getQuotesByProjectId(project.id).length > 0;
 
+    const isSimple = project.workflowMode === "simple";
     toast.success("案件を作成しました", {
-      description: hasDraftQuote
-        ? "見積の下書きも作成しました"
-        : quoteDraftFailed
-          ? "見積は案件詳細から作成してください"
-          : "次にやることが一覧に表示されます",
+      description: isSimple
+        ? "見積・注文・納品・請求・領収の下書きを用意しました"
+        : hasDraftQuote
+          ? "見積の下書きも作成しました"
+          : quoteDraftFailed
+            ? "見積は案件詳細から作成してください"
+            : "次にやることが一覧に表示されます",
     });
     router.push(`/projects/${project.id}`);
   };

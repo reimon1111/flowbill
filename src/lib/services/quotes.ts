@@ -34,10 +34,11 @@ import {
 } from "@/lib/quote-expiry";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
+import { assertDocumentCreationAllowed } from "@/lib/document-creation-policy";
 import { normalizeUnit } from "@/lib/constants/units";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
-import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
+import { resolveInitialDocumentContactForCreate } from "@/lib/services/user-profile-settings";
 import { buildQuoteInputItemsForProject, quoteNeedsItemSync } from "@/lib/services/project-items";
 
 export const QUOTE_DELETE_BLOCKED_MESSAGE =
@@ -150,6 +151,7 @@ function buildQuoteInputFromProject(
     memo: quote.memo,
     memoFontSize: quote.memoFontSize,
     documentEmail: quote.documentEmail ?? "",
+    documentContactName: quote.documentContactName ?? "",
     discountLabel: project.discountLabel ?? "",
     discountAmount: project.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(project),
@@ -220,6 +222,7 @@ export async function ensureDraftQuoteForProject(
   const expiryType =
     useCompanySettingsStore.getState().settings.quoteDefaultExpiryType ??
     DEFAULT_QUOTE_EXPIRY_TYPE;
+  const documentContact = await resolveInitialDocumentContactForCreate();
   const input: QuoteInput = {
     projectId: project.id,
     customerId: project.customerId,
@@ -232,7 +235,8 @@ export async function ensureDraftQuoteForProject(
       project.documentMemo,
       useCompanySettingsStore.getState().settings.quoteMemoTemplate
     ),
-    documentEmail: await resolveInitialDocumentEmailForCreate(),
+    documentEmail: documentContact.email,
+    documentContactName: documentContact.contactName,
     discountLabel: project.discountLabel ?? "",
     discountAmount: project.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(project),
@@ -307,12 +311,26 @@ export async function syncDraftQuoteFromProject(
 
 export async function createQuote(input: QuoteInput): Promise<QuoteRecord> {
   assertCanWriteBusinessData();
+  const project = useProjectStore.getState().getProjectById(input.projectId);
+  if (project) {
+    assertDocumentCreationAllowed("quote", {
+      workflowMode: project.workflowMode,
+      projectStatus: project.status,
+    });
+  }
+  const documentContact = await resolveInitialDocumentContactForCreate();
+  const payload: QuoteInput = {
+    ...input,
+    documentEmail: input.documentEmail.trim() || documentContact.email,
+    documentContactName:
+      input.documentContactName.trim() || documentContact.contactName,
+  };
   if (isSupabaseConfigured()) {
-    const { quote, items } = await dbInsertQuote(input);
+    const { quote, items } = await dbInsertQuote(payload);
     useQuoteStore.getState().mergeQuote(quote, items);
     return quote;
   }
-  return useQuoteStore.getState().createQuote(input);
+  return useQuoteStore.getState().createQuote(payload);
 }
 
 export async function updateQuote(id: string, input: QuoteInput): Promise<QuoteRecord | null> {
@@ -322,7 +340,11 @@ export async function updateQuote(id: string, input: QuoteInput): Promise<QuoteR
   if (!existing) return null;
 
   const customerChanged = input.customerId !== existing.customerId;
-  let nextInput = input;
+  let nextInput: QuoteInput = {
+    ...input,
+    documentContactName:
+      input.documentContactName.trim() || existing.documentContactName || "",
+  };
 
   if (customerChanged) {
     const block = getProjectCustomerChangeBlockReason(existing.projectId);
@@ -440,6 +462,7 @@ export function quoteInputFromForm(values: QuoteFormValues): QuoteInput {
     memo: values.memo.trim(),
     memoFontSize: values.memoFontSize,
     documentEmail: values.documentEmail.trim(),
+    documentContactName: "",
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
     customerHonorific: values.customerHonorific,

@@ -59,6 +59,7 @@ export function CommercialDocumentPreview({
     memo: document.memo,
     memoFontSize: document.memoFontSize,
     documentEmail: document.documentEmail,
+    documentContactName: document.documentContactName,
     memoTemplate: company[memoKey] ?? "",
     company,
   };

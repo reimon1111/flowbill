@@ -30,6 +30,13 @@ export type ProjectRecord = {
   memo: string;
   /** 案件備考（帳票新規作成時の備考初期値の先頭） */
   documentMemo: string;
+  /**
+   * 案件作成時に会社設定からスナップショットした業務フロー。
+   * 会社設定の変更後もこの案件のモードは変わらない。
+   */
+  workflowMode: import("@/lib/workflow-mode").WorkflowMode;
+  /** simple帳票一式の生成完了時刻（冪等・二重生成防止） */
+  simpleDocumentsInitializedAt: string | null;
   invoiceStatus: InvoiceStatus;
   paymentStatus: ProjectPaymentStatus;
   archived: boolean;
@@ -151,6 +158,8 @@ export type QuoteRecord = {
   memo: string;
   memoFontSize: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   documentEmail: string;
+  /** 帳票表示用担当者名（作成時スナップショット） */
+  documentContactName: string;
   paymentTerms: string;
   createdBy: string | null;
   updatedBy: string | null;
@@ -186,6 +195,8 @@ export type QuoteInput = {
   memo: string;
   memoFontSize?: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   documentEmail: string;
+  /** 帳票表示用担当者名（作成時スナップショット） */
+  documentContactName: string;
   paymentTerms: string;
   discountLabel: string;
   discountAmount: number;
@@ -249,8 +260,18 @@ export type InvoiceRecord = {
   memo: string;
   memoFontSize: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   documentEmail: string;
+  /** 帳票表示用担当者名（作成時スナップショット） */
+  documentContactName: string;
   paymentTerms: string;
   bankAccountId: string | null;
+  /**
+   * 定期請求から生成した場合の元 ID。通常・追加請求は null。
+   */
+  recurringBillingId: string | null;
+  /**
+   * 定期請求の請求回（生成時点の next_billing_date）。通常・追加請求は null。
+   */
+  recurringOccurrenceDate: string | null;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: string;
@@ -291,6 +312,8 @@ export type InvoiceInput = {
   memo: string;
   memoFontSize?: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   documentEmail: string;
+  /** 帳票表示用担当者名（作成時スナップショット） */
+  documentContactName: string;
   paymentTerms: string;
   bankAccountId?: string | null;
   discountLabel: string;
@@ -311,6 +334,10 @@ export type InvoiceInput = {
     taxRate: 0 | 0.08 | 0.1;
     sortOrder: number;
   }>;
+  /** 定期請求から生成する場合のみ */
+  recurringBillingId?: string | null;
+  /** 定期請求の請求回（YYYY-MM-DD）。生成時点の next_billing_date */
+  recurringOccurrenceDate?: string | null;
 };
 
 export type InvoiceListItem = InvoiceRecord & {
@@ -430,6 +457,16 @@ export type CompanySettings = {
   deliveryNoteMemoTemplate: string;
   /** 領収書備考テンプレ */
   receiptMemoTemplate: string;
+  /**
+   * 左サイドバーの「書類管理」（見積・注文・納品・請求・領収）を表示するか。
+   * false でも URL 直アクセス・案件詳細からの操作は可能。
+   */
+  showDocumentManagement: boolean;
+  /**
+   * 新規作成する案件のデフォルト業務フロー。
+   * 既存案件の projects.workflow_mode は変更しない。
+   */
+  workflowMode: import("@/lib/workflow-mode").WorkflowMode;
   contractStatus: import("@/lib/types/signup-access").ContractStatus;
   contractStartedAt: string | null;
   contractEndedAt: string | null;
@@ -467,7 +504,8 @@ export type CustomerInvoiceSummary = {
   invoiceNumber: string;
   issueDate: string;
   amount: number;
-  status: ProjectPaymentStatus;
+  /** 請求・入金の表示状態（draft≠未作成。発行済みと入金済みを区別） */
+  status: import("@/lib/billing-status-theme").BillingDisplayStatus;
 };
 
 /** 定期請求ステータス */

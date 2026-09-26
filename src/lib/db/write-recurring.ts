@@ -1,4 +1,5 @@
 import type {
+  InvoiceRecord,
   RecurringBillingInput,
   RecurringBillingItemRecord,
   RecurringBillingRecord,
@@ -11,14 +12,20 @@ import { generateId } from "@/lib/db/ids";
 import {
   buildRecurringItems,
   computeLineTotals,
+  invoiceFromRow,
   recurringFromRow,
   recurringItemFromRow,
   recurringItemToRow,
   recurringToRow,
+  type InvoiceRow,
   type RecurringBillingItemRow,
   type RecurringBillingRow,
 } from "@/lib/db/mappers";
-import { UPDATE_RECURRING_WITH_ITEMS_RPC_HINT } from "@/lib/db/errors";
+import {
+  INVOICE_RECURRING_OCCURRENCE_MIGRATION_HINT,
+  UPDATE_RECURRING_WITH_ITEMS_RPC_HINT,
+  isMissingInvoiceRecurringOccurrenceColumns,
+} from "@/lib/db/errors";
 import { callUpdateWithItemsRpc } from "@/lib/db/update-with-items-rpc";
 
 export async function dbInsertRecurring(
@@ -178,10 +185,97 @@ export async function dbUpdateRecurringStatus(
   return updated;
 }
 
+/** 同一定期請求×請求回の有効 invoice（deleted_at IS NULL）を取得 */
+export async function dbFindActiveRecurringOccurrenceInvoice(
+  recurringBillingId: string,
+  occurrenceDate: string
+): Promise<InvoiceRecord | null> {
+  const companyId = await resolveCompanyId();
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("invoices")
+    .select("*")
+    .eq("company_id", companyId)
+    .eq("recurring_billing_id", recurringBillingId)
+    .eq("recurring_occurrence_date", occurrenceDate)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingInvoiceRecurringOccurrenceColumns(error)) {
+      console.warn(INVOICE_RECURRING_OCCURRENCE_MIGRATION_HINT);
+      return null;
+    }
+    throw error;
+  }
+  if (!data) return null;
+  return invoiceFromRow(data as InvoiceRow);
+}
+
+/**
+ * next_billing_date が occurrenceDate と一致するときだけ1ヶ月進める。
+ * Supabase: FOR UPDATE + 条件付き更新 RPC。
+ */
 export async function dbAdvanceRecurringAfterInvoice(
-  recurringId: string
+  recurringId: string,
+  occurrenceDate: string
 ): Promise<RecurringBillingRecord | null> {
   const companyId = await resolveCompanyId();
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase.rpc(
+    "advance_recurring_billing_if_occurrence",
+    {
+      p_recurring_billing_id: recurringId,
+      p_occurrence_date: occurrenceDate,
+    }
+  );
+
+  if (error) {
+    // RPC 未適用時のフォールバック: 条件付き update（二重 advance は抑止、行ロックは弱い）
+    if (
+      error.code === "PGRST202" ||
+      String(error.message ?? "")
+        .toLowerCase()
+        .includes("advance_recurring_billing_if_occurrence")
+    ) {
+      console.warn(
+        "advance_recurring_billing_if_occurrence が未適用です。supabase/add-invoice-recurring-occurrence.sql を実行してください。"
+      );
+      return dbAdvanceRecurringAfterInvoiceFallback(
+        recurringId,
+        occurrenceDate,
+        companyId
+      );
+    }
+    throw error;
+  }
+
+  const payload = data as {
+    advanced?: boolean;
+    recurring_billing?: RecurringBillingRow;
+  } | null;
+  const row = payload?.recurring_billing;
+  if (!row) {
+    const { data: fresh, error: fetchError } = await supabase
+      .from("recurring_billings")
+      .select("*")
+      .eq("id", recurringId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    if (fetchError || !fresh) return null;
+    return recurringFromRow(fresh as RecurringBillingRow);
+  }
+  return recurringFromRow(row);
+}
+
+async function dbAdvanceRecurringAfterInvoiceFallback(
+  recurringId: string,
+  occurrenceDate: string,
+  companyId: string
+): Promise<RecurringBillingRecord | null> {
   const supabase = getSupabaseClient();
   const { data, error: fetchError } = await supabase
     .from("recurring_billings")
@@ -192,22 +286,39 @@ export async function dbAdvanceRecurringAfterInvoice(
   if (fetchError || !data) return null;
 
   const existing = recurringFromRow(data as RecurringBillingRow);
-  if (existing.status !== "active") return null;
+  if (existing.status !== "active") return existing;
+  if (existing.nextBillingDate !== occurrenceDate) return existing;
 
   const updated: RecurringBillingRecord = {
     ...existing,
     nextBillingDate: advanceNextBillingDate(
-      existing.nextBillingDate,
+      occurrenceDate,
       existing.billingDay
     ),
     updatedAt: new Date().toISOString(),
   };
 
-  const { error } = await supabase
+  const { data: saved, error } = await supabase
     .from("recurring_billings")
     .update(recurringToRow(companyId, updated))
     .eq("id", recurringId)
-    .eq("company_id", companyId);
+    .eq("company_id", companyId)
+    .eq("next_billing_date", occurrenceDate)
+    .select("*")
+    .maybeSingle();
+
   if (error) throw error;
-  return updated;
+  if (!saved) {
+    // 他リクエストが進めた
+    const { data: fresh } = await supabase
+      .from("recurring_billings")
+      .select("*")
+      .eq("id", recurringId)
+      .eq("company_id", companyId)
+      .maybeSingle();
+    return fresh
+      ? recurringFromRow(fresh as RecurringBillingRow)
+      : existing;
+  }
+  return recurringFromRow(saved as RecurringBillingRow);
 }

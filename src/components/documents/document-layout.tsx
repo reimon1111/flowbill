@@ -42,6 +42,7 @@ export type DocumentLayoutProps = {
   memoTemplate: string;
   memoFontSize?: import("@/lib/document-memo-font-size").DocumentMemoFontSize | string | null;
   documentEmail?: string;
+  documentContactName?: string;
   company: CompanySettings;
   bankAccounts?: BankAccountDisplay[];
 };
@@ -70,6 +71,7 @@ export function DocumentLayout({
   memoTemplate,
   memoFontSize,
   documentEmail,
+  documentContactName,
   company,
   bankAccounts,
 }: DocumentLayoutProps) {
@@ -80,7 +82,7 @@ export function DocumentLayout({
 
   return (
     <div className="print-area overflow-x-auto print:overflow-visible">
-      <div className="document-preview document-page compact-print min-w-0 w-full overflow-visible rounded-2xl border border-zinc-200/80 bg-white px-4 py-6 font-sans shadow-sm shadow-zinc-900/[0.04] sm:px-8 sm:py-8 sm:pr-10">
+      <div className="document-preview document-page compact-print min-w-0 w-full overflow-visible rounded-2xl border border-zinc-200/80 bg-white px-4 py-6 font-sans shadow-sm shadow-zinc-900/[0.04] sm:px-10 sm:py-8">
       <DocumentHeader
         kind={kind}
         documentNumber={documentNumber}
@@ -112,7 +114,11 @@ export function DocumentLayout({
           ) : null}
           <DocumentSummary kind={kind} totalAmount={totalAmount} />
         </div>
-        <DocumentCompanyInfo company={company} documentEmail={documentEmail} />
+        <DocumentCompanyInfo
+          company={company}
+          documentEmail={documentEmail}
+          documentContactName={documentContactName}
+        />
       </div>
 
       <DocumentItemsTable items={items} />

@@ -23,6 +23,7 @@ import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
 import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
 import { PageContentLoader } from "@/components/shared/page-content-loader";
+import { canCreateInvoice } from "@/lib/document-creation-policy";
 
 function previewInvoiceNumber(issueDate: string) {
   const invoices = useInvoiceStore.getState().getInvoices();
@@ -105,10 +106,12 @@ export function NewInvoiceClient() {
     );
   }
 
-  const canCreateFromProject =
-    project.status === "completed";
+  const canCreateFromProject = canCreateInvoice({
+    workflowMode: project.workflowMode,
+    projectStatus: project.status,
+  });
 
-  if (!canCreateFromProject) {
+  if (!canCreateFromProject.allowed) {
     return (
       <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
         <Link
@@ -124,7 +127,8 @@ export function NewInvoiceClient() {
         />
         <div className="rounded-xl border border-dashed border-zinc-200 bg-white p-8">
           <p className="text-sm text-zinc-600">
-            案件を「完了」にしてから、請求書を生成してください。
+            {canCreateFromProject.reason ??
+              "案件を「完了」にしてから、請求書を生成してください。"}
           </p>
         </div>
       </div>

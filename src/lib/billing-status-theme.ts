@@ -14,9 +14,13 @@ import {
   resolveProjectInvoiceNavigation,
 } from "@/lib/project-invoice-actions";
 
-/** 請求・入金の統一表示ステータス */
+/**
+ * 請求・入金の統一表示ステータス。
+ * not_created = レコードなし / draft = 下書き存在 / unpaid = 発行済み・未入金
+ */
 export type BillingDisplayStatus =
-  | "unissued"
+  | "not_created"
+  | "draft"
   | "unpaid"
   | "overdue"
   | "paid"
@@ -40,9 +44,9 @@ const BADGE =
 
 export const BILLING_STATUS_THEME: Record<BillingDisplayStatus, BillingStatusTheme> =
   {
-    unissued: {
-      statusLabel: "未発行",
-      actionLabel: "請求書発行",
+    not_created: {
+      statusLabel: "請求書未作成",
+      actionLabel: "請求書を作成",
       badgeClass: `${BADGE} border-blue-200 bg-blue-50 text-blue-700`,
       buttonClass:
         "border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
@@ -53,8 +57,21 @@ export const BILLING_STATUS_THEME: Record<BillingDisplayStatus, BillingStatusThe
       kpiClass: "border-blue-200/70 bg-blue-50/50",
       kpiTextClass: "text-blue-800",
     },
+    draft: {
+      statusLabel: "下書き",
+      actionLabel: "請求書を確認",
+      badgeClass: `${BADGE} border-slate-200 bg-slate-50 text-slate-700`,
+      buttonClass:
+        "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+      buttonOutlineClass:
+        "border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
+      cardClass: "border-slate-200/80 bg-slate-50/40",
+      textAccentClass: "font-medium text-slate-700",
+      kpiClass: "border-slate-200/70 bg-slate-50/50",
+      kpiTextClass: "text-slate-800",
+    },
     unpaid: {
-      statusLabel: "未入金",
+      statusLabel: "発行済み",
       actionLabel: "請求書を確認",
       badgeClass: `${BADGE} border-amber-200 bg-amber-50 text-amber-700`,
       buttonClass:
@@ -81,7 +98,7 @@ export const BILLING_STATUS_THEME: Record<BillingDisplayStatus, BillingStatusThe
     },
     paid: {
       statusLabel: "入金済み",
-      actionLabel: "入金済み",
+      actionLabel: "請求書を確認",
       badgeClass: `${BADGE} border-emerald-200 bg-emerald-50 text-emerald-700`,
       buttonClass:
         "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
@@ -135,25 +152,28 @@ export function getProjectBillingDisplayStatus(
 
   if (state.hasMultipleActive) return "multiple";
 
+  if (state.invoiceStatus === "draft") return "draft";
+
   if (
     state.invoiceStatus === "not_created" ||
-    state.invoiceStatus === "draft" ||
     state.billableInvoices.length === 0
   ) {
-    return "unissued";
+    return "not_created";
   }
 
   if (state.paymentStatus === "paid") return "paid";
   if (state.paymentStatus === "overdue") return "overdue";
   if (state.paymentStatus === "unpaid") return "unpaid";
 
-  return "unissued";
+  return "not_created";
 }
 
 export function paymentStatusToBilling(
   status: PaymentDisplayStatus
 ): BillingDisplayStatus {
-  return status;
+  if (status === "paid") return "paid";
+  if (status === "overdue") return "overdue";
+  return "unpaid";
 }
 
 export function invoiceDocumentStatusToBilling(
@@ -161,7 +181,7 @@ export function invoiceDocumentStatusToBilling(
 ): BillingDisplayStatus {
   switch (status) {
     case "draft":
-      return "unissued";
+      return "draft";
     case "issued":
     case "sent":
       return "unpaid";
@@ -180,7 +200,7 @@ export function getInvoiceBillingDisplayStatus(
 ): BillingDisplayStatus {
   const payment = getInvoicePaymentStatus(inv, today);
   if (payment === "cancelled") return "cancelled";
-  if (payment === "draft") return "unissued";
+  if (payment === "draft") return "draft";
   if (payment === "paid") return "paid";
   if (payment === "overdue") return "overdue";
   return "unpaid";

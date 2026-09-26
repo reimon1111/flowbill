@@ -1,13 +1,23 @@
 import type { CompanySettings } from "@/lib/types";
-import { resolveDocumentEmail } from "@/lib/document-contact";
+import {
+  resolveDocumentContactName,
+  resolveDocumentEmail,
+} from "@/lib/document-contact";
 
 export function DocumentCompanyInfo({
   company,
   documentEmail,
+  documentContactName,
 }: {
   company: CompanySettings;
   documentEmail?: string | null;
+  /** 帳票スナップショットの担当者名（空なら会社の contactName） */
+  documentContactName?: string | null;
 }) {
+  const displayContactName = resolveDocumentContactName(
+    documentContactName,
+    company.contactName
+  );
   const displayEmail = resolveDocumentEmail(documentEmail, company.email);
   return (
     <div className="document-company-info w-full text-left text-[11px] leading-snug text-zinc-800 sm:ml-auto sm:w-[46%] sm:max-w-[400px] sm:shrink-0 sm:text-right">
@@ -43,10 +53,12 @@ export function DocumentCompanyInfo({
           {company.postalCode ? `〒${company.postalCode} ` : ""}
           {company.address}
         </p>
-        {company.contactName ? <p className="mt-0.5">担当 {company.contactName}</p> : null}
+        {displayContactName ? (
+          <p className="mt-0.5">担当：{displayContactName}</p>
+        ) : null}
         {company.phone ? <p>TEL {company.phone}</p> : null}
         {company.fax ? <p>FAX {company.fax}</p> : null}
-        {displayEmail ? <p>mail {displayEmail}</p> : null}
+        {displayEmail ? <p>{displayEmail}</p> : null}
         {company.invoiceNumber ? (
           <p className="mt-0.5">登録番号 {company.invoiceNumber}</p>
         ) : null}

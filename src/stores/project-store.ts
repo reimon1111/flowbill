@@ -25,6 +25,10 @@ import { applyProjectMilestoneDates } from "@/lib/project-milestone-dates";
 import { getProjectInvoiceState } from "@/lib/invoice-state";
 import { useInvoiceStore } from "@/stores/invoice-store";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
+import {
+  DEFAULT_WORKFLOW_MODE,
+  normalizeWorkflowMode,
+} from "@/lib/workflow-mode";
 
 function generateId(prefix: string): string {
   return `${prefix}${Date.now().toString(36)}`;
@@ -80,7 +84,7 @@ type ProjectStore = {
   appendHistory: (history: ProjectHistoryEvent) => void;
   getProjectById: (id: string) => ProjectRecord | undefined;
   getListItems: () => ProjectListItem[];
-  addProject: (input: ProjectInput) => ProjectRecord;
+  addProject: (input: ProjectInput, options?: { workflowMode?: import("@/lib/workflow-mode").WorkflowMode }) => ProjectRecord;
   updateProject: (id: string, input: ProjectInput) => ProjectRecord | null;
   deleteProject: (id: string) => boolean;
   setProjectArchived: (id: string, archived: boolean) => ProjectRecord | null;
@@ -127,7 +131,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   getListItems: () => get().projects.map(enrichProject),
 
-  addProject: (input) => {
+  addProject: (input, options) => {
     const now = new Date().toISOString();
     const project: ProjectRecord = {
       id: generateId("p"),
@@ -148,6 +152,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       assigneeName: input.assigneeName ?? "",
       memo: input.memo,
       documentMemo: input.documentMemo ?? "",
+      workflowMode: normalizeWorkflowMode(
+        options?.workflowMode ?? DEFAULT_WORKFLOW_MODE
+      ),
+      simpleDocumentsInitializedAt: null,
       invoiceStatus: getDefaultInvoiceStatus(input.status),
       paymentStatus: getDefaultPaymentStatus(input.status, input.dueDate),
       archived: false,

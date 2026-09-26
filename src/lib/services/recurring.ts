@@ -13,22 +13,29 @@ import {
 } from "@/lib/recurring-utils";
 import { useRecurringStore } from "@/stores/recurring-store";
 import { useProjectStore } from "@/stores/project-store";
+import { useInvoiceStore } from "@/stores/invoice-store";
 import {
   createInvoice,
-  getInvoicesByProjectId,
   updateInvoiceStatus,
 } from "@/lib/services/invoices";
 import { createProject, syncCustomerProjectCounts } from "@/lib/services/projects";
-import { createQuote, updateQuoteStatus } from "@/lib/services/quotes";
+import {
+  createQuote,
+  deleteQuote,
+  updateQuoteStatus,
+} from "@/lib/services/quotes";
 import { calculateQuoteExpiryDate } from "@/lib/quote-expiry";
 import { useCompanySettingsStore } from "@/stores/company-settings-store";
+import { resolveInitialDocumentContactForCreate } from "@/lib/services/user-profile-settings";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   dbAdvanceRecurringAfterInvoice,
+  dbFindActiveRecurringOccurrenceInvoice,
   dbInsertRecurring,
   dbUpdateRecurring,
   dbUpdateRecurringStatus,
 } from "@/lib/db/write-recurring";
+import { isRecurringOccurrenceConflictError } from "@/lib/db/errors";
 
 export async function getRecurringBillings(): Promise<RecurringBillingListItem[]> {
   return useRecurringStore.getState().getListItems();
@@ -116,32 +123,108 @@ async function findOrCreateRecurringProject(
   );
   if (existing) return existing.id;
 
-  const { project } = await createProject({
-    customerId,
-    projectName,
-    constructionSite: "",
-    status: "completed",
-    amount,
-    dueDate: "",
-    startDate: "",
-    endDate: "",
-    assigneeName: "",
-    memo: "定期請求から自動作成された案件",
-    documentMemo: "",
-    discountLabel: "",
-    discountAmount: 0,
-    customerHonorific: "御中",
-    customerContactName: "",
-    customerDepartment: "",
-    customerPosition: "",
-    items: [],
-  });
+  const { project } = await createProject(
+    {
+      customerId,
+      projectName,
+      constructionSite: "",
+      status: "completed",
+      amount,
+      dueDate: "",
+      startDate: "",
+      endDate: "",
+      assigneeName: "",
+      memo: "定期請求から自動作成された案件",
+      documentMemo: "",
+      discountLabel: "",
+      discountAmount: 0,
+      customerHonorific: "御中",
+      customerContactName: "",
+      customerDepartment: "",
+      customerPosition: "",
+      items: [],
+    },
+    {
+      workflowMode: "standard",
+      provisionSimpleDocuments: false,
+    }
+  );
   return project.id;
+}
+
+function findLocalRecurringOccurrenceInvoice(
+  recurringBillingId: string,
+  occurrenceDate: string
+): InvoiceRecord | null {
+  return (
+    useInvoiceStore
+      .getState()
+      .invoices.find(
+        (inv) =>
+          !inv.deletedAt &&
+          inv.recurringBillingId === recurringBillingId &&
+          inv.recurringOccurrenceDate === occurrenceDate
+      ) ?? null
+  );
+}
+
+async function findRecurringOccurrenceInvoice(
+  recurringBillingId: string,
+  occurrenceDate: string
+): Promise<InvoiceRecord | null> {
+  if (isSupabaseConfigured()) {
+    const fromDb = await dbFindActiveRecurringOccurrenceInvoice(
+      recurringBillingId,
+      occurrenceDate
+    );
+    if (fromDb) {
+      const existingItems = useInvoiceStore
+        .getState()
+        .getInvoiceItems(fromDb.id);
+      useInvoiceStore.getState().mergeInvoice(fromDb, existingItems);
+      return fromDb;
+    }
+  }
+  return findLocalRecurringOccurrenceInvoice(recurringBillingId, occurrenceDate);
+}
+
+async function advanceRecurringOccurrence(
+  recurringBillingId: string,
+  occurrenceDate: string
+): Promise<void> {
+  if (isSupabaseConfigured()) {
+    const advanced = await dbAdvanceRecurringAfterInvoice(
+      recurringBillingId,
+      occurrenceDate
+    );
+    if (advanced) {
+      useRecurringStore.getState().mergeRecurring(
+        advanced,
+        useRecurringStore.getState().getRecurringItems(recurringBillingId)
+      );
+    }
+    return;
+  }
+  useRecurringStore
+    .getState()
+    .advanceAfterInvoice(recurringBillingId, occurrenceDate);
+}
+
+async function ensureInvoiceIssued(invoice: InvoiceRecord): Promise<InvoiceRecord> {
+  if (invoice.status === "issued" || invoice.status === "sent" || invoice.status === "paid") {
+    return invoice;
+  }
+  if (invoice.status === "cancelled" || invoice.deletedAt) {
+    return invoice;
+  }
+  const updated = await updateInvoiceStatus(invoice.id, "issued");
+  return updated ?? invoice;
 }
 
 /**
  * 定期請求から請求書を生成する。
- * 案件・見積がなければ自動作成し、請求書は発行済みで作成する。
+ * 同一「定期請求 × 請求回（next_billing_date）」では invoice は最大1件。
+ * next_billing_date も請求回あたり1回だけ進む。
  */
 export async function createInvoiceFromRecurring(
   recurringBillingId: string
@@ -152,6 +235,27 @@ export async function createInvoiceFromRecurring(
 
   const items = recurringStore.getRecurringItems(recurringBillingId);
   if (items.length === 0) return null;
+
+  // 請求回 = 生成開始時点の next_billing_date
+  const occurrenceDate = recurring.nextBillingDate;
+
+  const existingForOccurrence = await findRecurringOccurrenceInvoice(
+    recurringBillingId,
+    occurrenceDate
+  );
+  if (existingForOccurrence) {
+    const projectId =
+      existingForOccurrence.projectId ||
+      (await findOrCreateRecurringProject(
+        recurring.customerId,
+        recurring.title,
+        recurring.totalAmount
+      ));
+    const invoice = await ensureInvoiceIssued(existingForOccurrence);
+    await advanceRecurringOccurrence(recurringBillingId, occurrenceDate);
+    syncCustomerProjectCounts();
+    return { invoice, projectId };
+  }
 
   const projectId = await findOrCreateRecurringProject(
     recurring.customerId,
@@ -164,6 +268,7 @@ export async function createInvoiceFromRecurring(
   const expiryDate = calculateQuoteExpiryDate(issueDate, expiryType);
   const settings = useCompanySettingsStore.getState().settings;
 
+  const documentContact = await resolveInitialDocumentContactForCreate();
   const quote = await createQuote({
     projectId,
     customerId: recurring.customerId,
@@ -172,7 +277,8 @@ export async function createInvoiceFromRecurring(
     expiryDate,
     paymentTerms: settings.paymentTerms ?? "",
     memo: recurring.memo ? `定期請求: ${recurring.memo}` : `定期請求: ${recurring.title}`,
-    documentEmail: "",
+    documentEmail: documentContact.email,
+    documentContactName: documentContact.contactName,
     discountLabel: recurring.discountLabel ?? "",
     discountAmount: recurring.discountAmount ?? 0,
     customerHonorific: "御中",
@@ -200,65 +306,69 @@ export async function createInvoiceFromRecurring(
   // 定期は同一案件を再利用するため、追加請求として明示する。
   // allowAdditional なしだと createInvoice が既存請求を silent return し、
   // 2回目以降の生成が壊れ、かつ next_billing_date だけ進む。
-  const existingInvoiceIds = new Set(
-    (await getInvoicesByProjectId(projectId)).map((inv) => inv.id)
-  );
+  let invoice: InvoiceRecord;
+  try {
+    invoice = await createInvoice(
+      {
+        projectId,
+        customerId: recurring.customerId,
+        quoteId: quote.id,
+        issueDate,
+        dueDateMode: "discussion",
+        dueDate: "",
+        paymentTerms: quote.paymentTerms || settings.paymentTerms || "",
+        bankAccountId: null,
+        memo: recurring.memo,
+        memoFontSize: "normal",
+        documentEmail: documentContact.email,
+        documentContactName: documentContact.contactName,
+        discountLabel: recurring.discountLabel ?? "",
+        discountAmount: recurring.discountAmount ?? 0,
+        customerHonorific: "御中",
+        customerContactName: "",
+        customerDepartment: "",
+        customerPosition: "",
+        items: qItems.map((it, idx) => ({
+          quoteItemId: it.id,
+          name: it.name,
+          description: it.description,
+          width: it.width ?? "",
+          height: it.height ?? "",
+          quantity: it.quantity,
+          unit: it.unit || "式",
+          unitPrice: it.unitPrice,
+          taxRate: it.taxRate,
+          sortOrder: it.sortOrder ?? idx,
+        })),
+        recurringBillingId,
+        recurringOccurrenceDate: occurrenceDate,
+      },
+      { allowAdditional: true }
+    );
+  } catch (error) {
+    if (!isRecurringOccurrenceConflictError(error)) throw error;
 
-  const invoice = await createInvoice(
-    {
-      projectId,
-      customerId: recurring.customerId,
-      quoteId: quote.id,
-      issueDate,
-      dueDateMode: "discussion",
-      dueDate: "",
-      paymentTerms: quote.paymentTerms || settings.paymentTerms || "",
-      bankAccountId: null,
-      memo: recurring.memo,
-      memoFontSize: "normal",
-      documentEmail: "",
-      discountLabel: recurring.discountLabel ?? "",
-      discountAmount: recurring.discountAmount ?? 0,
-      customerHonorific: "御中",
-      customerContactName: "",
-      customerDepartment: "",
-      customerPosition: "",
-      items: qItems.map((it, idx) => ({
-        quoteItemId: it.id,
-        name: it.name,
-        description: it.description,
-        width: it.width ?? "",
-        height: it.height ?? "",
-        quantity: it.quantity,
-        unit: it.unit || "式",
-        unitPrice: it.unitPrice,
-        taxRate: it.taxRate,
-        sortOrder: it.sortOrder ?? idx,
-      })),
-    },
-    { allowAdditional: true }
-  );
-
-  const isNewInvoice = !existingInvoiceIds.has(invoice.id);
-  if (!isNewInvoice) {
-    // 防御: 既存返却時は請求済み扱いとし、日付を進めない（重複請求防止）
-    return { invoice, projectId };
-  }
-
-  await updateInvoiceStatus(invoice.id, "issued");
-
-  if (isSupabaseConfigured()) {
-    const advanced = await dbAdvanceRecurringAfterInvoice(recurringBillingId);
-    if (advanced) {
-      useRecurringStore.getState().mergeRecurring(
-        advanced,
-        useRecurringStore.getState().getRecurringItems(recurringBillingId)
-      );
+    // 並行勝者の invoice を返す。自前の見積は捨てる（可能な場合）
+    try {
+      await deleteQuote(quote.id);
+    } catch {
+      /* ignore orphan cleanup */
     }
-  } else {
-    recurringStore.advanceAfterInvoice(recurringBillingId);
+
+    const winner = await findRecurringOccurrenceInvoice(
+      recurringBillingId,
+      occurrenceDate
+    );
+    if (!winner) throw error;
+
+    invoice = await ensureInvoiceIssued(winner);
+    await advanceRecurringOccurrence(recurringBillingId, occurrenceDate);
+    syncCustomerProjectCounts();
+    return { invoice, projectId: winner.projectId || projectId };
   }
 
+  invoice = await ensureInvoiceIssued(invoice);
+  await advanceRecurringOccurrence(recurringBillingId, occurrenceDate);
   syncCustomerProjectCounts();
 
   return { invoice, projectId };

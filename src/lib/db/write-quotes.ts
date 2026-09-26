@@ -22,6 +22,7 @@ import {
 import { dbInsertHistory } from "@/lib/db/write-projects";
 import {
   UPDATE_QUOTE_WITH_ITEMS_RPC_HINT,
+  isMissingDocumentContactNameColumn,
   isMissingQuoteExpiryTypeColumn,
 } from "@/lib/db/errors";
 import { callUpdateWithItemsRpc } from "@/lib/db/update-with-items-rpc";
@@ -33,6 +34,7 @@ import {
   activityDescriptionUpdated,
 } from "@/lib/activity-log-messages";
 import { mapCustomerChangeRpcError } from "@/lib/project-customer";
+import { allocateDocumentNumber } from "@/lib/document-number";
 
 async function writeQuoteRow(
   mode: "insert" | "update",
@@ -61,6 +63,18 @@ async function writeQuoteRow(
 
   let { error } = await run(row);
 
+  if (error && isMissingDocumentContactNameColumn(error)) {
+    const legacy = { ...row };
+    delete legacy.document_contact_name;
+    const retry = await run(legacy);
+    error = retry.error;
+    if (!error) {
+      console.warn(
+        "quotes.document_contact_name が未作成のため、担当者名以外を保存しました。supabase/add-document-contact-name.sql を実行してください。"
+      );
+    }
+  }
+
   if (error && isMissingQuoteExpiryTypeColumn(error)) {
     const legacy = { ...row };
     delete legacy.expiry_type;
@@ -74,19 +88,6 @@ async function writeQuoteRow(
   }
 
   if (error) throw error;
-}
-
-async function nextQuoteNumber(issueDate: string, companyId: string): Promise<string> {
-  const y = issueDate.slice(0, 4);
-  const supabase = getSupabaseClient();
-  const { count, error } = await supabase
-    .from("quotes")
-    .select("*", { count: "exact", head: true })
-    .eq("company_id", companyId)
-    .like("quote_number", `QT-${y}-%`);
-  if (error) throw error;
-  const n = (count ?? 0) + 1;
-  return `QT-${y}-${String(n).padStart(4, "0")}`;
 }
 
 export async function dbInsertQuote(
@@ -104,12 +105,13 @@ export async function dbInsertQuote(
     discountLabel: input.discountLabel,
     discountAmount: input.discountAmount,
   });
+  const quoteNumber = await allocateDocumentNumber("quote", input.issueDate);
 
   const quote: QuoteRecord = {
     id: quoteId,
     projectId: input.projectId,
     customerId: input.customerId,
-    quoteNumber: await nextQuoteNumber(input.issueDate, companyId),
+    quoteNumber,
     issueDate: input.issueDate,
     expiryType: input.expiryType,
     expiryDate: input.expiryDate,
@@ -126,6 +128,7 @@ export async function dbInsertQuote(
     memo: input.memo,
     memoFontSize: input.memoFontSize ?? "normal",
     documentEmail: input.documentEmail ?? "",
+    documentContactName: input.documentContactName ?? "",
     paymentTerms: input.paymentTerms,
     createdBy: userId,
     updatedBy: userId,
@@ -210,6 +213,7 @@ export async function dbUpdateQuote(
     memo: input.memo,
     memoFontSize: input.memoFontSize ?? "normal",
     documentEmail: input.documentEmail ?? "",
+    documentContactName: input.documentContactName ?? "",
     paymentTerms: input.paymentTerms,
     updatedBy: userId,
     updatedAt: now,
@@ -233,6 +237,7 @@ export async function dbUpdateQuote(
     memo: quote.memo,
     memo_font_size: quote.memoFontSize,
     document_email: quote.documentEmail ?? "",
+    document_contact_name: quote.documentContactName ?? "",
     payment_terms: quote.paymentTerms,
     updated_at: quote.updatedAt,
   };
@@ -243,7 +248,7 @@ export async function dbUpdateQuote(
   try {
     rpcResult = await callUpdateWithItemsRpc({
       rpcName: "update_quote_with_items",
-      sqlFile: "supabase/patch-due-date-mode-and-memo-font-size-rpcs.sql",
+      sqlFile: "supabase/patch-document-contact-name-rpcs.sql",
       hint: UPDATE_QUOTE_WITH_ITEMS_RPC_HINT,
       parentIdParam: "p_quote_id",
       parentId: quoteId,

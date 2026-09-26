@@ -1,7 +1,7 @@
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
-import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
+import { resolveInitialDocumentContactForCreate } from "@/lib/services/user-profile-settings";
 import {
   itemsFromInvoiceItems,
 } from "@/lib/build-commercial-items";
@@ -47,6 +47,8 @@ import type { QuoteRecord } from "@/lib/types";
 import { normalizeUnit } from "@/lib/constants/units";
 import { defaultOrderRecipientName } from "@/lib/order-recipient";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
+import { assertDocumentCreationAllowed } from "@/lib/document-creation-policy";
+import { allocateDocumentNumber } from "@/lib/document-number";
 
 function defaultPaymentTerms(): string {
   return (
@@ -91,13 +93,18 @@ export async function createOrderFromProject(
   const project = useProjectStore.getState().getProjectById(projectId);
   if (!project) return null;
 
-  const quote = resolveQuoteForOrder(projectId, options?.quoteId);
   const settings = useCompanySettingsStore.getState().settings;
+  assertDocumentCreationAllowed("order", {
+    workflowMode: project.workflowMode,
+    projectStatus: project.status,
+  });
+
+  const quote = resolveQuoteForOrder(projectId, options?.quoteId);
   const sourceMemo = composeInitialDocumentMemo(
     project.documentMemo,
     settings.orderMemoTemplate
   );
-  const documentEmail = await resolveInitialDocumentEmailForCreate();
+  const documentContact = await resolveInitialDocumentContactForCreate();
 
   const input: OrderInput = {
     projectId: project.id,
@@ -106,7 +113,8 @@ export async function createOrderFromProject(
     issueDate: todayISO(),
     paymentTerms: quote?.paymentTerms?.trim() || defaultPaymentTerms(),
     memo: sourceMemo,
-    documentEmail,
+    documentEmail: documentContact.email,
+    documentContactName: documentContact.contactName,
     recipientName: defaultOrderRecipientName(settings.companyName),
     discountLabel: quote?.discountLabel ?? project.discountLabel ?? "",
     discountAmount: quote?.discountAmount ?? project.discountAmount ?? 0,
@@ -122,7 +130,12 @@ export async function createOrderFromProject(
     }),
   };
 
-  const order = useOrderStore.getState().createOrder(input);
+  const orderNumber = await allocateDocumentNumber(
+    "order",
+    input.issueDate,
+    useOrderStore.getState().orders.map((o) => o.orderNumber)
+  );
+  const order = useOrderStore.getState().createOrder(input, { documentNumber: orderNumber });
   if (isSupabaseConfigured()) {
     const items = useOrderStore.getState().getOrderItems(order.id);
     try {
@@ -149,13 +162,17 @@ export async function createDeliveryNoteFromProject(projectId: string) {
   const project = useProjectStore.getState().getProjectById(projectId);
   if (!project) return null;
 
+  const settings = useCompanySettingsStore.getState().settings;
+  assertDocumentCreationAllowed("delivery_note", {
+    workflowMode: project.workflowMode,
+    projectStatus: project.status,
+  });
+
   const order = useOrderStore
     .getState()
     .getOrdersByProjectId(projectId)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-
-  const settings = useCompanySettingsStore.getState().settings;
-  const documentEmail = await resolveInitialDocumentEmailForCreate();
+  const documentContact = await resolveInitialDocumentContactForCreate();
   const input: DeliveryNoteInput = {
     projectId: project.id,
     customerId: project.customerId,
@@ -166,7 +183,8 @@ export async function createDeliveryNoteFromProject(projectId: string) {
       project.documentMemo,
       settings.deliveryNoteMemoTemplate
     ),
-    documentEmail,
+    documentEmail: documentContact.email,
+    documentContactName: documentContact.contactName,
     discountLabel: order?.discountLabel ?? project.discountLabel ?? "",
     discountAmount: order?.discountAmount ?? project.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(project),
@@ -178,7 +196,14 @@ export async function createDeliveryNoteFromProject(projectId: string) {
     items: resolveCommercialItemsForProject(projectId, project.projectName),
   };
 
-  const note = useDeliveryNoteStore.getState().createDeliveryNote(input);
+  const deliveryNoteNumber = await allocateDocumentNumber(
+    "delivery_note",
+    input.issueDate,
+    useDeliveryNoteStore.getState().deliveryNotes.map((d) => d.deliveryNoteNumber)
+  );
+  const note = useDeliveryNoteStore
+    .getState()
+    .createDeliveryNote(input, { documentNumber: deliveryNoteNumber });
   if (isSupabaseConfigured()) {
     const items = useDeliveryNoteStore.getState().getItems(note.id);
     await dbInsertDeliveryNote(note, items);
@@ -194,7 +219,12 @@ export async function createReceiptFromInvoice(invoiceId: string) {
   const invoiceItems = useInvoiceStore.getState().getInvoiceItems(invoiceId);
   const settings = useCompanySettingsStore.getState().settings;
   const project = useProjectStore.getState().getProjectById(invoice.projectId);
-  const documentEmail = await resolveInitialDocumentEmailForCreate();
+  assertDocumentCreationAllowed("receipt", {
+    workflowMode: project?.workflowMode,
+    projectStatus: project?.status ?? "estimate",
+    hasInvoice: true,
+  });
+  const documentContact = await resolveInitialDocumentContactForCreate();
 
   const input: ReceiptInput = {
     projectId: invoice.projectId,
@@ -206,7 +236,8 @@ export async function createReceiptFromInvoice(invoiceId: string) {
       project?.documentMemo,
       settings.receiptMemoTemplate
     ),
-    documentEmail,
+    documentEmail: documentContact.email,
+    documentContactName: documentContact.contactName,
     discountLabel: invoice.discountLabel ?? "",
     discountAmount: invoice.discountAmount ?? 0,
     customerHonorific: pickCustomerHonorific(invoice),
@@ -214,7 +245,14 @@ export async function createReceiptFromInvoice(invoiceId: string) {
     items: itemsFromInvoiceItems(invoiceItems),
   };
 
-  const receipt = useReceiptStore.getState().createReceipt(input);
+  const receiptNumber = await allocateDocumentNumber(
+    "receipt",
+    input.issueDate,
+    useReceiptStore.getState().receipts.map((r) => r.receiptNumber)
+  );
+  const receipt = useReceiptStore
+    .getState()
+    .createReceipt(input, { documentNumber: receiptNumber });
   if (isSupabaseConfigured()) {
     const items = useReceiptStore.getState().getItems(receipt.id);
     await dbInsertReceipt(receipt, items);
@@ -267,6 +305,7 @@ export function commercialDocumentInputFromForm(
     memo: values.memo.trim(),
     memoFontSize: values.memoFontSize,
     documentEmail: values.documentEmail.trim(),
+    documentContactName: "",
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
     customerHonorific: values.customerHonorific,
@@ -297,6 +336,7 @@ export function orderInputFromForm(values: OrderDocumentFormValues): OrderInput 
     memo: values.memo.trim(),
     memoFontSize: values.memoFontSize,
     documentEmail: values.documentEmail.trim(),
+    documentContactName: "",
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
     customerContactName: values.customerContactName.trim(),
@@ -323,7 +363,13 @@ export async function updateOrder(
   input: OrderInput
 ): Promise<OrderRecord | null> {
   assertCanWriteBusinessData();
-  const updated = useOrderStore.getState().updateOrder(id, input);
+  const existing = useOrderStore.getState().getOrderById(id);
+  const nextInput: OrderInput = {
+    ...input,
+    documentContactName:
+      input.documentContactName?.trim() || existing?.documentContactName || "",
+  };
+  const updated = useOrderStore.getState().updateOrder(id, nextInput);
   if (!updated) return null;
 
   if (isSupabaseConfigured()) {
@@ -341,7 +387,13 @@ export async function updateDeliveryNote(
   input: DeliveryNoteInput
 ): Promise<DeliveryNoteRecord | null> {
   assertCanWriteBusinessData();
-  const updated = useDeliveryNoteStore.getState().updateDeliveryNote(id, input);
+  const existing = useDeliveryNoteStore.getState().getDeliveryNoteById(id);
+  const nextInput: DeliveryNoteInput = {
+    ...input,
+    documentContactName:
+      input.documentContactName?.trim() || existing?.documentContactName || "",
+  };
+  const updated = useDeliveryNoteStore.getState().updateDeliveryNote(id, nextInput);
   if (!updated) return null;
 
   if (isSupabaseConfigured()) {
@@ -362,7 +414,13 @@ export async function updateReceipt(
   input: ReceiptInput
 ): Promise<ReceiptRecord | null> {
   assertCanWriteBusinessData();
-  const updated = useReceiptStore.getState().updateReceipt(id, input);
+  const existing = useReceiptStore.getState().getReceiptById(id);
+  const nextInput: ReceiptInput = {
+    ...input,
+    documentContactName:
+      input.documentContactName?.trim() || existing?.documentContactName || "",
+  };
+  const updated = useReceiptStore.getState().updateReceipt(id, nextInput);
   if (!updated) return null;
 
   if (isSupabaseConfigured()) {

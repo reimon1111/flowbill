@@ -44,6 +44,10 @@ export const UPDATE_RECEIPT_WITH_ITEMS_RPC_HINT = UPDATE_DOCUMENTS_WITH_ITEMS_RP
 export const UPDATE_RECURRING_WITH_ITEMS_RPC_HINT =
   UPDATE_DOCUMENTS_WITH_ITEMS_RPC_HINT;
 
+export const INVOICE_RECURRING_OCCURRENCE_MIGRATION_HINT = buildMigrationBanner(
+  "定期請求の請求回列が未適用です。supabase/add-invoice-recurring-occurrence.sql を実行してください。"
+);
+
 const ERROR_HINTS: Record<string, string> = {
   PGRST205: buildMigrationBanner(
     "必要なテーブルが見つかりません。新規環境は supabase/schema-full.sql、既存環境は README の追加 SQL を実行してください。"
@@ -227,6 +231,148 @@ export function isMissingCompanyDocumentSettingsColumns(error: unknown): boolean
   return (
     text.includes("companies") ||
     text.includes("column") ||
+    shape.code === "PGRST204" ||
+    shape.code === "42703"
+  );
+}
+
+/** companies.show_document_management 列未作成か */
+export function isMissingShowDocumentManagementColumn(error: unknown): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (!text.includes("show_document_management")) return false;
+  return (
+    text.includes("companies") ||
+    text.includes("column") ||
+    shape.code === "PGRST204" ||
+    shape.code === "42703"
+  );
+}
+
+/** companies.workflow_mode 列未作成か */
+export function isMissingWorkflowModeColumn(error: unknown): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (!text.includes("workflow_mode")) return false;
+  // projects.workflow_mode は別関数で判定
+  if (text.includes("projects")) return false;
+  return (
+    text.includes("companies") ||
+    text.includes("column") ||
+    shape.code === "PGRST204" ||
+    shape.code === "42703"
+  );
+}
+
+/** projects.workflow_mode / simple_documents_initialized_at 列未作成か */
+export function isMissingProjectWorkflowModeColumn(error: unknown): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (
+    !text.includes("workflow_mode") &&
+    !text.includes("simple_documents_initialized_at")
+  ) {
+    return false;
+  }
+  return (
+    text.includes("projects") ||
+    text.includes("column") ||
+    shape.code === "PGRST204" ||
+    shape.code === "42703"
+  );
+}
+
+/** invoices.recurring_billing_id / recurring_occurrence_date 列未作成か */
+export function isMissingInvoiceRecurringOccurrenceColumns(
+  error: unknown
+): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (
+    !text.includes("recurring_billing_id") &&
+    !text.includes("recurring_occurrence_date")
+  ) {
+    return false;
+  }
+  return (
+    text.includes("column") ||
+    text.includes("invoices") ||
+    shape.code === "PGRST204" ||
+    shape.code === "42703"
+  );
+}
+
+/** PostgreSQL unique_violation（並行挿入の衝突） */
+export function isUniqueViolation(error: unknown): boolean {
+  return readSupabaseErrorShape(error).code === "23505";
+}
+
+/**
+ * invoices の定期請求回 UNIQUE（invoices_recurring_occurrence_uidx）による衝突か。
+ * invoice_number UNIQUE など他の 23505 と区別する。
+ */
+export function isRecurringOccurrenceUniqueViolation(error: unknown): boolean {
+  if (!isUniqueViolation(error)) return false;
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return (
+    text.includes("invoices_recurring_occurrence_uidx") ||
+    (text.includes("recurring_billing_id") &&
+      text.includes("recurring_occurrence_date")) ||
+    text.includes("recurring_occurrence")
+  );
+}
+
+/** 定期請求回の一意制約衝突（並行生成） */
+export class RecurringOccurrenceConflictError extends Error {
+  readonly recurringBillingId: string;
+  readonly occurrenceDate: string;
+
+  constructor(recurringBillingId: string, occurrenceDate: string) {
+    super("recurring occurrence already exists");
+    this.name = "RecurringOccurrenceConflictError";
+    this.recurringBillingId = recurringBillingId;
+    this.occurrenceDate = occurrenceDate;
+  }
+}
+
+export function isRecurringOccurrenceConflictError(
+  error: unknown
+): error is RecurringOccurrenceConflictError {
+  return error instanceof RecurringOccurrenceConflictError;
+}
+
+/** quotes/invoices 等の document_contact_name 列未作成か */
+export function isMissingDocumentContactNameColumn(error: unknown): boolean {
+  const shape = readSupabaseErrorShape(error);
+  const text = [shape.message, shape.details, shape.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (!text.includes("document_contact_name")) return false;
+  return (
+    text.includes("column") ||
+    text.includes("quotes") ||
+    text.includes("invoices") ||
+    text.includes("orders") ||
+    text.includes("delivery_notes") ||
+    text.includes("receipts") ||
+    text.includes("profiles") ||
     shape.code === "PGRST204" ||
     shape.code === "42703"
   );

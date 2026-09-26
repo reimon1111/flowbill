@@ -11,6 +11,8 @@ import {
   isMissingCompanyDocumentSettingsColumns,
   isMissingCompanyFaxContactColumns,
   isMissingQuoteDefaultExpiryTypeColumn,
+  isMissingShowDocumentManagementColumn,
+  isMissingWorkflowModeColumn,
   logSupabaseError,
   toUserFacingDbError,
 } from "@/lib/db/errors";
@@ -62,6 +64,8 @@ export async function dbUpdateCompanySettings(
     orderMemoTemplate: (values.orderMemoTemplate ?? "").trim(),
     deliveryNoteMemoTemplate: (values.deliveryNoteMemoTemplate ?? "").trim(),
     receiptMemoTemplate: (values.receiptMemoTemplate ?? "").trim(),
+    showDocumentManagement: values.showDocumentManagement,
+    workflowMode: values.workflowMode,
     updatedAt: now,
   };
 
@@ -78,6 +82,8 @@ export async function dbUpdateCompanySettings(
 
   let skippedFaxContactColumns = false;
   let skippedDocumentSettingsColumns = false;
+  let skippedShowDocumentManagement = false;
+  let skippedWorkflowMode = false;
 
   if (error && isMissingCompanyFaxContactColumns(error)) {
     const legacyPayload = { ...payload };
@@ -139,6 +145,44 @@ export async function dbUpdateCompanySettings(
     }
   }
 
+  if (error && isMissingShowDocumentManagementColumn(error)) {
+    const legacyPayload = { ...payload };
+    delete legacyPayload.show_document_management;
+    const retry = await supabase
+      .from("companies")
+      .update(legacyPayload)
+      .eq("id", updated.id)
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+    skippedShowDocumentManagement = !error;
+    if (skippedShowDocumentManagement) {
+      console.warn(
+        "companies.show_document_management が未作成のため、書類管理メニュー設定以外を保存しました。supabase/add-company-show-document-management.sql を実行してください。"
+      );
+    }
+  }
+
+  if (error && isMissingWorkflowModeColumn(error)) {
+    const legacyPayload = { ...payload };
+    delete legacyPayload.workflow_mode;
+    const retry = await supabase
+      .from("companies")
+      .update(legacyPayload)
+      .eq("id", updated.id)
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+    skippedWorkflowMode = !error;
+    if (skippedWorkflowMode) {
+      console.warn(
+        "companies.workflow_mode が未作成のため、業務フロー設定以外を保存しました。supabase/add-company-workflow-mode.sql を実行してください。"
+      );
+    }
+  }
+
   if (error) {
     logSupabaseError("dbUpdateCompanySettings", error);
     throw toUserFacingDbError(error);
@@ -150,7 +194,12 @@ export async function dbUpdateCompanySettings(
   }
 
   const saved = companyFromRow(data as CompanyRow);
-  if (!skippedFaxContactColumns && !skippedDocumentSettingsColumns) {
+  if (
+    !skippedFaxContactColumns &&
+    !skippedDocumentSettingsColumns &&
+    !skippedShowDocumentManagement &&
+    !skippedWorkflowMode
+  ) {
     return saved;
   }
   return {
@@ -169,5 +218,11 @@ export async function dbUpdateCompanySettings(
     receiptMemoTemplate: skippedDocumentSettingsColumns
       ? updated.receiptMemoTemplate
       : saved.receiptMemoTemplate,
+    showDocumentManagement: skippedShowDocumentManagement
+      ? updated.showDocumentManagement
+      : saved.showDocumentManagement,
+    workflowMode: skippedWorkflowMode
+      ? updated.workflowMode
+      : saved.workflowMode,
   };
 }

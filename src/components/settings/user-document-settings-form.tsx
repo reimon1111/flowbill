@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { userDocumentEmailSchema } from "@/lib/validations/document-email";
 import {
-  fetchCurrentUserDocumentEmail,
-  updateCurrentUserDocumentEmail,
+  fetchCurrentUserDocumentContact,
+  updateCurrentUserDocumentContact,
 } from "@/lib/services/user-profile-settings";
 import { formatFieldErrorMessage } from "@/lib/form-error-message";
 
@@ -21,17 +21,22 @@ type UserDocumentSettingsFormProps = {
 export function UserDocumentSettingsForm({
   readOnly = false,
 }: UserDocumentSettingsFormProps) {
+  const [documentContactName, setDocumentContactName] = useState("");
   const [documentEmail, setDocumentEmail] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const value = await fetchCurrentUserDocumentEmail();
-        if (!cancelled) setDocumentEmail(value);
+        const value = await fetchCurrentUserDocumentContact();
+        if (!cancelled) {
+          setDocumentContactName(value.documentContactName);
+          setDocumentEmail(value.documentEmail);
+        }
       } catch (e) {
         if (!cancelled) {
           console.error("UserDocumentSettingsForm load", e);
@@ -49,15 +54,29 @@ export function UserDocumentSettingsForm({
   const handleSave = async () => {
     if (readOnly || saving) return;
 
-    const parsed = userDocumentEmailSchema.safeParse(documentEmail);
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "入力内容を確認してください");
+    const trimmedName = documentContactName.trim();
+    if (trimmedName.length > 50) {
+      setNameError("担当者名は50文字以内で入力してください");
       return;
     }
-    setError(null);
+
+    const parsed = userDocumentEmailSchema.safeParse(documentEmail);
+    if (!parsed.success) {
+      setEmailError(
+        parsed.error.issues[0]?.message ?? "入力内容を確認してください"
+      );
+      return;
+    }
+    setNameError(null);
+    setEmailError(null);
     try {
       setSaving(true);
-      await updateCurrentUserDocumentEmail(parsed.data);
+      await updateCurrentUserDocumentContact({
+        documentContactName: trimmedName,
+        documentEmail: parsed.data,
+      });
+      setDocumentContactName(trimmedName);
+      setDocumentEmail(parsed.data);
       toast.success("個人設定を保存しました");
     } catch (e) {
       console.error("UserDocumentSettingsForm save", e);
@@ -83,6 +102,38 @@ export function UserDocumentSettingsForm({
           <h3 className="text-base font-semibold text-zinc-900">
             帳票に表示する連絡先
           </h3>
+          <p className="mt-1 text-sm text-zinc-500">
+            新しく作成する帳票に表示する担当者情報です。
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label
+            htmlFor="userDocumentContactName"
+            className="text-sm font-medium text-zinc-700"
+          >
+            担当者名
+          </Label>
+          <Input
+            id="userDocumentContactName"
+            type="text"
+            value={documentContactName}
+            onChange={(e) => {
+              setDocumentContactName(e.target.value);
+              if (nameError) setNameError(null);
+            }}
+            disabled={readOnly}
+            placeholder="例: 青木 玲門"
+            className="h-11 rounded-xl border-zinc-200/80 text-base shadow-none focus-visible:ring-zinc-300"
+          />
+          <p className="text-xs text-zinc-500">
+            未入力の場合は会社情報の担当者名を使用します。
+          </p>
+          {nameError ? (
+            <p className="text-sm text-red-600">
+              {formatFieldErrorMessage(nameError)}
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
@@ -98,26 +149,23 @@ export function UserDocumentSettingsForm({
             value={documentEmail}
             onChange={(e) => {
               setDocumentEmail(e.target.value);
-              if (error) setError(null);
+              if (emailError) setEmailError(null);
             }}
             disabled={readOnly}
-            placeholder="例: tanaka@example.com"
+            placeholder="例: reimon@example.com"
             className="h-11 rounded-xl border-zinc-200/80 text-base shadow-none focus-visible:ring-zinc-300"
           />
           <p className="text-xs text-zinc-500">
-            未入力の場合は、会社情報に登録されているメールアドレスを使用します。
-          </p>
-          <p className="text-xs text-zinc-500">
-            ここで設定したメールアドレスは、新しく作成する帳票の初期値として使用されます。
+            未入力の場合は会社情報のメールアドレスを使用します。
           </p>
           {readOnly ? (
             <p className="text-sm text-amber-800">
               閲覧のみの権限のため、個人設定を変更できません。
             </p>
           ) : null}
-          {error ? (
+          {emailError ? (
             <p className="text-sm text-red-600">
-              {formatFieldErrorMessage(error)}
+              {formatFieldErrorMessage(emailError)}
             </p>
           ) : null}
         </div>

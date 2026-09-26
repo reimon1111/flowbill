@@ -14,6 +14,8 @@ import type {
 } from "@/lib/types";
 import { getQuickActions } from "@/lib/project-utils";
 import { useCanWriteBusinessData } from "@/hooks/use-can-write-business-data";
+import { isSimpleWorkflowMode } from "@/lib/workflow-mode";
+import { useProjectStore } from "@/stores/project-store";
 
 type ProjectNextStepsPanelProps = {
   projectId: string;
@@ -49,18 +51,57 @@ export function ProjectNextStepsPanel({
   variant = "panel",
 }: ProjectNextStepsPanelProps) {
   const canWrite = useCanWriteBusinessData();
-  const quickActions = canWrite
+  const project = useProjectStore((s) => s.getProjectById(projectId));
+  const isSimple = isSimpleWorkflowMode(project?.workflowMode);
+  const allQuickActions = canWrite
     ? getQuickActions({
         status,
         invoiceStatus,
         paymentStatus,
         projectId,
         invoices,
+        workflowMode: project?.workflowMode,
       })
     : [];
-  const showQuoteLink = status === "estimate";
+  // simple はステータス進行（受注確定・作業完了）を出さず、請求・入金系のみ
+  const quickActions = isSimple
+    ? allQuickActions.filter(
+        (a) =>
+          a.type === "generate_invoice" ||
+          a.type === "view_invoice" ||
+          a.type === "mark_paid"
+      )
+    : allQuickActions;
+  const showQuoteLink = !isSimple && status === "estimate";
   const hasActions =
     (showQuoteLink && (latestQuoteId || canWrite)) || quickActions.length > 0;
+
+  // simple は既存 getQuickActions の請求系だけ。無ければ —
+  if (isSimple) {
+    if (!hasActions) {
+      if (variant === "inline") {
+        return <span className={cn("text-sm text-zinc-400", className)}>—</span>;
+      }
+      return null;
+    }
+    return (
+      <div className={cn(variant === "inline" ? "flex min-w-0" : undefined, className)}>
+        <ProjectNextStepsButtons
+          projectId={projectId}
+          status={status}
+          latestQuoteId={latestQuoteId}
+          quickActions={quickActions}
+          showQuoteLink={false}
+          onAction={onAction}
+          loadingAction={loadingAction}
+          onCreateQuoteAndOpen={undefined}
+          creatingQuote={creatingQuote}
+          canWrite={canWrite}
+          compact={variant === "inline"}
+        />
+      </div>
+    );
+  }
 
   if (variant === "inline") {
     return (

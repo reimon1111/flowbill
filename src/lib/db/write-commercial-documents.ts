@@ -33,11 +33,32 @@ import {
   UPDATE_DELIVERY_NOTE_WITH_ITEMS_RPC_HINT,
   UPDATE_ORDER_WITH_ITEMS_RPC_HINT,
   UPDATE_RECEIPT_WITH_ITEMS_RPC_HINT,
+  isMissingDocumentContactNameColumn,
 } from "@/lib/db/errors";
 import { callUpdateWithItemsRpc } from "@/lib/db/update-with-items-rpc";
 
 const DOCUMENTS_RPC_SQL =
-  "supabase/patch-due-date-mode-and-memo-font-size-rpcs.sql";
+  "supabase/patch-document-contact-name-rpcs.sql";
+
+async function insertCommercialHeader(
+  table: "orders" | "delivery_notes" | "receipts",
+  row: Record<string, unknown>
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  let { error } = await supabase.from(table).insert(row);
+  if (error && isMissingDocumentContactNameColumn(error)) {
+    const legacy = { ...row };
+    delete legacy.document_contact_name;
+    const retry = await supabase.from(table).insert(legacy);
+    error = retry.error;
+    if (!error) {
+      console.warn(
+        `${table}.document_contact_name が未作成のため、担当者名以外を保存しました。supabase/add-document-contact-name.sql を実行してください。`
+      );
+    }
+  }
+  if (error) throw error;
+}
 
 export async function dbInsertOrder(
   order: OrderRecord,
@@ -45,8 +66,7 @@ export async function dbInsertOrder(
 ): Promise<void> {
   const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
-  const { error } = await supabase.from("orders").insert(orderToRow(companyId, order));
-  if (error) throw error;
+  await insertCommercialHeader("orders", orderToRow(companyId, order));
   if (items.length > 0) {
     await insertRowsWithConstructionFallback(
       async (rows) => {
@@ -64,10 +84,10 @@ export async function dbInsertDeliveryNote(
 ): Promise<void> {
   const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
-  const { error } = await supabase
-    .from("delivery_notes")
-    .insert(deliveryNoteToRow(companyId, note));
-  if (error) throw error;
+  await insertCommercialHeader(
+    "delivery_notes",
+    deliveryNoteToRow(companyId, note)
+  );
   if (items.length > 0) {
     await insertRowsWithConstructionFallback(
       async (rows) => {
@@ -85,10 +105,7 @@ export async function dbInsertReceipt(
 ): Promise<void> {
   const companyId = await resolveCompanyId();
   const supabase = getSupabaseClient();
-  const { error } = await supabase
-    .from("receipts")
-    .insert(receiptToRow(companyId, receipt));
-  if (error) throw error;
+  await insertCommercialHeader("receipts", receiptToRow(companyId, receipt));
   if (items.length > 0) {
     await insertRowsWithConstructionFallback(
       async (rows) => {
@@ -120,6 +137,7 @@ function orderUpdatePayload(order: OrderRecord): Record<string, unknown> {
     memo: order.memo,
     memo_font_size: order.memoFontSize ?? "normal",
     document_email: order.documentEmail ?? "",
+    document_contact_name: order.documentContactName ?? "",
     updated_at: order.updatedAt,
   };
 }
@@ -144,6 +162,7 @@ function deliveryNoteUpdatePayload(note: DeliveryNoteRecord): Record<string, unk
     memo: note.memo,
     memo_font_size: note.memoFontSize ?? "normal",
     document_email: note.documentEmail ?? "",
+    document_contact_name: note.documentContactName ?? "",
     updated_at: note.updatedAt,
   };
 }
@@ -168,6 +187,7 @@ function receiptUpdatePayload(receipt: ReceiptRecord): Record<string, unknown> {
     memo: receipt.memo,
     memo_font_size: receipt.memoFontSize ?? "normal",
     document_email: receipt.documentEmail ?? "",
+    document_contact_name: receipt.documentContactName ?? "",
     updated_at: receipt.updatedAt,
   };
 }

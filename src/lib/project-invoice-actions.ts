@@ -2,6 +2,7 @@ import type { InvoiceRecord, ProjectActionType, ProjectStatus } from "@/lib/type
 import {
   getBillingStatusTheme,
   getProjectBillingDisplayStatus,
+  type BillingDisplayStatus,
 } from "@/lib/billing-status-theme";
 import {
   getActiveInvoicesForProject,
@@ -9,13 +10,15 @@ import {
   filterProjectInvoices,
 } from "@/lib/invoice-filters";
 import { getProjectInvoiceState } from "@/lib/invoice-state";
+import { canCreateInvoice } from "@/lib/document-creation-policy";
+import type { WorkflowMode } from "@/lib/workflow-mode";
 
 export type ProjectInvoiceNavigation =
   | { type: "new" }
   | { type: "additional" }
   | { type: "existing"; invoiceId: string };
 
-/** 請求書発行ボタン押下時の遷移先（DBには書き込まない） */
+/** 請求アクション押下時の遷移先（DBには書き込まない） */
 export function resolveProjectInvoiceNavigation(
   invoices: InvoiceRecord[],
   projectId: string,
@@ -47,25 +50,76 @@ export function buildProjectInvoiceHref(
 export type ProjectInvoiceQuickAction = {
   type: ProjectActionType;
   label: string;
+  billingStatus: BillingDisplayStatus;
 };
+
+/**
+ * 案件の請求表示ステータス（完了以外でも draft / not_created を返す）。
+ * UI 文言用。データ生成ロジックには影響しない。
+ */
+export function resolveInvoiceActionBillingStatus(args: {
+  status: ProjectStatus;
+  invoices: InvoiceRecord[];
+  projectId: string;
+}): BillingDisplayStatus | null {
+  const { status, invoices, projectId } = args;
+  const state = getProjectInvoiceState(projectId, invoices);
+
+  if (state.hasMultipleActive) return "multiple";
+  if (state.invoiceStatus === "draft") return "draft";
+  if (
+    state.invoiceStatus === "not_created" ||
+    state.activeInvoices.length === 0
+  ) {
+    return "not_created";
+  }
+
+  const completedBilling = getProjectBillingDisplayStatus(state, status);
+  if (completedBilling) return completedBilling;
+
+  if (state.paymentStatus === "paid") return "paid";
+  if (state.paymentStatus === "overdue") return "overdue";
+  if (state.paymentStatus === "unpaid") return "unpaid";
+  return null;
+}
 
 /** 案件詳細「次にやること」用の請求アクション */
 export function getProjectInvoiceQuickAction(args: {
   status: ProjectStatus;
   invoices: InvoiceRecord[];
   projectId: string;
+  workflowMode?: WorkflowMode | string | null;
 }): ProjectInvoiceQuickAction | null {
-  const { status, invoices, projectId } = args;
-  if (status !== "completed") return null;
+  const { status, invoices, projectId, workflowMode } = args;
+  const createAllowed = canCreateInvoice({
+    workflowMode,
+    projectStatus: status,
+  }).allowed;
 
-  const state = getProjectInvoiceState(projectId, invoices);
-  const billingStatus = getProjectBillingDisplayStatus(state, status);
+  const billingStatus = resolveInvoiceActionBillingStatus({
+    status,
+    invoices,
+    projectId,
+  });
   if (!billingStatus) return null;
 
   const theme = getBillingStatusTheme(billingStatus);
 
-  if (billingStatus === "unissued") {
-    return { type: "generate_invoice", label: theme.actionLabel };
+  if (billingStatus === "not_created") {
+    if (!createAllowed) return null;
+    return {
+      type: "generate_invoice",
+      label: theme.actionLabel,
+      billingStatus,
+    };
+  }
+
+  if (billingStatus === "draft") {
+    return {
+      type: "view_invoice",
+      label: theme.actionLabel,
+      billingStatus,
+    };
   }
 
   if (
@@ -74,7 +128,11 @@ export function getProjectInvoiceQuickAction(args: {
     billingStatus === "paid" ||
     billingStatus === "multiple"
   ) {
-    return { type: "view_invoice", label: theme.actionLabel };
+    return {
+      type: "view_invoice",
+      label: theme.actionLabel,
+      billingStatus,
+    };
   }
 
   return null;

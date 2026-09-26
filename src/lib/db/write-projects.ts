@@ -13,9 +13,15 @@ import { applyProjectMilestoneDates } from "@/lib/project-milestone-dates";
 import {
   isMissingProjectDateColumns,
   isMissingProjectDocumentMemoColumn,
+  isMissingProjectWorkflowModeColumn,
 } from "@/lib/db/errors";
 import { PROJECT_STATUS_LABELS } from "@/lib/constants";
 import type { ProjectActionType } from "@/lib/types";
+import {
+  DEFAULT_WORKFLOW_MODE,
+  normalizeWorkflowMode,
+  type WorkflowMode,
+} from "@/lib/workflow-mode";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { resolveCompanyId } from "@/lib/db/company-context";
 import { getAuthUserId, withCreateAudit, withUpdateAudit } from "@/lib/db/auth-user";
@@ -91,6 +97,19 @@ async function writeProjectRow(
     }
   }
 
+  if (error && isMissingProjectWorkflowModeColumn(error)) {
+    const legacy = { ...row };
+    delete legacy.workflow_mode;
+    delete legacy.simple_documents_initialized_at;
+    const retry = await run(legacy);
+    error = retry.error;
+    if (!error) {
+      console.warn(
+        "projects.workflow_mode が未作成のため、業務フロー列以外を保存しました。supabase/add-project-workflow-mode.sql を実行してください。"
+      );
+    }
+  }
+
   if (error && isMissingProjectDateColumns(error)) {
     const legacy = { ...row };
     delete legacy.confirmed_date;
@@ -107,7 +126,10 @@ async function writeProjectRow(
   if (error) throw error;
 }
 
-export async function dbInsertProject(input: ProjectInput): Promise<ProjectRecord> {
+export async function dbInsertProject(
+  input: ProjectInput,
+  options?: { workflowMode?: WorkflowMode }
+): Promise<ProjectRecord> {
   const companyId = await resolveCompanyId();
   const userId = await getAuthUserId();
   const now = new Date().toISOString();
@@ -130,6 +152,10 @@ export async function dbInsertProject(input: ProjectInput): Promise<ProjectRecor
     assigneeName: input.assigneeName ?? "",
     memo: input.memo,
     documentMemo: input.documentMemo ?? "",
+    workflowMode: normalizeWorkflowMode(
+      options?.workflowMode ?? DEFAULT_WORKFLOW_MODE
+    ),
+    simpleDocumentsInitializedAt: null,
     invoiceStatus: getDefaultInvoiceStatus(input.status),
     paymentStatus: getDefaultPaymentStatus(input.status, input.dueDate),
     archived: false,

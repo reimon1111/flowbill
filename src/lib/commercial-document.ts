@@ -39,6 +39,8 @@ export type CommercialDocumentInput = {
   paymentTerms: string;
   memo: string;
   documentEmail: string;
+  /** 帳票表示用担当者名（作成時スナップショット） */
+  documentContactName: string;
   discountLabel: string;
   discountAmount: number;
   /** 納品・領収で使用。注文書では未使用 */
@@ -69,6 +71,8 @@ export type OrderRecord = {
   customerPosition: string;
   memo: string;
   documentEmail: string;
+  /** 帳票表示用担当者名（作成時スナップショット） */
+  documentContactName: string;
   /** 注文書の宛名（空欄可・帳票では手書き用スペースを表示） */
   recipientName: string;
   memoFontSize: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
@@ -112,6 +116,8 @@ export type DeliveryNoteRecord = {
   customerPosition: string;
   memo: string;
   documentEmail: string;
+  /** 帳票表示用担当者名（作成時スナップショット） */
+  documentContactName: string;
   memoFontSize: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   deletedAt: string | null;
   createdBy: string | null;
@@ -153,6 +159,8 @@ export type ReceiptRecord = {
   customerPosition: string;
   memo: string;
   documentEmail: string;
+  /** 帳票表示用担当者名（作成時スナップショット） */
+  documentContactName: string;
   memoFontSize: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   deletedAt: string | null;
   createdBy: string | null;
@@ -210,6 +218,7 @@ export type CommercialDocView = {
   memo: string;
   memoFontSize?: import("@/lib/document-memo-font-size").DocumentMemoFontSize;
   documentEmail: string;
+  documentContactName: string;
 };
 
 export function toCommercialDocView(
@@ -228,6 +237,7 @@ export function toCommercialDocView(
     | "customerPosition"
     | "memo"
     | "documentEmail"
+    | "documentContactName"
     | "memoFontSize"
   > & {
     customerHonorific?: import("@/lib/customer-honorific").CustomerHonorific;
@@ -249,5 +259,6 @@ export function toCommercialDocView(
     memo: record.memo,
     memoFontSize: record.memoFontSize,
     documentEmail: record.documentEmail ?? "",
+    documentContactName: record.documentContactName ?? "",
   };
 }

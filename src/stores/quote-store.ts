@@ -19,6 +19,7 @@ import {
   UNKNOWN_CUSTOMER_LABEL,
 } from "@/lib/project-display";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
+import { allocateDocumentNumberLocal } from "@/lib/document-number";
 
 function id(prefix: string) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -39,16 +40,6 @@ function computeTotals(
     taxAmount: totals.taxAmount,
     totalAmount: totals.totalAmount,
   };
-}
-
-function yearOf(date: string) {
-  return date.slice(0, 4);
-}
-
-function nextQuoteNumber(issueDate: string, existing: QuoteRecord[]) {
-  const y = yearOf(issueDate);
-  const count = existing.filter((q) => q.quoteNumber.startsWith(`QT-${y}-`)).length + 1;
-  return `QT-${y}-${String(count).padStart(4, "0")}`;
 }
 
 type QuoteStore = {
@@ -121,7 +112,11 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
   createQuote: (input) => {
     const now = new Date().toISOString();
     const quoteId = id("qt_");
-    const quoteNumber = nextQuoteNumber(input.issueDate, get().quotes);
+    const quoteNumber = allocateDocumentNumberLocal(
+      "quote",
+      input.issueDate,
+      get().quotes.map((q) => q.quoteNumber)
+    );
 
     const items: QuoteItemRecord[] = input.items.map((it, idx) => {
       const amount = it.quantity * it.unitPrice;
@@ -169,6 +164,7 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       memo: input.memo,
       memoFontSize: input.memoFontSize ?? "normal",
       documentEmail: input.documentEmail ?? "",
+      documentContactName: input.documentContactName ?? "",
       paymentTerms: input.paymentTerms,
       createdBy: null,
       updatedBy: null,
@@ -233,6 +229,8 @@ export const useQuoteStore = create<QuoteStore>((set, get) => ({
       memo: input.memo,
       memoFontSize: input.memoFontSize ?? "normal",
       documentEmail: input.documentEmail ?? "",
+      documentContactName:
+        input.documentContactName?.trim() || existing.documentContactName || "",
       paymentTerms: input.paymentTerms,
       updatedAt: now,
     };

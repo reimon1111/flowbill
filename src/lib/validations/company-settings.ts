@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { QUOTE_EXPIRY_PERIOD_TYPES } from "@/lib/quote-expiry";
+import { WORKFLOW_MODES } from "@/lib/workflow-mode";
 
 export const companySettingsSchema = z.object({
   companyName: z.string().min(1, "会社名を入力してください").max(100),
@@ -31,6 +32,8 @@ export const companySettingsSchema = z.object({
   orderMemoTemplate: z.string().max(2000),
   deliveryNoteMemoTemplate: z.string().max(2000),
   receiptMemoTemplate: z.string().max(2000),
+  showDocumentManagement: z.boolean(),
+  workflowMode: z.enum(WORKFLOW_MODES),
 });
 
 export type CompanySettingsFormValues = z.infer<typeof companySettingsSchema>;

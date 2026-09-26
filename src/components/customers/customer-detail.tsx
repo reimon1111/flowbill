@@ -15,7 +15,6 @@ import {
 import { PageHeader } from "@/components/shared/page-header";
 import { BillingStatusBadge } from "@/components/billing/billing-status-badge";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
-import { paymentStatusToBilling } from "@/lib/billing-status-theme";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 import type {
@@ -216,7 +215,7 @@ export function CustomerDetail({
                     <p className="font-semibold tabular-nums text-zinc-900">
                       {formatCurrency(inv.amount)}
                     </p>
-                    <BillingStatusBadge status={paymentStatusToBilling(inv.status)} />
+                    <BillingStatusBadge status={inv.status} />
                   </div>
                 </Link>
               </li>

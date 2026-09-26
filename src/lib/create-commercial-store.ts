@@ -20,17 +20,29 @@ import {
   DEFAULT_DOCUMENT_MEMO_FONT_SIZE,
   type DocumentMemoFontSize,
 } from "@/lib/document-memo-font-size";
+import { allocateDocumentNumberLocal } from "@/lib/document-number";
 
 export function nextCommercialNumber(
   prefix: string,
   issueDate: string,
   existingNumbers: string[]
 ): string {
-  const y = issueDate.slice(0, 4);
-  const head = `${prefix}-${y}-`;
-  const count =
-    existingNumbers.filter((n) => n.startsWith(head)).length + 1;
-  return `${head}${String(count).padStart(4, "0")}`;
+  const kind =
+    prefix === "OR"
+      ? "order"
+      : prefix === "DN"
+        ? "delivery_note"
+        : prefix === "RC"
+          ? "receipt"
+          : null;
+  if (!kind) {
+    const y = issueDate.slice(0, 4);
+    const head = `${prefix}-${y}-`;
+    const count =
+      existingNumbers.filter((n) => n.startsWith(head)).length + 1;
+    return `${head}${String(count).padStart(4, "0")}`;
+  }
+  return allocateDocumentNumberLocal(kind, issueDate, existingNumbers);
 }
 
 export function buildCommercialItemRecords<
@@ -78,6 +90,7 @@ export type CommercialHeaderFields = {
   paymentTerms: string;
   memo: string;
   documentEmail: string;
+  documentContactName: string;
   status: CommercialDocumentStatus;
   subtotal: number;
   taxAmount: number;
@@ -101,6 +114,7 @@ export function buildCommercialHeader(
     paymentTerms: string;
     memo: string;
     documentEmail: string;
+    documentContactName?: string;
     discountLabel?: string;
     discountAmount?: number;
     customerHonorific?: string | null;
@@ -132,6 +146,7 @@ export function buildCommercialHeader(
     paymentTerms: input.paymentTerms,
     memo: input.memo,
     documentEmail: input.documentEmail ?? "",
+    documentContactName: input.documentContactName ?? "",
     discountLabel: discount.discountLabel,
     discountAmount: discount.discountAmount,
     customerHonorific: pickCustomerHonorific(input),

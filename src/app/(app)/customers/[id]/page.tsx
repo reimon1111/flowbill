@@ -9,7 +9,7 @@ import { useCustomerStore } from "@/stores/customer-store";
 import { useProjectStore } from "@/stores/project-store";
 import { useInvoiceStore } from "@/stores/invoice-store";
 import type { CustomerInvoiceSummary, CustomerProjectSummary } from "@/lib/types";
-import { getInvoicePaymentStatus } from "@/lib/invoice-state";
+import { getInvoiceBillingDisplayStatus } from "@/lib/billing-status-theme";
 import { useProjectItemStore } from "@/stores/project-item-store";
 import { useQuoteStore } from "@/stores/quote-store";
 import { getProjectTotalWithTax } from "@/lib/project-amount-display";
@@ -52,22 +52,13 @@ export default function CustomerDetailPage() {
       .getState()
       .getListItems()
       .filter((inv) => inv.customerId === id)
-      .map((inv) => {
-        const paymentStatus = getInvoicePaymentStatus(inv);
-        const status =
-          paymentStatus === "paid"
-            ? "paid"
-            : paymentStatus === "overdue"
-              ? "overdue"
-              : "unpaid";
-        return {
-          id: inv.id,
-          invoiceNumber: inv.invoiceNumber,
-          issueDate: inv.issueDate,
-          amount: inv.totalAmount,
-          status,
-        };
-      });
+      .map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        issueDate: inv.issueDate,
+        amount: inv.totalAmount,
+        status: getInvoiceBillingDisplayStatus(inv),
+      }));
   }, [id, invoicesRaw]);
 
   useEffect(() => {

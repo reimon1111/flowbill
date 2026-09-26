@@ -28,6 +28,7 @@ import { NAV_ITEMS } from "@/lib/constants";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { signOut } from "@/lib/auth/session";
 import { useAuthStore } from "@/stores/auth-store";
+import { useCompanySettingsStore } from "@/stores/company-settings-store";
 
 const iconMap: Record<string, LucideIcon> = {
   LayoutDashboard,
@@ -170,8 +171,11 @@ export function AppSidebar({
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const showAuth = isSupabaseConfigured();
+  const showDocumentManagement =
+    useCompanySettingsStore((s) => s.settings.showDocumentManagement) !== false;
 
   const docsGroupActive = useMemo(() => {
+    if (!showDocumentManagement) return false;
     return (
       isActiveNavItem(pathname, "/quotes") ||
       isActiveNavItem(pathname, "/orders") ||
@@ -179,7 +183,7 @@ export function AppSidebar({
       isActiveNavItem(pathname, "/invoices") ||
       isActiveNavItem(pathname, "/receipts")
     );
-  }, [pathname]);
+  }, [pathname, showDocumentManagement]);
 
   const settingsGroupActive = useMemo(() => {
     return (
@@ -271,19 +275,48 @@ export function AppSidebar({
         <SectionLabel>入金</SectionLabel>
         <NavLink item={NAV_ITEMS[8]} pathname={pathname} onNavigate={onNavigate} />
 
-        {/* 書類管理 */}
-        <SectionLabel>書類管理</SectionLabel>
-        <CollapsibleGroup
-          label="書類管理"
-        open={effectiveDocsOpen}
-          onToggle={() => setDocsOpen((v) => !v)}
-        >
-          <NavLink item={NAV_ITEMS[3]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
-          <NavLink item={NAV_ITEMS[4]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
-          <NavLink item={NAV_ITEMS[5]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
-          <NavLink item={NAV_ITEMS[6]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
-          <NavLink item={NAV_ITEMS[7]} pathname={pathname} className="pl-3" onNavigate={onNavigate} />
-        </CollapsibleGroup>
+        {/* 書類管理（会社設定で非表示可） */}
+        {showDocumentManagement ? (
+          <>
+            <SectionLabel>書類管理</SectionLabel>
+            <CollapsibleGroup
+              label="書類管理"
+              open={effectiveDocsOpen}
+              onToggle={() => setDocsOpen((v) => !v)}
+            >
+              <NavLink
+                item={NAV_ITEMS[3]}
+                pathname={pathname}
+                className="pl-3"
+                onNavigate={onNavigate}
+              />
+              <NavLink
+                item={NAV_ITEMS[4]}
+                pathname={pathname}
+                className="pl-3"
+                onNavigate={onNavigate}
+              />
+              <NavLink
+                item={NAV_ITEMS[5]}
+                pathname={pathname}
+                className="pl-3"
+                onNavigate={onNavigate}
+              />
+              <NavLink
+                item={NAV_ITEMS[6]}
+                pathname={pathname}
+                className="pl-3"
+                onNavigate={onNavigate}
+              />
+              <NavLink
+                item={NAV_ITEMS[7]}
+                pathname={pathname}
+                className="pl-3"
+                onNavigate={onNavigate}
+              />
+            </CollapsibleGroup>
+          </>
+        ) : null}
 
         {/* 設定 */}
         <SectionLabel>設定</SectionLabel>

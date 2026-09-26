@@ -34,7 +34,10 @@ type ReceiptStore = {
   getByProjectId: (projectId: string) => ReceiptRecord[];
   getItems: (receiptId: string) => ReceiptItemRecord[];
   getListItems: () => ReceiptListItem[];
-  createReceipt: (input: ReceiptInput) => ReceiptRecord;
+  createReceipt: (
+    input: ReceiptInput,
+    options?: { documentNumber?: string }
+  ) => ReceiptRecord;
   updateReceipt: (receiptId: string, input: ReceiptInput) => ReceiptRecord | null;
   softDeleteReceipt: (receiptId: string) => ReceiptRecord | null;
   upsertReceipt: (receipt: ReceiptRecord, items: ReceiptItemRecord[]) => void;
@@ -75,7 +78,7 @@ export const useReceiptStore = create<ReceiptStore>((set, get) => ({
       }));
   },
 
-  createReceipt: (input) => {
+  createReceipt: (input, options) => {
     const now = new Date().toISOString();
     const id = `rc_${Date.now().toString(36)}`;
     const items = buildCommercialItemRecords<ReceiptItemRecord>(
@@ -88,11 +91,13 @@ export const useReceiptStore = create<ReceiptStore>((set, get) => ({
     const receipt: ReceiptRecord = {
       id,
       invoiceId: input.invoiceId ?? "",
-      receiptNumber: nextCommercialNumber(
-        "RC",
-        input.issueDate,
-        get().receipts.map((r) => r.receiptNumber)
-      ),
+      receiptNumber:
+        options?.documentNumber ??
+        nextCommercialNumber(
+          "RC",
+          input.issueDate,
+          get().receipts.map((r) => r.receiptNumber)
+        ),
       status: "issued",
       deletedAt: null,
       createdBy: null,

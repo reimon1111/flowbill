@@ -43,6 +43,7 @@ export function QuotePreview({
       memoFontSize={quote.memoFontSize}
       memoTemplate={company.quoteMemoTemplate}
       documentEmail={quote.documentEmail}
+      documentContactName={quote.documentContactName}
       company={company}
     />
   );

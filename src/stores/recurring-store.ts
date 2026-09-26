@@ -51,7 +51,10 @@ type RecurringStore = {
     id: string,
     status: RecurringBillingStatus
   ) => RecurringBillingRecord | null;
-  advanceAfterInvoice: (id: string) => RecurringBillingRecord | null;
+  advanceAfterInvoice: (
+    id: string,
+    occurrenceDate?: string
+  ) => RecurringBillingRecord | null;
 };
 
 export const useRecurringStore = create<RecurringStore>((set, get) => ({
@@ -214,12 +217,20 @@ export const useRecurringStore = create<RecurringStore>((set, get) => ({
     return updated;
   },
 
-  advanceAfterInvoice: (recurringId) => {
+  advanceAfterInvoice: (recurringId, occurrenceDate) => {
     const existing = get().getRecurringById(recurringId);
     if (!existing || existing.status !== "active") return null;
 
+    if (
+      occurrenceDate &&
+      existing.nextBillingDate !== occurrenceDate
+    ) {
+      // すでに別リクエストが進めている
+      return existing;
+    }
+
     const nextBillingDate = advanceNextBillingDate(
-      existing.nextBillingDate,
+      occurrenceDate ?? existing.nextBillingDate,
       existing.billingDay
     );
 

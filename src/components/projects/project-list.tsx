@@ -112,6 +112,8 @@ export function ProjectList() {
     const items = listItems.filter((p) => {
       if (showArchived ? !p.archived : p.archived) return false;
       if (status !== "all" && p.status !== status) return false;
+      // standard の status フィルタには simple 案件を混ぜない
+      if (status !== "all" && p.workflowMode === "simple") return false;
       if (
         unbilledOnly &&
         !(
@@ -428,31 +430,41 @@ export function ProjectList() {
         />
       ) : (
         <>
-          <div className="hidden lg:block">
-            <div className="mb-2 grid grid-cols-[minmax(180px,1.1fr)_minmax(120px,0.9fr)_108px_96px_72px_minmax(200px,1.3fr)_auto] gap-4 px-5 text-xs font-medium uppercase tracking-wider text-zinc-400">
-              <span>案件 / 顧客</span>
-              <span>ステータス</span>
-              <span>請求・入金</span>
-              <span className="text-right">金額</span>
-              <span>納期</span>
-              <span>次にやること</span>
-              <span />
-            </div>
-            <div className="space-y-2">
-              {paged.items.map((p) => (
-                <ProjectCard
-                  key={p.id}
-                  project={p}
-                  variant="row"
-                  onAction={handleAction}
-                  onDelete={handleDeleteRequest}
-                  onArchiveToggle={handleArchiveToggle}
-                />
-              ))}
-            </div>
+          {/* PC / tablet: 管理表テーブル */}
+          <div className="hidden overflow-x-auto rounded-xl border border-zinc-200/80 bg-white shadow-sm shadow-zinc-900/[0.02] md:block">
+            <table className="w-full min-w-[960px] border-collapse text-left">
+              <thead className="sticky top-0 z-10 bg-zinc-50/95 backdrop-blur-sm">
+                <tr className="border-b border-zinc-200/80 text-xs font-medium text-zinc-500">
+                  <th className="px-4 py-3 font-medium">案件 / 顧客</th>
+                  <th className="px-3 py-3 font-medium">状態</th>
+                  <th className="px-3 py-3 text-right font-medium">金額</th>
+                  <th className="px-3 py-3 font-medium">請求</th>
+                  <th className="px-3 py-3 font-medium">入金</th>
+                  <th className="px-3 py-3 font-medium">担当</th>
+                  <th className="px-3 py-3 font-medium">納期</th>
+                  <th className="px-3 py-3 font-medium">次にやること</th>
+                  <th className="w-12 px-2 py-3">
+                    <span className="sr-only">操作</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paged.items.map((p) => (
+                  <ProjectCard
+                    key={p.id}
+                    project={p}
+                    variant="row"
+                    onAction={handleAction}
+                    onDelete={handleDeleteRequest}
+                    onArchiveToggle={handleArchiveToggle}
+                  />
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:hidden">
+          {/* mobile: コンパクトカード */}
+          <div className="grid gap-3 sm:grid-cols-2 md:hidden">
             {paged.items.map((p) => (
               <ProjectCard
                 key={p.id}

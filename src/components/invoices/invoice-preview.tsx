@@ -51,6 +51,7 @@ export function InvoicePreview({
       memoFontSize={invoice.memoFontSize}
       memoTemplate={company.invoiceMemoTemplate}
       documentEmail={invoice.documentEmail}
+      documentContactName={invoice.documentContactName}
       company={company}
       bankAccounts={bankAccounts}
     />

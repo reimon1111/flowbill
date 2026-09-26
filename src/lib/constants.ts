@@ -45,15 +45,15 @@ export const PROJECT_STATUS_STYLES: Record<
 };
 
 export const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
-  not_created: BILLING_STATUS_THEME.unissued.statusLabel,
-  draft: BILLING_STATUS_THEME.unissued.statusLabel,
+  not_created: BILLING_STATUS_THEME.not_created.statusLabel,
+  draft: BILLING_STATUS_THEME.draft.statusLabel,
   issued: BILLING_STATUS_THEME.unpaid.statusLabel,
   sent: BILLING_STATUS_THEME.unpaid.statusLabel,
 };
 
 export const INVOICE_STATUS_STYLES: Record<InvoiceStatus, string> = {
-  not_created: BILLING_STATUS_THEME.unissued.badgeClass,
-  draft: BILLING_STATUS_THEME.unissued.badgeClass,
+  not_created: BILLING_STATUS_THEME.not_created.badgeClass,
+  draft: BILLING_STATUS_THEME.draft.badgeClass,
   issued: BILLING_STATUS_THEME.unpaid.badgeClass,
   sent: BILLING_STATUS_THEME.unpaid.badgeClass,
 };
@@ -62,7 +62,8 @@ export const PROJECT_PAYMENT_STATUS_LABELS: Record<
   ProjectPaymentStatus,
   string
 > = {
-  unpaid: BILLING_STATUS_THEME.unpaid.statusLabel,
+  // 入金管理用。請求書の「発行済み」(unpaid billing) とは別ラベル
+  unpaid: "未入金",
   paid: BILLING_STATUS_THEME.paid.statusLabel,
   overdue: BILLING_STATUS_THEME.overdue.statusLabel,
 };

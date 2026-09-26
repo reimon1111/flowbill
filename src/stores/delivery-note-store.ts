@@ -34,7 +34,10 @@ type DeliveryNoteStore = {
   getByProjectId: (projectId: string) => DeliveryNoteRecord[];
   getItems: (deliveryNoteId: string) => DeliveryNoteItemRecord[];
   getListItems: () => DeliveryNoteListItem[];
-  createDeliveryNote: (input: DeliveryNoteInput) => DeliveryNoteRecord;
+  createDeliveryNote: (
+    input: DeliveryNoteInput,
+    options?: { documentNumber?: string }
+  ) => DeliveryNoteRecord;
   updateDeliveryNote: (
     deliveryNoteId: string,
     input: DeliveryNoteInput
@@ -82,7 +85,7 @@ export const useDeliveryNoteStore = create<DeliveryNoteStore>((set, get) => ({
       }));
   },
 
-  createDeliveryNote: (input) => {
+  createDeliveryNote: (input, options) => {
     const now = new Date().toISOString();
     const id = `dn_${Date.now().toString(36)}`;
     const items = buildCommercialItemRecords<DeliveryNoteItemRecord>(
@@ -95,11 +98,13 @@ export const useDeliveryNoteStore = create<DeliveryNoteStore>((set, get) => ({
     const note: DeliveryNoteRecord = {
       id,
       orderId: input.orderId ?? "",
-      deliveryNoteNumber: nextCommercialNumber(
-        "DN",
-        input.issueDate,
-        get().deliveryNotes.map((d) => d.deliveryNoteNumber)
-      ),
+      deliveryNoteNumber:
+        options?.documentNumber ??
+        nextCommercialNumber(
+          "DN",
+          input.issueDate,
+          get().deliveryNotes.map((d) => d.deliveryNoteNumber)
+        ),
       status: "issued",
       deletedAt: null,
       createdBy: null,

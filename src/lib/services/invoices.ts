@@ -37,7 +37,7 @@ import { resolveInheritedDiscount } from "@/lib/discount-totals";
 import { pickCounterpartyContact } from "@/lib/counterparty-contact";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
 import { composeInitialDocumentMemo } from "@/lib/document-memo";
-import { resolveInitialDocumentEmailForCreate } from "@/lib/services/user-profile-settings";
+import { resolveInitialDocumentContactForCreate } from "@/lib/services/user-profile-settings";
 import { buildInvoiceInputItemsForProject } from "@/lib/services/project-items";
 import { syncQuoteItemsFromProject } from "@/lib/services/quotes";
 import {
@@ -45,6 +45,7 @@ import {
   toPaymentStatusUpdateError,
 } from "@/lib/db/errors";
 import { assertCanWriteBusinessData } from "@/lib/guards/write-access";
+import { assertDocumentCreationAllowed } from "@/lib/document-creation-policy";
 import { useCompanyMembershipStore } from "@/stores/company-membership-store";
 import { canManageMembers } from "@/lib/types/company-membership";
 import { ensureReceiptForInvoice } from "@/lib/services/commercial-documents";
@@ -222,8 +223,23 @@ export async function createInvoice(
     return existing;
   }
 
+  const project = useProjectStore.getState().getProjectById(input.projectId);
+  if (project) {
+    assertDocumentCreationAllowed("invoice", {
+      workflowMode: project.workflowMode,
+      projectStatus: project.status,
+    });
+  }
+
   const bankAccountId = await resolveBankAccountIdForInvoice(input.bankAccountId);
-  const payload = { ...input, bankAccountId };
+  const documentContact = await resolveInitialDocumentContactForCreate();
+  const payload = {
+    ...input,
+    bankAccountId,
+    documentEmail: input.documentEmail.trim() || documentContact.email,
+    documentContactName:
+      input.documentContactName.trim() || documentContact.contactName,
+  };
 
   if (isSupabaseConfigured()) {
     const { invoice, items } = await dbInsertInvoice(payload);
@@ -236,8 +252,16 @@ export async function createInvoice(
 
 export async function updateInvoice(id: string, input: InvoiceInput): Promise<InvoiceRecord | null> {
   assertCanWriteBusinessData();
+  const existing = useInvoiceStore.getState().getInvoiceById(id);
   const bankAccountId = await resolveBankAccountIdForInvoice(input.bankAccountId);
-  const payload = { ...input, bankAccountId };
+  const payload = {
+    ...input,
+    bankAccountId,
+    documentContactName:
+      input.documentContactName.trim() ||
+      existing?.documentContactName ||
+      "",
+  };
 
   if (isSupabaseConfigured()) {
     const result = await dbUpdateInvoice(id, payload);
@@ -435,6 +459,7 @@ export function invoiceInputFromForm(values: InvoiceFormValues): InvoiceInput {
     memo: values.memo.trim(),
     memoFontSize: values.memoFontSize,
     documentEmail: values.documentEmail.trim(),
+    documentContactName: "",
     discountLabel: values.discountLabel.trim(),
     discountAmount: values.discountAmount ?? 0,
     customerHonorific: values.customerHonorific,
@@ -529,6 +554,7 @@ export async function createInvoiceFromQuote(
 
   const settings = useCompanySettingsStore.getState().settings;
   const inheritedDiscount = resolveInheritedDiscount(quote, project);
+  const documentContact = await resolveInitialDocumentContactForCreate();
   const input: InvoiceInput = {
     projectId,
     customerId: quote.customerId,
@@ -544,7 +570,8 @@ export async function createInvoiceFromQuote(
       settings.invoiceMemoTemplate
     ),
     memoFontSize: "normal",
-    documentEmail: await resolveInitialDocumentEmailForCreate(),
+    documentEmail: documentContact.email,
+    documentContactName: documentContact.contactName,
     discountLabel: inheritedDiscount.discountLabel,
     discountAmount: inheritedDiscount.discountAmount,
     customerHonorific: pickCustomerHonorific(quote),

@@ -33,6 +33,9 @@ create table if not exists public.companies (
   order_memo_template text not null default '',
   delivery_note_memo_template text not null default '',
   receipt_memo_template text not null default '',
+  show_document_management boolean not null default true,
+  workflow_mode text not null default 'standard'
+    check (workflow_mode in ('standard', 'simple')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -46,6 +49,7 @@ create table if not exists public.profiles (
   company_id text not null references public.companies (id) on delete cascade,
   email text not null default '',
   document_email text not null default '',
+  document_contact_name text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint profiles_user_id_unique unique (user_id)
@@ -158,6 +162,9 @@ create table if not exists public.projects (
   invoice_status text not null default 'not_created',
   payment_status text not null default 'unpaid',
   archived boolean not null default false,
+  workflow_mode text not null default 'standard'
+    check (workflow_mode in ('standard', 'simple')),
+  simple_documents_initialized_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -231,12 +238,15 @@ create table if not exists public.quotes (
   payment_terms text not null default '',
   memo text not null default '',
   document_email text not null default '',
+  document_contact_name text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists quotes_company_id_idx on public.quotes (company_id);
 create index if not exists quotes_project_id_idx on public.quotes (project_id);
+create unique index if not exists quotes_company_quote_number_uidx
+  on public.quotes (company_id, quote_number);
 
 -- ---------------------------------------------------------------------------
 -- 見積明細
@@ -289,6 +299,9 @@ create table if not exists public.invoices (
   bank_account_id text references public.bank_accounts (id) on delete set null,
   memo text not null default '',
   document_email text not null default '',
+  document_contact_name text not null default '',
+  recurring_billing_id text,
+  recurring_occurrence_date date,
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -296,6 +309,8 @@ create table if not exists public.invoices (
 
 create index if not exists invoices_company_id_idx on public.invoices (company_id);
 create index if not exists invoices_project_id_idx on public.invoices (project_id);
+create unique index if not exists invoices_company_invoice_number_uidx
+  on public.invoices (company_id, invoice_number);
 create index if not exists invoices_deleted_at_idx
   on public.invoices (deleted_at)
   where deleted_at is null;
@@ -347,6 +362,7 @@ create table if not exists public.orders (
   customer_position text,
   memo text not null default '',
   document_email text not null default '',
+  document_contact_name text not null default '',
   recipient_name text not null default '',
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
@@ -355,6 +371,8 @@ create table if not exists public.orders (
 
 create index if not exists orders_company_id_idx on public.orders (company_id);
 create index if not exists orders_project_id_idx on public.orders (project_id);
+create unique index if not exists orders_company_order_number_uidx
+  on public.orders (company_id, order_number);
 create index if not exists orders_deleted_at_idx
   on public.orders (deleted_at)
   where deleted_at is null;
@@ -404,6 +422,7 @@ create table if not exists public.delivery_notes (
   customer_position text,
   memo text not null default '',
   document_email text not null default '',
+  document_contact_name text not null default '',
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -411,6 +430,8 @@ create table if not exists public.delivery_notes (
 
 create index if not exists delivery_notes_company_id_idx on public.delivery_notes (company_id);
 create index if not exists delivery_notes_project_id_idx on public.delivery_notes (project_id);
+create unique index if not exists delivery_notes_company_delivery_note_number_uidx
+  on public.delivery_notes (company_id, delivery_note_number);
 create index if not exists delivery_notes_deleted_at_idx
   on public.delivery_notes (deleted_at)
   where deleted_at is null;
@@ -461,6 +482,7 @@ create table if not exists public.receipts (
   customer_position text,
   memo text not null default '',
   document_email text not null default '',
+  document_contact_name text not null default '',
   deleted_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -468,6 +490,8 @@ create table if not exists public.receipts (
 
 create index if not exists receipts_company_id_idx on public.receipts (company_id);
 create index if not exists receipts_project_id_idx on public.receipts (project_id);
+create unique index if not exists receipts_company_receipt_number_uidx
+  on public.receipts (company_id, receipt_number);
 create index if not exists receipts_deleted_at_idx
   on public.receipts (deleted_at)
   where deleted_at is null;
@@ -513,6 +537,34 @@ create table if not exists public.recurring_billings (
 );
 
 create index if not exists recurring_billings_company_id_idx on public.recurring_billings (company_id);
+
+-- 請求書 ← 定期請求の請求回（invoices は上位で作成済みのため後付け）
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'invoices_recurring_billing_id_fkey'
+  ) then
+    alter table public.invoices
+      add constraint invoices_recurring_billing_id_fkey
+      foreign key (recurring_billing_id)
+      references public.recurring_billings (id)
+      on delete set null;
+  end if;
+end $$;
+
+create index if not exists invoices_recurring_billing_id_idx
+  on public.invoices (recurring_billing_id)
+  where recurring_billing_id is not null;
+
+create unique index if not exists invoices_recurring_occurrence_uidx
+  on public.invoices (
+    company_id,
+    recurring_billing_id,
+    recurring_occurrence_date
+  )
+  where recurring_billing_id is not null
+    and recurring_occurrence_date is not null
+    and deleted_at is null;
 
 create table if not exists public.recurring_billing_items (
   id text primary key,
@@ -751,3 +803,103 @@ $$;
 
 revoke all on function public.ensure_user_profile(text) from public;
 grant execute on function public.ensure_user_profile(text) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 帳票番号カウンタ + 採番 RPC（既存環境は add-document-number-allocation.sql）
+-- ---------------------------------------------------------------------------
+create table if not exists public.document_number_counters (
+  company_id text not null references public.companies (id) on delete cascade,
+  doc_kind text not null
+    check (doc_kind in ('quote', 'order', 'delivery_note', 'invoice', 'receipt')),
+  year integer not null
+    check (year >= 2000 and year <= 2100),
+  last_value integer not null default 0
+    check (last_value >= 0),
+  primary key (company_id, doc_kind, year)
+);
+
+alter table public.document_number_counters enable row level security;
+
+drop policy if exists document_number_counters_select on public.document_number_counters;
+create policy document_number_counters_select
+  on public.document_number_counters
+  for select
+  using (company_id = public.current_company_id());
+
+create or replace function public.allocate_document_number(
+  p_doc_kind text,
+  p_year integer
+)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_company_id text;
+  v_prefix text;
+  v_next integer;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated'
+      using errcode = '28000';
+  end if;
+
+  v_company_id := public.current_company_id();
+  if v_company_id is null or length(trim(v_company_id)) = 0 then
+    raise exception 'company context missing'
+      using errcode = '42501';
+  end if;
+
+  if not public.can_write_company_data(v_company_id) then
+    raise exception 'permission denied to allocate document number'
+      using errcode = '42501';
+  end if;
+
+  if p_doc_kind is null
+     or p_doc_kind not in ('quote', 'order', 'delivery_note', 'invoice', 'receipt') then
+    raise exception 'invalid document kind: %', p_doc_kind;
+  end if;
+
+  if p_year is null or p_year < 2000 or p_year > 2100 then
+    raise exception 'invalid year: %', p_year;
+  end if;
+
+  v_prefix := case p_doc_kind
+    when 'quote' then 'QT'
+    when 'order' then 'OR'
+    when 'delivery_note' then 'DN'
+    when 'invoice' then 'INV'
+    when 'receipt' then 'RC'
+  end;
+
+  insert into public.document_number_counters as c (
+    company_id, doc_kind, year, last_value
+  ) values (
+    v_company_id, p_doc_kind, p_year, 0
+  )
+  on conflict (company_id, doc_kind, year) do nothing;
+
+  update public.document_number_counters
+  set last_value = last_value + 1
+  where company_id = v_company_id
+    and doc_kind = p_doc_kind
+    and year = p_year
+  returning last_value into v_next;
+
+  if v_next is null then
+    raise exception 'failed to allocate document number';
+  end if;
+
+  return format(
+    '%s-%s-%s',
+    v_prefix,
+    p_year::text,
+    lpad(v_next::text, 4, '0')
+  );
+end;
+$$;
+
+revoke all on function public.allocate_document_number(text, integer) from public;
+grant execute on function public.allocate_document_number(text, integer) to authenticated;

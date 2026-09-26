@@ -87,6 +87,14 @@ import {
 } from "@/components/orders/create-order-dialogs";
 import { AuditTrailPanel } from "@/components/shared/audit-trail-panel";
 import { ActivityLogPanel } from "@/components/shared/activity-log-panel";
+import {
+  canCreateDeliveryNote,
+  canCreateInvoice,
+  canCreateOrder,
+  canCreateQuote,
+  canCreateReceipt,
+} from "@/lib/document-creation-policy";
+import { provisionSimpleProjectDocuments } from "@/lib/services/provision-simple-documents";
 
 type ProjectDetailProps = {
   project: ProjectListItem;
@@ -118,6 +126,8 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
 
   const liveProject =
     useProjectStore((s) => s.projects.find((p) => p.id === project.id)) ?? project;
+  const workflowMode = liveProject.workflowMode ?? "standard";
+  const isSimpleProject = workflowMode === "simple";
   const quotes = useQuoteStore((s) => s.quotes);
   const projectItemsList = useProjectItemStore((s) => s.projectItems);
   const invoicesList = useInvoiceStore((s) => s.invoices);
@@ -244,9 +254,25 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
     [receiptsList, liveProject.id]
   );
 
-  const canCreateOrder = canWrite && liveProject.status !== "lost";
-  const canCreateDelivery = canWrite && liveProject.status === "completed";
-  const canCreateReceipt = canWrite && Boolean(latestInvoice);
+  const creationCtx = {
+    workflowMode,
+    projectStatus: liveProject.status,
+    hasInvoice: Boolean(latestInvoice),
+    simpleDocumentsInitialized: Boolean(
+      liveProject.simpleDocumentsInitializedAt
+    ),
+  };
+  const quoteCreateDecision = canCreateQuote(creationCtx);
+  const orderCreateDecision = canCreateOrder(creationCtx);
+  const deliveryCreateDecision = canCreateDeliveryNote(creationCtx);
+  const invoiceCreateDecision = canCreateInvoice(creationCtx);
+  const receiptCreateDecision = canCreateReceipt(creationCtx);
+
+  const canCreateQuoteDoc = canWrite && quoteCreateDecision.allowed;
+  const canCreateOrderDoc = canWrite && orderCreateDecision.allowed;
+  const canCreateDelivery = canWrite && deliveryCreateDecision.allowed;
+  const canCreateInvoiceDoc = canWrite && invoiceCreateDecision.allowed;
+  const canCreateReceiptDoc = canWrite && receiptCreateDecision.allowed;
 
   const selectableQuotes = useMemo(
     () =>
@@ -273,6 +299,23 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
   const [orderConfirmQuote, setOrderConfirmQuote] = useState<QuoteRecord | null>(
     null
   );
+
+  const [provisioningSimpleDocs, setProvisioningSimpleDocs] = useState(false);
+
+  const handleRetrySimpleDocuments = async () => {
+    if (!canWrite || provisioningSimpleDocs) return;
+    try {
+      setProvisioningSimpleDocs(true);
+      await provisionSimpleProjectDocuments(liveProject.id);
+      toast.success("書類一式を作成しました");
+    } catch (error) {
+      toast.error("書類一式の作成に失敗しました", {
+        description: formatSupabaseError(error),
+      });
+    } finally {
+      setProvisioningSimpleDocs(false);
+    }
+  };
 
   const handleAction = async (action: ProjectActionType) => {
     if (!canWrite) {
@@ -443,11 +486,19 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
       setCreatingQuote(true);
       const { ensureDraftQuoteForProject, updateQuoteStatus } = await import("@/lib/services/quotes");
       const quote = await ensureDraftQuoteForProject(projectRecord);
-      if (!quote) return;
+      if (!quote) {
+        toast.error("見積書の作成に失敗しました");
+        return;
+      }
       // 提出済み（sent）扱いにして、ユーザーに「提出済みにする」を押させない
       await updateQuoteStatus(quote.id, "sent");
       toast.success("見積書を作成して表示しました");
       router.push(`/quotes/${quote.id}`);
+    } catch (error) {
+      console.error("handleCreateQuoteAndOpen", error);
+      toast.error("見積書を開けませんでした", {
+        description: formatSupabaseError(error),
+      });
     } finally {
       setCreatingQuote(false);
     }
@@ -566,28 +617,58 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
         description={project.customerName}
       />
 
-      <ProjectNextStepsPanel
-        projectId={liveProject.id}
-        status={liveProject.status}
-        nextAction={nextAction}
-        invoiceStatus={projectInvoiceState.invoiceStatus}
-        paymentStatus={projectInvoiceState.paymentStatus}
-        latestQuoteId={latestQuote?.id}
-        invoices={invoicesList}
-        onAction={handleAction}
-        loadingAction={loadingAction}
-        onCreateQuoteAndOpen={handleCreateQuoteAndOpen}
-        creatingQuote={creatingQuote}
-      />
+      {!isSimpleProject ? (
+        <ProjectNextStepsPanel
+          projectId={liveProject.id}
+          status={liveProject.status}
+          nextAction={nextAction}
+          invoiceStatus={projectInvoiceState.invoiceStatus}
+          paymentStatus={projectInvoiceState.paymentStatus}
+          latestQuoteId={latestQuote?.id}
+          invoices={invoicesList}
+          onAction={handleAction}
+          loadingAction={loadingAction}
+          onCreateQuoteAndOpen={handleCreateQuoteAndOpen}
+          creatingQuote={creatingQuote}
+        />
+      ) : null}
+
+      {isSimpleProject &&
+      canWrite &&
+      !liveProject.simpleDocumentsInitializedAt ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <p className="font-medium">書類一式がまだ作成されていません</p>
+          <p className="mt-1 text-amber-800/80">
+            見積・注文・納品・請求・領収をまとめて作成できます。
+          </p>
+          <button
+            type="button"
+            disabled={provisioningSimpleDocs}
+            onClick={() => void handleRetrySimpleDocuments()}
+            className={cn(
+              buttonVariants({ size: "sm" }),
+              "mt-3 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800"
+            )}
+          >
+            {provisioningSimpleDocs ? "作成中…" : "書類一式を作成"}
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <ProjectStatusBadge status={liveProject.status} />
+        {!isSimpleProject ? (
+          <ProjectStatusBadge status={liveProject.status} />
+        ) : (
+          <span className="rounded-md bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
+            簡易モード
+          </span>
+        )}
         {liveProject.archived && (
           <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-600">
             アーカイブ済み
           </span>
         )}
-        {billingStatus ? (
+        {!isSimpleProject && billingStatus ? (
           <BillingProjectStatusBadge status={billingStatus} />
         ) : null}
         <span className="ml-auto rounded-lg bg-zinc-100 px-3 py-1 text-sm font-semibold tabular-nums text-zinc-700">
@@ -692,7 +773,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                     顧客・案件情報は自動反映されます。テンプレを選ぶか手入力で作成できます。
                   </p>
                 </div>
-                {canWrite ? (
+                {canCreateQuoteDoc ? (
                   <Link
                     href={`/quotes/new?projectId=${project.id}`}
                     className={cn(
@@ -702,6 +783,10 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                   >
                     見積を作成
                   </Link>
+                ) : canWrite ? (
+                  <span className="rounded-xl bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-500">
+                    {quoteCreateDecision.reason ?? "作成できません"}
+                  </span>
                 ) : null}
               </div>
             </div>
@@ -714,7 +799,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                     この案件に紐づく見積書 {projectQuotes.length}件
                   </p>
                 </div>
-                {canWrite ? (
+                {canCreateQuoteDoc ? (
                   <Link
                     href={`/quotes/new?projectId=${project.id}`}
                     className={cn(
@@ -775,7 +860,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                           編集
                         </Link>
                       ) : null}
-                      {canWrite ? (
+                      {canCreateQuoteDoc ? (
                         <Link
                           href={`/quotes/new?projectId=${project.id}`}
                           className={cn(
@@ -799,8 +884,8 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
             label="注文書"
             emptyTitle="まだ注文書がありません"
             emptyDescription="「注文書を作成」で、見積書または案件の内容を引き継いで作成できます。"
-            canCreate={canCreateOrder}
-            blockedHint="失注案件では作成できません"
+            canCreate={canCreateOrderDoc}
+            blockedHint={orderCreateDecision.reason ?? "作成できません"}
             createLabel="注文書を作成"
             creating={creatingOrder}
             onCreate={handleCreateOrder}
@@ -814,9 +899,15 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
           <ProjectDocumentTab
             label="納品書"
             emptyTitle="まだ納品書がありません"
-            emptyDescription="作業完了後、「納品書を作成」で作成できます。"
+            emptyDescription={
+              deliveryCreateDecision.allowed
+                ? "「納品書を作成」で案件の内容を引き継いで作成できます。"
+                : "作業完了後、「納品書を作成」で作成できます。"
+            }
             canCreate={canCreateDelivery}
-            blockedHint="作業完了後に作成できます"
+            blockedHint={
+              deliveryCreateDecision.reason ?? "作業完了後に作成できます"
+            }
             createLabel="納品書を作成"
             creating={creatingDelivery}
             onCreate={handleCreateDeliveryNote}
@@ -849,7 +940,8 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                         ? "有効な請求書がありません"
                         : "まだ請求書がありません"}
                     </h3>
-                    {liveProject.status !== "completed" ? (
+                    {liveProject.status !== "completed" &&
+                    !invoiceCreateDecision.allowed ? (
                       <p className="mt-2 text-sm text-zinc-500">
                         案件が完了すると、見積の内容をコピーして請求書を生成できます。
                       </p>
@@ -865,7 +957,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                       </p>
                     )}
                   </div>
-                  {liveProject.status === "completed" && canWrite ? (
+                  {canCreateInvoiceDoc ? (
                     latestQuote ? (
                       <Link
                         href={resolveProjectInvoiceHref(liveProject.id)}
@@ -876,9 +968,9 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                       >
                         {invoiceTabState.hasOnlyCancelled
                           ? "再発行する"
-                          : "請求書を発行"}
+                          : "請求書を作成"}
                       </Link>
-                    ) : (
+                    ) : canCreateQuoteDoc ? (
                       <Link
                         href={`/quotes/new?projectId=${project.id}`}
                         className={cn(
@@ -888,10 +980,10 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                       >
                         見積を作成
                       </Link>
-                    )
-                  ) : liveProject.status !== "completed" ? (
+                    ) : null
+                  ) : !invoiceCreateDecision.allowed ? (
                     <span className="rounded-xl bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-500">
-                      案件完了後に生成
+                      {invoiceCreateDecision.reason ?? "案件完了後に生成"}
                     </span>
                   ) : null}
                 </div>
@@ -908,7 +1000,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                       この案件には複数の有効な請求書があります。
                     </p>
                   </div>
-                  {liveProject.status === "completed" && canWrite && (
+                  {canCreateInvoiceDoc && (
                     <Link
                       href={buildProjectInvoiceHref(liveProject.id, {
                         type: "additional",
@@ -1014,7 +1106,7 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
                         編集
                       </Link>
                     )}
-                    {liveProject.status === "completed" && canWrite && (
+                    {canCreateInvoiceDoc && (
                       <Link
                         href={buildProjectInvoiceHref(liveProject.id, {
                           type: "additional",
@@ -1064,8 +1156,10 @@ export function ProjectDetail({ project, history }: ProjectDetailProps) {
             label="領収書"
             emptyTitle="まだ領収書がありません"
             emptyDescription="請求書作成後、「領収書を作成」で作成できます（入金前でも印刷可能）。"
-            canCreate={canCreateReceipt}
-            blockedHint="請求書作成後に作成できます"
+            canCreate={canCreateReceiptDoc}
+            blockedHint={
+              receiptCreateDecision.reason ?? "請求書作成後に作成できます"
+            }
             createLabel="領収書を作成"
             creating={creatingReceipt}
             onCreate={handleCreateReceipt}

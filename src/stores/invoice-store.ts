@@ -25,6 +25,8 @@ import {
   UNKNOWN_CUSTOMER_LABEL,
 } from "@/lib/project-display";
 import { pickCustomerHonorific } from "@/lib/customer-honorific";
+import { RecurringOccurrenceConflictError } from "@/lib/db/errors";
+import { allocateDocumentNumberLocal } from "@/lib/document-number";
 import {
   calculateDocumentTotals,
   pickDocumentDiscount,
@@ -55,16 +57,6 @@ function computeTotals(
     taxAmount: totals.taxAmount,
     totalAmount: totals.totalAmount,
   };
-}
-
-function yearOf(date: string) {
-  return date.slice(0, 4);
-}
-
-function nextInvoiceNumber(issueDate: string, existing: InvoiceRecord[]) {
-  const y = yearOf(issueDate);
-  const count = existing.filter((q) => q.invoiceNumber.startsWith(`INV-${y}-`)).length + 1;
-  return `INV-${y}-${String(count).padStart(4, "0")}`;
 }
 
 type InvoiceStore = {
@@ -160,9 +152,30 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
   },
 
   createInvoice: (input) => {
+    const recurringBillingId = input.recurringBillingId?.trim() || null;
+    const recurringOccurrenceDate = input.recurringOccurrenceDate?.trim() || null;
+    if (recurringBillingId && recurringOccurrenceDate) {
+      const conflict = get().invoices.find(
+        (inv) =>
+          !inv.deletedAt &&
+          inv.recurringBillingId === recurringBillingId &&
+          inv.recurringOccurrenceDate === recurringOccurrenceDate
+      );
+      if (conflict) {
+        throw new RecurringOccurrenceConflictError(
+          recurringBillingId,
+          recurringOccurrenceDate
+        );
+      }
+    }
+
     const now = new Date().toISOString();
     const invoiceId = id("inv_");
-    const invoiceNumber = nextInvoiceNumber(input.issueDate, get().invoices);
+    const invoiceNumber = allocateDocumentNumberLocal(
+      "invoice",
+      input.issueDate,
+      get().invoices.map((inv) => inv.invoiceNumber)
+    );
 
     const items: InvoiceItemRecord[] = input.items.map((it, idx) => {
       const amount = it.quantity * it.unitPrice;
@@ -211,8 +224,11 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       memo: input.memo,
       memoFontSize: input.memoFontSize ?? "normal",
       documentEmail: input.documentEmail ?? "",
+      documentContactName: input.documentContactName ?? "",
       paymentTerms: input.paymentTerms,
       bankAccountId: input.bankAccountId ?? null,
+      recurringBillingId: input.recurringBillingId?.trim() || null,
+      recurringOccurrenceDate: input.recurringOccurrenceDate?.trim() || null,
       createdBy: null,
       updatedBy: null,
       createdAt: now,
@@ -292,6 +308,8 @@ export const useInvoiceStore = create<InvoiceStore>((set, get) => ({
       memo: input.memo,
       memoFontSize: input.memoFontSize ?? "normal",
       documentEmail: input.documentEmail ?? "",
+      documentContactName:
+        input.documentContactName?.trim() || existing.documentContactName || "",
       paymentTerms: input.paymentTerms,
       bankAccountId: input.bankAccountId ?? null,
       updatedAt: now,
